@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Home — FourLab Roteiros</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="shell" id="appShell">
+  <div id="sidebarMount"></div>
+  <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main>
+</div>
+
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const State = { athletes:[], cycles:{}, currentCycleYM: monthKey(todayISO()), exemplosBonsCache: null };
+
+function daysInMonth(ym){
+  const [y,m] = ym.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function athleteName(id){ const a = State.athletes.find(x=>x.id===id); return a?a.name:'(removido)'; }
+function mapEntryFromDB(r){
+  return {
+    id:r.id, athleteId:r.athlete_id, team:r.team, product:r.product, theme:r.theme,
+    format:r.format, date:r.post_date, roteiro:r.roteiro||'',
+    status:{
+      postou:r.postou, collab:r.collab, obs:r.obs||'',
+      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0}
+    }
+  };
+}
+function getOrCreateCycle(ym){
+  if(!State.cycles[ym]){
+    State.cycles[ym] = {ym, id:null, themeGeral:'', trendsNotes:'', briefingText:'', briefingFileUrl:'', briefingFileName:'', entries:[]};
+  }
+  return State.cycles[ym];
+}
+
+async function carregarMes(ym){
+  const { data: cycleRow } = await sb.from('cycles').select('*').eq('ym', ym).maybeSingle();
+  if(!cycleRow){
+    State.cycles[ym] = {ym, id:null, themeGeral:'', trendsNotes:'', briefingText:'', briefingFileUrl:'', briefingFileName:'', entries:[]};
+    return;
+  }
+  const { data: entriesData } = await sb.from('entries').select('*').eq('cycle_id', cycleRow.id);
+  State.cycles[ym] = {
+    ym, id:cycleRow.id, themeGeral:cycleRow.theme_geral||'', trendsNotes:cycleRow.trends_notes||'',
+    briefingText:cycleRow.briefing_text||'', briefingFileUrl:cycleRow.briefing_file_url||'', briefingFileName:cycleRow.briefing_file_name||'',
+    entries: (entriesData||[]).map(mapEntryFromDB)
+  };
+}
+
+async function buscarExemplosBons(limit){
+  const { data } = await sb.from('roteiro_exemplos').select('roteiro_text, team, produto, formato')
+    .eq('tipo', 'bom').order('created_at', {ascending:false}).limit(limit||3);
+  return data || [];
+}
+
+function calendarGridHtml(ym){
+  const cycle = getOrCreateCycle(ym);
+  const nDays = daysInMonth(ym);
+  const [y,m] = ym.split('-').map(Number);
+  const firstWeekday = new Date(y, m-1, 1).getDay();
+  const byDay = {};
+  cycle.entries.forEach(e=>{
+    const day = Number(e.date.split('-')[2]);
+    (byDay[day] = byDay[day] || []).push(e);
+  });
+  let cells = '';
+  for(let i=0;i<firstWeekday;i++) cells += `<div class="cal-cell empty"></div>`;
+  for(let d=1; d<=nDays; d++){
+    const items = byDay[d] || [];
+    cells += `<div class="cal-cell">
+      <div class="cal-day">${d}</div>
+      ${items.map(e=>`<div class="cal-chip team-${(e.team||'').replace(/\s/g,'')}" title="${e.product}">${athleteName(e.athleteId)}</div>`).join('')}
+    </div>`;
+  }
+  return `
+    <style>
+      .cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:6px;}
+      .cal-head{font-size:10.5px; font-weight:800; color:var(--muted); text-align:center; text-transform:uppercase; padding-bottom:4px;}
+      .cal-cell{min-height:70px; border:1px solid var(--line); border-radius:8px; padding:5px; background:var(--paper);}
+      .cal-cell.empty{border:none; background:transparent;}
+      .cal-day{font-size:10.5px; font-weight:700; color:var(--muted); margin-bottom:3px;}
+      .cal-chip{font-size:10px; font-weight:700; padding:2px 5px; border-radius:5px; margin-bottom:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    </style>
+    <div class="cal-grid">
+      ${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="cal-head">${d}</div>`).join('')}
+      ${cells}
+    </div>`;
+}
+
+function computeDashboardStats(ym){
+  const cycle = getOrCreateCycle(ym);
+  const entries = cycle.entries || [];
+  const stats = { total: entries.length, postouSim:0, postouNao:0, postouPendente:0,
+    views:0, likes:0, comments:0, shares:0, saves:0, byTeam:{}, byFormat:{'Vídeo':0,'Carrossel':0}, topAtletas:[] };
+  entries.forEach(e=>{
+    const s = e.status || {};
+    if(s.postou==='sim') stats.postouSim++;
+    else if(s.postou==='nao') stats.postouNao++;
+    else stats.postouPendente++;
+    const met = s.metrics || {};
+    stats.views += Number(met.views)||0; stats.likes += Number(met.likes)||0;
+    stats.comments += Number(met.comments)||0; stats.shares += Number(met.shares)||0; stats.saves += Number(met.saves)||0;
+    stats.byTeam[e.team] = (stats.byTeam[e.team]||0) + 1;
+    stats.byFormat[e.format] = (stats.byFormat[e.format]||0) + 1;
+    stats.topAtletas.push({name:athleteName(e.athleteId), views:Number(met.views)||0});
+  });
+  stats.topAtletas.sort((a,b)=>b.views-a.views);
+  stats.topAtletas = stats.topAtletas.slice(0,5).filter(a=>a.views>0);
+  return stats;
+}
+
+function barChartHtml(data){
+  const max = Math.max(1, ...data.map(d=>d.value));
+  return `<div style="display:flex; flex-direction:column; gap:8px;">
+    ${data.map(d=>`
+      <div>
+        <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:3px;">
+          <span style="font-weight:700;">${d.label}</span><span style="color:var(--muted);">${d.value}</span>
+        </div>
+        <div style="background:var(--paper); border-radius:6px; height:10px; overflow:hidden;">
+          <div style="width:${(d.value/max*100)}%; height:100%; background:${d.color||'var(--orange)'}; border-radius:6px;"></div>
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function viewHome(){
+  const ym = State.currentCycleYM;
+  const stats = computeDashboardStats(ym);
+  const teamColors = {Trek:'#1d4ed8',Audax:'#b5680a',Oggi:'#0f7a3d',Brou:'var(--pink)',Scott:'var(--purple)','4Fun':'#c99a00',Avulsos:'#888'};
+  const teamData = Object.keys(stats.byTeam).map(t=>({label:t, value:stats.byTeam[t], color:teamColors[t]}));
+  const taxaPostagem = stats.total ? Math.round((stats.postouSim/stats.total)*100) : 0;
+
+  return `
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;">
+      <div><h2 style="font-family:var(--font-display); font-size:20px; letter-spacing:0.3px;">Calendário — ${fmtMonthLabel(ym)}</h2><div class="desc">${stats.total} posts neste mês.</div></div>
+      <input type="month" id="homeMonth" value="${ym}" style="width:auto;">
+    </div>
+  </div>
+  <div class="panel">${calendarGridHtml(ym)}</div>
+
+  <div class="section-title" style="margin-top:24px;">Visão geral do mês</div>
+  <div class="grid-3">
+    <div class="panel" style="text-align:center;">
+      <div style="font-family:var(--font-display); font-size:34px; color:var(--orange);">${stats.total}</div>
+      <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase;">Posts agendados</div>
+    </div>
+    <div class="panel" style="text-align:center;">
+      <div style="font-family:var(--font-display); font-size:34px; color:var(--pink);">${taxaPostagem}%</div>
+      <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase;">Taxa de postagem confirmada</div>
+    </div>
+    <div class="panel" style="text-align:center;">
+      <div style="font-family:var(--font-display); font-size:34px; color:var(--purple);">${stats.views.toLocaleString('pt-BR')}</div>
+      <div style="font-size:11.5px; color:var(--muted); font-weight:700; text-transform:uppercase;">Visualizações somadas</div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:14px;">
+    <div class="panel">
+      <h2>Posts por equipe</h2>
+      ${teamData.length ? barChartHtml(teamData) : '<div class="desc">Sem posts agendados ainda este mês.</div>'}
+    </div>
+    <div class="panel">
+      <h2>Engajamento somado</h2>
+      ${barChartHtml([
+        {label:'Curtidas', value:stats.likes, color:'var(--orange)'},
+        {label:'Comentários', value:stats.comments, color:'var(--pink)'},
+        {label:'Compartilhamentos', value:stats.shares, color:'var(--purple)'},
+        {label:'Salvos', value:stats.saves, color:'var(--yellow)'},
+      ])}
+    </div>
+  </div>
+
+  ${stats.topAtletas.length ? `
+  <div class="panel" style="margin-top:14px;">
+    <h2>Top 5 atletas — visualizações</h2>
+    ${barChartHtml(stats.topAtletas.map(a=>({label:a.name, value:a.views, color:'var(--orange)'})))}
+  </div>` : ''}
+
+  <div class="panel" style="margin-top:14px;">
+    <h2>🏆 Posts campeões</h2>
+    <div class="desc">Roteiros marcados como bom exemplo (👍) na aba de roteiros — servem de referência e alimentam a geração dos próximos.</div>
+    ${State.exemplosBonsCache === null ? '<div style="color:var(--muted); font-size:12px; margin-top:10px;">Carregando...</div>' :
+      (State.exemplosBonsCache.length === 0 ? '<div style="color:var(--muted); font-size:12px; margin-top:10px;">Nenhum exemplo marcado ainda.</div>' :
+      State.exemplosBonsCache.map(ex=>`
+        <div style="border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-top:10px;">
+          <div style="font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; margin-bottom:4px;">${ex.team||'—'} · ${ex.produto||'—'} · ${ex.formato||'—'}</div>
+          <div style="font-size:12px; white-space:pre-wrap; max-height:80px; overflow:hidden;">${(ex.roteiro_text||'').slice(0,260)}${ex.roteiro_text&&ex.roteiro_text.length>260?'...':''}</div>
+        </div>
+      `).join(''))}
+  </div>`;
+}
+
+async function render(){
+  document.getElementById('main').innerHTML = viewHome();
+  const monthInput = document.getElementById('homeMonth');
+  monthInput.onchange = async ()=>{
+    State.currentCycleYM = monthInput.value;
+    document.getElementById('main').innerHTML = `<div class="empty-state"><span class="loader"></span></div>`;
+    await carregarMes(State.currentCycleYM);
+    render();
+  };
+}
+
+(async function start(){
+  const auth = await guardStaff('home');
+  if(!auth) return;
+  const { data: athletesData } = await sb.from('athletes').select('*').order('team').order('name');
+  State.athletes = (athletesData||[]).map(mapAthleteFromDB);
+  await carregarMes(State.currentCycleYM);
+  render();
+  buscarExemplosBons(6).then(data=>{ State.exemplosBonsCache = data; render(); });
+})();
+</script>
+</body>
+</html>

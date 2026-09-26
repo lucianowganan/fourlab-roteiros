@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FourLab — Entrar</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div id="loginScreen">
+  <div id="loginBox">
+    <div class="logoWrap">
+      <img id="loginLogo" alt="FourLab">
+    </div>
+    <h2>Roteiros &amp; Atletas</h2>
+    <div class="sub">Painel interno de marketing</div>
+    <div class="field"><label>Usuário ou e-mail</label><input id="loginEmail" type="text" autocomplete="username" placeholder="e-mail (equipe) ou usuário (atleta)"></div>
+    <div class="field"><label>Senha</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+    <button class="btn btn-primary" id="btnLogin" style="width:100%; margin-top:6px;">Entrar</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+document.getElementById('loginLogo').src = LOGO_SIMBOLO_BRANCO;
+document.getElementById('loginLogo').style.cssText = 'height:44px;width:auto;filter:invert(1) grayscale(1) brightness(0.15);';
+
+(async function checkSessaoExistente(){
+  const user = await getSessionUser();
+  if(user){
+    const profile = await loadProfile(user.id);
+    location.href = profile.role === 'atleta' ? 'atleta-roteiros.html' : 'home.html';
+  }
+})();
+
+async function tryLogin(){
+  const raw = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if(!raw || !password){ errEl.textContent = 'Preencha usuário/e-mail e senha'; errEl.style.display = 'block'; return; }
+  const email = raw.includes('@') ? raw : `${raw.toLowerCase()}@atletas.fourlabnutri.internal`;
+  const btn = document.getElementById('btnLogin');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loader"></span> Entrando...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  btn.textContent = 'Entrar';
+  if(error){
+    errEl.textContent = 'Usuário/e-mail ou senha incorretos.';
+    errEl.style.display = 'block';
+    return;
+  }
+  const profile = await loadProfile(data.session.user.id);
+  location.href = profile.role === 'atleta' ? 'atleta-roteiros.html' : 'home.html';
+}
+
+document.getElementById('btnLogin').onclick = tryLogin;
+document.getElementById('loginPassword').addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
+</script>
+</body>
+</html>
