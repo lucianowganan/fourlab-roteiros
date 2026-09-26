@@ -1,6 +1,11 @@
   @import url('https://fonts.googleapis.com/css2?family=Maven+Pro:wght@400;500;600;700;800;900&display=swap');
-  @import url('https://fonts.cdnfonts.com/css/prohibition');
   @import url('https://fonts.cdnfonts.com/css/clarify');
+  /* Clarify MD (títulos). Se tiver o arquivo da fonte, coloque em fonts/clarify-md.woff2 — senão usa a Clarify do cdnfonts. */
+  @font-face{
+    font-family:'Clarify MD';
+    src:local('Clarify MD'), local('ClarifyMD'), local('Clarify-Md'), url('fonts/clarify-md.woff2') format('woff2'), url('fonts/clarify-md.otf') format('opentype');
+    font-weight:100 900; font-display:swap;
+  }
   :root{
     --orange:#e96709;
     --orange-soft:#fdebdc;
@@ -22,11 +27,14 @@
     --radius:22px;
     --radius-sm:14px;
     --shadow:0 1px 2px rgba(26,19,21,0.04), 0 6px 24px rgba(26,19,21,0.05);
-    --font-display:'Prohibition', 'Maven Pro', sans-serif;
-    --font-accent:'Clarify', 'Maven Pro', sans-serif;
+    --font-title:'Clarify MD', 'Clarify', 'Maven Pro', sans-serif;
+    --font-display:var(--font-title);
+    --font-accent:var(--font-title);
     font-family:'Maven Pro', 'Segoe UI', system-ui, sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
+  h1,h2,h3,h4,.page-head h1,.tf-name,.pc-name,.pname,.promo-card h3,.kcol-pill,.k-title{ font-family:var(--font-title); color:var(--ink); }
+  .soft{ color:inherit !important; font-weight:inherit !important; }
   body{
     background:var(--paper);
     color:var(--ink);
@@ -56,18 +64,8 @@
     transition:width .26s cubic-bezier(.4,0,.2,1);
   }
   .sidebar:hover{ width:232px; }
-  .sidebar .brand-sub{
-    font-family:var(--font-accent);
-    font-size:11px;
-    opacity:0;
-    max-width:0;
-    margin-bottom:28px;
-    text-transform:uppercase;
-    letter-spacing:0.8px;
-    white-space:nowrap;
-    transition:opacity .18s ease .05s;
-  }
-  .sidebar:hover .brand-sub{ opacity:0.7; max-width:none; }
+  .sidebar-logo{ width:48px; height:32px; display:flex; justify-content:center; align-items:center; margin-bottom:30px; flex-shrink:0; }
+  .sidebar-logo img{ height:32px; width:auto; display:block; }
   .sidebar-nav{
     display:flex;
     flex-direction:column;
@@ -117,7 +115,8 @@
     .page-head h1{font-size:24px;}
     .kanban{grid-template-columns:repeat(4, 82vw);}
     .sidebar{position:relative !important; top:0; left:0; bottom:auto; margin:12px 16px 0; width:auto !important; flex-direction:row; align-items:center; overflow-x:auto; overflow-y:visible; height:auto; padding:10px 14px; border-radius:20px;}
-    .sidebar .brand-sub, .sidebar-footer{display:none;}
+    .sidebar-footer{display:none;}
+    .sidebar-logo{margin:0 8px 0 0; width:auto;}
     .sidebar .nav-btn .label{opacity:1 !important;}
     .sidebar-nav{flex-direction:row; gap:6px;}
     .sidebar:hover{width:auto !important;}
@@ -142,7 +141,6 @@
   .page-head h1{
     font-size:30px; font-weight:600; letter-spacing:-0.5px; line-height:1.1; color:var(--ink);
   }
-  .page-head h1 .soft{ color:var(--muted); font-weight:500; }
   .page-head .sub{ font-size:13px; color:var(--muted); margin-top:6px; }
 
   /* ---------- CARDS ---------- */
@@ -192,7 +190,7 @@
   .span-3{grid-column:span 3;} .span-4{grid-column:span 4;} .span-5{grid-column:span 5;}
   .span-6{grid-column:span 6;} .span-7{grid-column:span 7;} .span-8{grid-column:span 8;} .span-12{grid-column:span 12;}
   @media (max-width:1080px){ .grid-4{grid-template-columns:1fr 1fr;} .span-3{grid-column:span 6;} .span-4,.span-5,.span-7,.span-8{grid-column:span 12;} }
-  @media (max-width:720px){ .grid-2,.grid-3{grid-template-columns:1fr;} .grid-4{grid-template-columns:1fr 1fr; gap:12px;} .kpi .kpi-value{font-size:22px;} .span-3,.span-6{grid-column:span 12;} }
+  @media (max-width:720px){ .grid-2,.grid-3{grid-template-columns:1fr;} .grid-4{grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px;} .grid-4 > .card{padding:16px;} .kpi .kpi-value{font-size:19px; overflow-wrap:anywhere;} .span-3,.span-6{grid-column:span 12;} }
 
   /* ---------- KPI / STAT TILES ---------- */
   .kpi .kpi-label{ font-size:12.5px; color:var(--muted); font-weight:600; }
