@@ -30,6 +30,26 @@ const ICONS = {
   youtube: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="6.5" width="17" height="11" rx="3"/><path d="M10.3 10 14 12l-3.7 2Z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg>`,
   pix: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 4.5a2.7 2.7 0 0 1 3.8 0l6.2 6.2a2.7 2.7 0 0 1 0 3.8l-6.2 6.2a2.7 2.7 0 0 1-3.8 0l-6.2-6.2a2.7 2.7 0 0 1 0-3.8Z"/><path d="M9 9.5h1.8a1.7 1.7 0 0 1 0 3.4H9M14.5 14.5v-5"/></svg>`,
   endereco: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/></svg>`,
+  arrow: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8.5 7H17v8.5"/></svg>`,
+  search: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  calendar: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>`,
+  copy: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>`,
+  kanban: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 4v16M15 4v16"/><path d="M6.5 8h0M12 8h0M17.5 8h0"/></svg>`,
+  inicio: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.3"/><path d="m8.5 12.2 2.3 2.3 4.7-4.8"/></svg>`,
+  chat: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 18.5 4 21l3.2-1.3A8 8 0 1 0 4.5 15"/></svg>`,
+  folder: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/></svg>`,
+  back: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>`,
+  mail: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="13" rx="3"/><path d="m4.5 7.5 7.5 5.5 7.5-5.5"/></svg>`,
+  card: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="M3 10h18M7 15h3"/></svg>`,
+  cart: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h7.9a1.5 1.5 0 0 0 1.5-1.1l1.6-6.3H6.6"/><circle cx="10" cy="19.5" r="1.2"/><circle cx="17" cy="19.5" r="1.2"/></svg>`,
+  trend: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 16 5-5 4 3 7-7"/><path d="M15 7h5v5"/></svg>`,
+  flag: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4.5M5 5h11l-2 4 2 4H5"/></svg>`,
+  lock: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>`,
+  wallet: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="4" y="7.5" width="16.5" height="12" rx="2.5"/><path d="M16 13.5h1.5"/></svg>`,
+  list: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h0M4.5 12h0M4.5 17.5h0"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg>`,
   sair: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l4-5-4-5M20 12H9"/></svg>`,
 };
 
@@ -39,6 +59,7 @@ const STAFF_NAV = [
   {id:'briefing', label:'Briefing', ic:ICONS.briefing, href:'briefing.html'},
   {id:'ciclo', label:'Mês / Roteiros', ic:ICONS.roteiro, href:'ciclo.html'},
   {id:'acompanhamento', label:'Acompanhamento', ic:ICONS.acompanhamento, href:'acompanhamento.html'},
+  {id:'crm', label:'Pipeline / CRM', ic:ICONS.kanban, href:'crm.html'},
   {id:'vendas', label:'Vendas', ic:ICONS.vendas, href:'vendas.html'},
   {id:'atletas', label:'Atletas', ic:ICONS.atletas, href:'atletas.html'},
   {id:'produtos', label:'Catálogo', ic:ICONS.produtos, href:'produtos.html'},
@@ -46,6 +67,7 @@ const STAFF_NAV = [
 ];
 
 const ATLETA_NAV = [
+  {id:'inicio', label:'Início', ic:ICONS.inicio, href:'atleta-home.html'},
   {id:'roteiros', label:'Meus Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html'},
   {id:'vendas', label:'Minhas Vendas', ic:ICONS.vendas, href:'atleta-vendas.html'},
   {id:'perfil', label:'Meu Perfil', ic:ICONS.perfil, href:'atleta-perfil.html'},
@@ -104,7 +126,7 @@ async function guardStaff(activeId){
   const user = await getSessionUser();
   if(!user){ location.href = 'login.html'; return null; }
   const profile = await loadProfile(user.id);
-  if(profile.role === 'atleta'){ location.href = 'atleta-roteiros.html'; return null; }
+  if(profile.role === 'atleta'){ location.href = 'atleta-home.html'; return null; }
   renderStaffSidebar(activeId, profile);
   return { user, profile };
 }
@@ -174,35 +196,270 @@ document.addEventListener('click', (e)=>{
   if(e.target.id === 'modalBg') closeModal();
 });
 
+/* ---------- Helpers de UI (formatação, avatar, redes sociais) ---------- */
+function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtBRL(v){ return 'R$ ' + (Number(v)||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+// R$ 1.234<span class="cents">,56</span> — centavos em cinza, como nas referências
+function fmtBRLSplit(v){
+  const [int, dec] = (Number(v)||0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}).split(',');
+  return `R$ ${int}<span class="cents">,${dec}</span>`;
+}
+function fmtNum(v){ return (Number(v)||0).toLocaleString('pt-BR'); }
+function fmtDateBR(iso){ return iso ? String(iso).slice(0,10).split('-').reverse().join('/') : '—'; }
+function shortMonth(ym){ return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(ym.split('-')[1])-1]; }
+function addMonths(ym, n){
+  const [y,m] = ym.split('-').map(Number);
+  const d = new Date(y, m-1+n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function initials(name){
+  const parts = String(name||'?').trim().split(/\s+/);
+  return ((parts[0]||'')[0] + (parts.length>1 ? parts[parts.length-1][0] : '')).toUpperCase();
+}
+const AVATAR_COLORS = ['#e96709','#731b58','#e3055f','#b5680a','#1d4ed8','#0f7a3d','#8a1668','#c99a00'];
+function avatarColor(name){
+  let h = 0; String(name||'').split('').forEach(c=> h = (h*31 + c.charCodeAt(0)) >>> 0);
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function avatarHtml(name, size){
+  return `<span class="avatar ${size||''}" style="background:${avatarColor(name)};" title="${escHtml(name)}">${escHtml(initials(name))}</span>`;
+}
+function deltaHtml(cur, prev){
+  if(!prev){ return cur ? `<span class="delta up">novo</span>` : `<span class="delta flat">—</span>`; }
+  const pct = ((cur - prev) / prev) * 100;
+  if(Math.abs(pct) < 0.5) return `<span class="delta flat">0%</span>`;
+  return `<span class="delta ${pct>0?'up':'down'}">${pct>0?'↑':'↓'} ${Math.abs(pct).toFixed(1).replace('.',',')}%</span>`;
+}
+
+// Redes sociais do atleta: aceita @usuario ou URL completa
+const SOCIAL_FIELDS = [
+  {key:'instagram', label:'Instagram', ic:'instagram', placeholder:'@seuperfil', url:v=>`https://instagram.com/${v.replace(/^@/,'')}`},
+  {key:'tiktok', label:'TikTok', ic:'tiktok', placeholder:'@seuperfil', url:v=>`https://tiktok.com/@${v.replace(/^@/,'')}`},
+  {key:'youtube', label:'YouTube', ic:'youtube', placeholder:'@seucanal', url:v=>`https://youtube.com/@${v.replace(/^@/,'')}`},
+  {key:'facebook', label:'Facebook', ic:'facebook', placeholder:'facebook.com/seuperfil', url:v=>`https://facebook.com/${v.replace(/^@/,'')}`},
+  {key:'whatsapp', label:'WhatsApp', ic:'whatsapp', placeholder:'(11) 99999-9999', url:v=>`https://wa.me/55${v.replace(/\D/g,'').replace(/^55(?=\d{10,11}$)/,'')}`},
+];
+function socialUrl(field, value){
+  const v = String(value||'').trim();
+  if(!v) return '';
+  if(/^https?:\/\//i.test(v)) return v;
+  return field.url(v);
+}
+function socialLinksHtml(a){
+  return `<div class="social-row">${SOCIAL_FIELDS.map(f=>{
+    const url = socialUrl(f, a[f.key]);
+    return `<a class="social-btn ${url?'':'off'}" ${url?`href="${escHtml(url)}" target="_blank" rel="noopener"`:''} title="${f.label}${a[f.key]?': '+escHtml(a[f.key]):''}">${ICONS[f.ic]}</a>`;
+  }).join('')}</div>`;
+}
+
+/* ---------- Drawer lateral ---------- */
+function openDrawer(html){
+  let bg = document.getElementById('drawerBg'), dr = document.getElementById('drawer');
+  if(!bg){
+    bg = document.createElement('div'); bg.id = 'drawerBg'; bg.className = 'drawer-bg'; bg.onclick = closeDrawer;
+    dr = document.createElement('aside'); dr.id = 'drawer'; dr.className = 'drawer';
+    document.body.append(bg, dr);
+  }
+  dr.innerHTML = html;
+  requestAnimationFrame(()=>{ bg.classList.add('active'); dr.classList.add('active'); });
+}
+function closeDrawer(){
+  document.getElementById('drawerBg')?.classList.remove('active');
+  document.getElementById('drawer')?.classList.remove('active');
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeDrawer(); closeModal(); } });
+
+/* ---------- Gráficos em SVG puro (sem biblioteca) ---------- */
+function niceMax(v){
+  if(v <= 0) return 100;
+  const exp = Math.pow(10, Math.floor(Math.log10(v)));
+  const f = v / exp;
+  const nf = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return nf * exp;
+}
+function compactNum(v){
+  if(v >= 1e6) return (v/1e6).toFixed(1).replace('.0','').replace('.',',') + 'M';
+  if(v >= 1e3) return (v/1e3).toFixed(1).replace('.0','').replace('.',',') + 'k';
+  return String(Math.round(v));
+}
+
+// Barras em pílula (referência 1). data = [{label, value, tip, highlight}]
+function pillBarChartHtml(data, opts){
+  opts = opts || {};
+  const W = 600, H = opts.height || 250, padL = 40, padB = 28, padT = 34;
+  const plotH = H - padB - padT, plotW = W - padL - 6;
+  const max = niceMax(Math.max(0, ...data.map(d=>d.value)) * 1.05);
+  const slot = plotW / Math.max(1, data.length);
+  const bw = Math.min(58, slot * 0.56);
+  const uid = 'hatch' + Math.random().toString(36).slice(2,7);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(t=> ({y: padT + plotH - t*plotH, v: t*max}));
+  const color = opts.color || 'var(--orange)';
+  const bars = data.map((d,i)=>{
+    const x = padL + slot*i + (slot-bw)/2;
+    const h = Math.max(d.value > 0 ? bw*0.5 : 0, (d.value/max) * plotH);
+    const y = padT + plotH - h;
+    const cx = x + bw/2;
+    const tip = escHtml(d.tip || `${d.label}: ${compactNum(d.value)}`);
+    return `
+      ${h ? `<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="${Math.min(bw/2, h/2)}" fill="${d.highlight ? color : `url(#${uid})`}" ${d.highlight?'':'opacity="0.95"'}/>` :
+        `<rect x="${x}" y="${padT+plotH-4}" width="${bw}" height="4" rx="2" fill="#ece5dd"/>`}
+      ${d.highlight && d.badge ? `<g><rect x="${cx-30}" y="${y-30}" width="60" height="22" rx="11" fill="var(--ink)"/><text x="${cx}" y="${y-15}" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="Maven Pro,sans-serif">${escHtml(d.badge)}</text></g>` : ''}
+      <text class="chart-axis" x="${cx}" y="${H-8}" text-anchor="middle" ${d.highlight?'style="fill:var(--ink); font-weight:800;"':''}>${escHtml(d.label)}</text>
+      <rect class="bar-hit" x="${padL + slot*i}" y="${padT}" width="${slot}" height="${plotH}" data-tip="${tip}" data-tx="${cx}" data-ty="${y}"/>`;
+  }).join('');
+  return `<div class="chart-wrap" data-w="${W}" data-h="${H}">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(opts.ariaLabel||'Gráfico de barras')}">
+      <defs><pattern id="${uid}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+        <rect width="8" height="8" fill="${opts.soft || '#f6c49b'}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${opts.stripe || '#f0ae78'}" stroke-width="3"/></pattern></defs>
+      ${ticks.map(t=>`<line class="chart-grid" x1="${padL}" x2="${W}" y1="${t.y}" y2="${t.y}"/><text class="chart-axis" x="${padL-8}" y="${t.y+3}" text-anchor="end">${compactNum(t.v)}</text>`).join('')}
+      ${bars}
+    </svg><div class="chart-tip"></div></div>`;
+}
+
+// Área suave (referência 1 — "Total balance"). points = [{label, value, tip}]
+function areaChartHtml(points, opts){
+  opts = opts || {};
+  const W = 600, H = opts.height || 200, padT = 16, padB = opts.axis ? 24 : 6;
+  const plotH = H - padT - padB;
+  const max = niceMax(Math.max(1, ...points.map(p=>p.value)));
+  const n = Math.max(2, points.length);
+  const xy = points.map((p,i)=> [ (i/(n-1))*W, padT + plotH - (p.value/max)*plotH ]);
+  if(xy.length === 1) xy.push([W, xy[0][1]]);
+  let d = `M${xy[0][0]},${xy[0][1]}`;
+  for(let i=0;i<xy.length-1;i++){
+    const p0 = xy[i-1]||xy[i], p1 = xy[i], p2 = xy[i+1], p3 = xy[i+2]||p2;
+    const c1 = [p1[0] + (p2[0]-p0[0])/6, p1[1] + (p2[1]-p0[1])/6];
+    const c2 = [p2[0] - (p3[0]-p1[0])/6, p2[1] - (p3[1]-p1[1])/6];
+    c1[1] = Math.min(c1[1], padT+plotH); c2[1] = Math.min(c2[1], padT+plotH);
+    d += ` C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p2[0]},${p2[1]}`;
+  }
+  const gid = 'grad' + Math.random().toString(36).slice(2,7);
+  const color = opts.color || '#e96709';
+  const slot = W / n;
+  const hits = points.map((p,i)=> `<rect class="bar-hit" x="${xy[i][0]-slot/2}" y="0" width="${slot}" height="${H}" data-tip="${escHtml(p.tip || compactNum(p.value))}" data-tx="${xy[i][0]}" data-ty="${xy[i][1]}" data-cursor="1"/>`).join('');
+  const axis = opts.axis ? points.map((p,i)=> (i % Math.ceil(n/8) === 0 || i===n-1) ? `<text class="chart-axis" x="${Math.min(W-8, Math.max(8, xy[i][0]))}" y="${H-6}" text-anchor="middle">${escHtml(p.label)}</text>` : '').join('') : '';
+  return `<div class="chart-wrap" data-w="${W}" data-h="${H}">
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(opts.ariaLabel||'Gráfico de área')}">
+      <defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity="0.32"/><stop offset="100%" stop-color="${color}" stop-opacity="0.02"/></linearGradient></defs>
+      <line class="chart-grid" x1="0" x2="${W}" y1="${padT+plotH/2}" y2="${padT+plotH/2}"/>
+      <path d="${d} L${W},${padT+plotH} L0,${padT+plotH} Z" fill="url(#${gid})"/>
+      <path d="${d}" fill="none" stroke="${color}" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+      ${axis}
+      <g class="chart-cursor" style="display:none;"><line x1="0" x2="0" y1="${padT}" y2="${padT+plotH}" stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/></g>
+      ${hits}
+    </svg><div class="chart-dot" style="position:absolute; width:12px; height:12px; border-radius:50%; background:#fff; border:3px solid ${color}; transform:translate(-50%,-50%); display:none; pointer-events:none;"></div><div class="chart-tip"></div></div>`;
+}
+
+// Anel de progresso (ex.: saldo rumo aos R$100)
+function ringHtml(pct, label, sub){
+  const r = 52, c = 2*Math.PI*r, p = Math.max(0, Math.min(1, pct));
+  return `<div style="position:relative; width:140px; height:140px; margin:0 auto;">
+    <svg viewBox="0 0 140 140" width="140" height="140"><circle cx="70" cy="70" r="${r}" fill="none" stroke="#f1ebe4" stroke-width="12"/>
+      <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--orange)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c*p} ${c}" transform="rotate(-90 70 70)"/></svg>
+    <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div style="font-size:22px; font-weight:700; font-variant-numeric:tabular-nums;">${label}</div>
+      <div style="font-size:10.5px; color:var(--muted); font-weight:700;">${sub||''}</div></div></div>`;
+}
+
+// Tooltip de todos os gráficos (delegado — funciona em qualquer render)
+document.addEventListener('mouseover', (e)=>{
+  const hit = e.target.closest && e.target.closest('.bar-hit');
+  if(!hit) return;
+  const wrap = hit.closest('.chart-wrap'), tip = wrap.querySelector('.chart-tip'), svg = wrap.querySelector('svg');
+  const sx = svg.clientWidth / Number(wrap.dataset.w), sy = svg.clientHeight / Number(wrap.dataset.h);
+  const x = Number(hit.dataset.tx) * sx, y = Number(hit.dataset.ty) * sy;
+  const [main, sub] = hit.dataset.tip.split('|');
+  tip.innerHTML = `${sub?`<span class="muted">${escHtml(sub)}</span>`:''}${escHtml(main)}`;
+  tip.style.left = x + 'px'; tip.style.top = (y - 6) + 'px'; tip.classList.add('show');
+  if(hit.dataset.cursor){
+    const cur = wrap.querySelector('.chart-cursor'), dot = wrap.querySelector('.chart-dot');
+    cur.style.display = ''; cur.setAttribute('transform', `translate(${hit.dataset.tx},0)`);
+    dot.style.display = 'block'; dot.style.left = x + 'px'; dot.style.top = y + 'px';
+  }
+});
+document.addEventListener('mouseout', (e)=>{
+  const hit = e.target.closest && e.target.closest('.bar-hit');
+  if(!hit) return;
+  const wrap = hit.closest('.chart-wrap');
+  wrap.querySelector('.chart-tip').classList.remove('show');
+  const cur = wrap.querySelector('.chart-cursor'), dot = wrap.querySelector('.chart-dot');
+  if(cur) cur.style.display = 'none';
+  if(dot) dot.style.display = 'none';
+});
+
 /* ---------- Dashboard de vendas Yampi (compartilhado equipe/atleta) ---------- */
-function dashboardVendasHtml(data){
-  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+// Série de vendas acumuladas por dia do mês, a partir da lista de pedidos
+function serieAcumuladaDoMes(pedidos, ym){
+  const [y,m] = ym.split('-').map(Number);
+  const nDays = new Date(y, m, 0).getDate();
+  const isCurrent = ym === monthKey(todayISO());
+  const lastDay = isCurrent ? Number(todayISO().slice(8,10)) : nDays;
+  const porDia = {};
+  (pedidos||[]).forEach(p=>{ const d = Number(String(p.data).slice(8,10)); porDia[d] = (porDia[d]||0) + Number(p.valor||0); });
+  let acc = 0; const pts = [];
+  for(let d=1; d<=lastDay; d++){
+    acc += porDia[d]||0;
+    pts.push({label:String(d).padStart(2,'0'), value:acc, tip:`${fmtBRL(acc)}|${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')} · ${porDia[d]?'+'+fmtBRL(porDia[d])+' no dia':'sem vendas no dia'}`});
+  }
+  return pts;
+}
+
+// opts: {cupom, comissaoPct, descontoPct, ym, prev:{valor_vendido, comissao_mes, numero_pedidos}, titulo}
+function dashboardVendasHtml(data, opts){
+  opts = opts || {};
+  const ym = opts.ym || monthKey(todayISO());
+  const prev = opts.prev || null;
+  const pedidos = (data.pedidos||[]).slice().sort((a,b)=> String(b.data).localeCompare(String(a.data)));
+  const ticket = data.numeroPedidos ? data.valorVendido / data.numeroPedidos : 0;
+  const serie = serieAcumuladaDoMes(pedidos, ym);
   return `
-  <div class="grid-2">
-    <div class="panel" style="text-align:center; background:linear-gradient(135deg, var(--purple), #501142);">
-      <div style="font-family:var(--font-display); font-size:34px; color:#fff;">R$ ${data.valorVendido.toFixed(2)}</div>
-      <div style="font-size:11px; color:rgba(255,255,255,0.75); font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">Você vendeu</div>
+  <div class="bento">
+    <div class="card span-4" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card-head" style="margin-bottom:0;"><div><h2>Cupom de vendas</h2><div class="desc">${fmtMonthLabel(ym)}</div></div>
+        <span class="ic-bubble">${ICONS.card}</span></div>
+      <div class="coupon-card">
+        <div class="cc-top"><span>FourLab · Cupom</span><span>${opts.descontoPct!=null?opts.descontoPct:10}% OFF</span></div>
+        <div><div class="cc-label">${opts.titulo || 'Total vendido no mês'}</div><div class="cc-value">${fmtBRL(data.valorVendido)}</div></div>
+        <div class="cc-bottom"><span style="font-family:monospace; font-size:14px; letter-spacing:1px;">${escHtml((opts.cupom||'').toUpperCase())}</span>
+          ${opts.cupom ? `<button class="cc-copy" onclick="navigator.clipboard.writeText('${escHtml(opts.cupom).replace(/'/g,'')}').then(()=>toast('Cupom copiado'))">Copiar</button>` : ''}</div>
+      </div>
     </div>
-    <div class="panel" style="text-align:center; background:linear-gradient(135deg, var(--orange), #b5480a);">
-      <div style="font-family:var(--font-display); font-size:34px; color:#fff;">R$ ${data.comissaoMes.toFixed(2)}</div>
-      <div style="font-size:11px; color:rgba(255,255,255,0.9); font-weight:700; text-transform:uppercase; letter-spacing:0.4px;">Você vai receber</div>
+    <div class="card span-8">
+      <div class="card-head">
+        <div><h2>Evolução das vendas no mês</h2><div class="desc">Valor acumulado dia a dia · passe o mouse pra ver cada dia</div></div>
+        <div style="text-align:right;"><div style="font-size:11.5px; color:var(--muted);">Total no mês</div>
+          <div style="font-size:24px; font-weight:600; letter-spacing:-0.4px;" class="kpi"><span class="kpi-value" style="font-size:24px; margin:0;">${fmtBRLSplit(data.valorVendido)}</span></div></div>
+      </div>
+      ${areaChartHtml(serie, {axis:true, height:190, ariaLabel:'Vendas acumuladas no mês'})}
     </div>
   </div>
+  <div class="grid-4" style="margin-bottom:18px;">
+    <div class="card kpi"><div class="kpi-label">Vendido</div><div class="kpi-value">${fmtBRLSplit(data.valorVendido)}</div>
+      <div class="kpi-foot">${deltaHtml(data.valorVendido, prev && Number(prev.valor_vendido))}<span>vs. mês anterior</span></div></div>
+    <div class="card kpi"><div class="kpi-label">Comissão${opts.comissaoPct!=null?` (${opts.comissaoPct}%)`:''}</div><div class="kpi-value" style="color:var(--orange);">${fmtBRLSplit(data.comissaoMes)}</div>
+      <div class="kpi-foot">${deltaHtml(data.comissaoMes, prev && Number(prev.comissao_mes))}<span>vs. mês anterior</span></div></div>
+    <div class="card kpi"><div class="kpi-label">Pedidos</div><div class="kpi-value">${fmtNum(data.numeroPedidos)}</div>
+      <div class="kpi-foot">${deltaHtml(data.numeroPedidos, prev && Number(prev.numero_pedidos))}<span>vs. mês anterior</span></div></div>
+    <div class="card kpi"><div class="kpi-label">Ticket médio</div><div class="kpi-value">${fmtBRLSplit(ticket)}</div>
+      <div class="kpi-foot"><span>valor médio por pedido</span></div></div>
+  </div>
   <div class="panel">
-    <h2>Pedidos (${data.numeroPedidos})</h2>
-    <table><thead><tr><th>Cliente</th><th>Data</th><th>Nº pedido</th><th style="text-align:right;">Valor</th></tr></thead><tbody>
-      ${(data.pedidos||[]).map(p=>`<tr>
-        <td>${esc(p.cliente)}</td>
-        <td>${p.data.split('-').reverse().join('/')}</td>
-        <td>#${p.numero}</td>
-        <td style="text-align:right; font-weight:700;">R$ ${Number(p.valor).toFixed(2)}</td>
+    <div class="card-head"><div><h2>Histórico de pedidos</h2><div class="desc">${data.numeroPedidos} pedido(s) com o cupom em ${fmtMonthLabel(ym)}</div></div>
+      <span class="ic-bubble">${ICONS.cart}</span></div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Cliente</th><th>Data</th><th>Nº pedido</th><th>Status</th><th style="text-align:right;">Valor</th></tr></thead><tbody>
+      ${pedidos.map(p=>`<tr>
+        <td><div class="cell-person">${avatarHtml(p.cliente||'?','sm')}<strong>${escHtml(p.cliente)}</strong></div></td>
+        <td>${fmtDateBR(p.data)}</td>
+        <td style="color:var(--muted);">#${escHtml(p.numero)}</td>
+        <td><span class="status-dot status-ok">Aprovado</span></td>
+        <td style="text-align:right; font-weight:700;">${fmtBRL(p.valor)}</td>
       </tr>`).join('')}
-      ${!(data.pedidos||[]).length ? '<tr><td colspan="4" style="color:var(--muted);">Nenhum pedido neste mês.</td></tr>' : ''}
-    </tbody></table>
+      ${!pedidos.length ? '<tr><td colspan="5"><div class="empty-state" style="padding:24px;">Nenhum pedido neste mês ainda.</div></td></tr>' : ''}
+    </tbody></table></div>
   </div>`;
 }
 
-async function carregarDashboardVendas(cupomCode, ym, descontoCupomPct, comissaoPct, containerId){
+async function carregarDashboardVendas(cupomCode, ym, descontoCupomPct, comissaoPct, containerId, opts){
   const container = document.getElementById(containerId);
   container.innerHTML = `<div class="panel"><div style="color:var(--muted); font-size:12px;"><span class="loader" style="border-top-color:var(--orange); border-color:rgba(0,0,0,0.1);"></span> Carregando pedidos da Yampi...</div></div>`;
   try{
@@ -210,10 +467,26 @@ async function carregarDashboardVendas(cupomCode, ym, descontoCupomPct, comissao
       body: { alias: YAMPI_ALIAS, cupomCode, ym, descontoCupomPct: descontoCupomPct||10, comissaoPct: comissaoPct||10 }
     });
     if(error) throw error;
-    if(data.error){ container.innerHTML = `<div class="panel"><div style="color:#c0392b; font-size:12.5px;">Erro: ${data.error}</div></div>`; return; }
-    container.innerHTML = dashboardVendasHtml(data);
+    if(data.error){ container.innerHTML = `<div class="panel"><div style="color:var(--red); font-size:12.5px;">Erro: ${escHtml(data.error)}</div></div>`; return null; }
+    container.innerHTML = dashboardVendasHtml(data, Object.assign({cupom:cupomCode, ym, descontoPct:descontoCupomPct, comissaoPct}, opts||{}));
+    return data;
   }catch(err){
     console.error(err);
-    container.innerHTML = `<div class="panel"><div style="color:#c0392b; font-size:12.5px;">Falhou: ${err.message||err}</div></div>`;
+    container.innerHTML = `<div class="panel"><div style="color:var(--red); font-size:12.5px;">Falhou: ${escHtml(err.message||err)}</div></div>`;
+    return null;
   }
+}
+
+// Barras mensais a partir da tabela vendas_mensais (últimos N meses até `ateYM`)
+function barrasMensaisHtml(rows, ateYM, n, campo){
+  campo = campo || 'valor_vendido';
+  const porYM = {}; (rows||[]).forEach(r=>{ porYM[r.ym] = (porYM[r.ym]||0) + Number(r[campo]||0); });
+  const data = [];
+  for(let i=n-1; i>=0; i--){
+    const ym = addMonths(ateYM, -i), v = porYM[ym]||0, prevV = porYM[addMonths(ym,-1)]||0;
+    const pct = prevV ? ((v-prevV)/prevV*100) : null;
+    data.push({label:shortMonth(ym), value:v, highlight: ym===ateYM, tip:`${fmtBRL(v)}|${fmtMonthLabel(ym)}`,
+      badge: pct==null ? `R$ ${compactNum(v)}` : `${pct>=0?'+':''}${pct.toFixed(1).replace('.',',')}%`});
+  }
+  return pillBarChartHtml(data, {ariaLabel:'Vendas por mês'});
 }

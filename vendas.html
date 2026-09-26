@@ -6,33 +6,95 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-let athletes = [];
+let athletes = [], vendasMensais = [], ym = monthKey(todayISO()), atletaSel = '';
+const META_PAGAMENTO = 100;
+
+function somaMes(mes, campo){ return vendasMensais.filter(v=>v.ym===mes).reduce((s,v)=> s + Number(v[campo]||0), 0); }
+function atletaById(id){ return athletes.find(a=>a.id===id); }
+
 function viewVendas(){
   const comCupom = athletes.filter(a=>a.cupomYampi);
-  const ym = monthKey(todayISO());
-  return `<div class="panel"><div class="row" style="justify-content:space-between;">
-      <div><h2>Vendas por atleta</h2><div class="desc">Selecione o atleta e o mês pra ver o desempenho dele na Yampi.</div></div>
-      <div class="row"><select id="vendasAtletaSelect" style="width:auto; min-width:220px;">
-          <option value="">— Selecione um atleta —</option>
-          ${comCupom.map(a=>`<option value="${a.id}">${a.name} (${a.team})</option>`).join('')}
-        </select><input type="month" id="vendasMesInput" value="${ym}" style="width:auto;"></div></div>
-    ${!comCupom.length ? '<div style="color:var(--muted); font-size:12px; margin-top:10px;">Nenhum atleta com cupom Yampi cadastrado ainda.</div>' : ''}</div>
+  const prevYM = addMonths(ym, -1);
+  const doMes = vendasMensais.filter(v=>v.ym===ym && Number(v.valor_vendido)>0).sort((a,b)=> b.valor_vendido - a.valor_vendido);
+  const maxV = doMes.length ? Number(doMes[0].valor_vendido) : 1;
+  // último registro de cada atleta → quem já bateu a meta e ainda não foi pago
+  const ultimo = {}; vendasMensais.forEach(v=>{ if(!ultimo[v.athlete_id] || v.ym > ultimo[v.athlete_id].ym) ultimo[v.athlete_id] = v; });
+  const aPagar = Object.values(ultimo).filter(v=> !v.pago && Number(v.saldo_total) >= META_PAGAMENTO).sort((a,b)=> b.saldo_total - a.saldo_total);
+  const kpi = (label, cur, prev, fmt, color)=> `<div class="card kpi"><div class="kpi-label">${label}</div><div class="kpi-value" ${color?`style="color:${color};"`:''}>${fmt(cur)}</div>
+      <div class="kpi-foot">${deltaHtml(cur, prev)}<span>vs. mês anterior</span></div></div>`;
+
+  return `
+  <div class="page-head">
+    <div><h1>Vendas <span class="soft">por cupom</span></h1><div class="sub">${comCupom.length} atletas com cupom Yampi · ${fmtMonthLabel(ym)}</div></div>
+    <div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="vendasMesInput" value="${ym}" style="width:auto; background:#fff;"></div>
+  </div>
+
+  <div class="grid-4" style="margin-bottom:18px;">
+    ${kpi('Vendido pelos atletas', somaMes(ym,'valor_vendido'), somaMes(prevYM,'valor_vendido'), fmtBRLSplit)}
+    ${kpi('Comissões geradas', somaMes(ym,'comissao_mes'), somaMes(prevYM,'comissao_mes'), fmtBRLSplit, 'var(--orange)')}
+    ${kpi('Pedidos com cupom', somaMes(ym,'numero_pedidos'), somaMes(prevYM,'numero_pedidos'), fmtNum)}
+    ${kpi('Atletas que venderam', doMes.length, vendasMensais.filter(v=>v.ym===prevYM && Number(v.valor_vendido)>0).length, fmtNum)}
+  </div>
+
+  <div class="bento">
+    <div class="card span-8">
+      <div class="card-head"><div class="card-title-ic"><span class="ic-bubble">${ICONS.acompanhamento}</span><div><h2>Vendas totais por mês</h2><div class="desc">Soma de todos os cupons · últimos 6 meses</div></div></div></div>
+      ${vendasMensais.length ? barrasMensaisHtml(vendasMensais, ym, 6) : '<div class="empty-state">Sem histórico em <code>vendas_mensais</code> ainda.</div>'}
+    </div>
+    <div class="card span-4">
+      <div class="card-head"><div><h2>Ranking do mês</h2><div class="desc">Clique pra abrir o painel do atleta</div></div><span class="ic-bubble">${ICONS.trend}</span></div>
+      ${doMes.length ? doMes.slice(0,6).map((v,i)=>{ const a = atletaById(v.athlete_id); const nome = a ? a.name : '(removido)';
+        return `<div data-pick="${v.athlete_id}" style="display:flex; align-items:center; gap:10px; padding:8px 6px; border-radius:12px; cursor:pointer;" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''">
+          <span style="width:16px; font-size:11px; font-weight:800; color:var(--muted);">${i+1}</span>${avatarHtml(nome,'sm')}
+          <div style="flex:1; min-width:0;"><div style="display:flex; justify-content:space-between; font-size:12.5px;"><strong style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escHtml(nome)}</strong><span style="font-weight:700;">${fmtBRL(v.valor_vendido)}</span></div>
+            <div class="progress" style="height:6px; margin-top:5px; border:none;"><div style="width:${Number(v.valor_vendido)/maxV*100}%;"></div></div></div></div>`; }).join('')
+        : '<div class="empty-state" style="padding:24px;">Nenhuma venda registrada neste mês.</div>'}
+    </div>
+  </div>
+
+  ${aPagar.length ? `<div class="panel"><div class="card-head"><div><h2>Comissões pra pagar</h2><div class="desc">Atletas que já passaram de ${fmtBRL(META_PAGAMENTO)} de saldo e ainda não receberam.</div></div><span class="ic-bubble">${ICONS.pix}</span></div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Atleta</th><th>Último mês</th><th>Chave PIX</th><th style="text-align:right;">Saldo</th></tr></thead><tbody>
+    ${aPagar.map(v=>{ const a = atletaById(v.athlete_id)||{name:'(removido)'}; return `<tr><td><div class="cell-person">${avatarHtml(a.name,'sm')}<div><strong>${escHtml(a.name)}</strong><div class="sub">${escHtml(a.team||'')}</div></div></div></td>
+      <td>${fmtMonthLabel(v.ym)}</td><td>${a.pixKey ? `<span class="chip static">${ICONS.pix} ${escHtml(a.pixKey)}</span>` : '<span class="status-dot status-bad">sem chave cadastrada</span>'}</td>
+      <td style="text-align:right; font-weight:800; color:var(--orange);">${fmtBRL(v.saldo_total)}</td></tr>`; }).join('')}
+    </tbody></table></div></div>` : ''}
+
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;">
+      <div><h2>Painel individual</h2><div class="desc" style="margin-bottom:0;">Pedidos em tempo real da Yampi para o cupom do atleta.</div></div>
+      <select id="vendasAtletaSelect" style="width:auto; min-width:240px;">
+        <option value="">— Selecione um atleta —</option>
+        ${comCupom.map(a=>`<option value="${a.id}" ${a.id===atletaSel?'selected':''}>${escHtml(a.name)} (${escHtml(a.team)})</option>`).join('')}
+      </select>
+    </div>
+    ${!comCupom.length ? '<div style="color:var(--muted); font-size:12px; margin-top:10px;">Nenhum atleta com cupom Yampi cadastrado ainda.</div>' : ''}
+  </div>
   <div id="vendasEquipeDashboard"></div>`;
 }
-function wire(){
-  const select = document.getElementById('vendasAtletaSelect'), monthInput = document.getElementById('vendasMesInput');
-  const disparar = ()=>{
-    const a = athletes.find(x=>x.id===select.value);
-    if(!a || !a.cupomYampi) return;
-    carregarDashboardVendas(a.cupomYampi, monthInput.value, a.descontoCupomPct, a.comissaoPct, 'vendasEquipeDashboard');
-  };
-  select.onchange = disparar; monthInput.onchange = disparar;
+function disparar(){
+  const a = athletes.find(x=>x.id===atletaSel);
+  if(!a || !a.cupomYampi){ document.getElementById('vendasEquipeDashboard').innerHTML = ''; return; }
+  const prev = vendasMensais.find(v=> v.athlete_id===a.id && v.ym===addMonths(ym,-1)) || null;
+  carregarDashboardVendas(a.cupomYampi, ym, a.descontoCupomPct, a.comissaoPct, 'vendasEquipeDashboard', {prev, titulo:`Vendido por ${a.name}`});
+}
+function render(){
+  document.getElementById('main').innerHTML = viewVendas();
+  document.getElementById('vendasAtletaSelect').onchange = (e)=>{ atletaSel = e.target.value; disparar(); };
+  document.getElementById('vendasMesInput').onchange = (e)=>{ if(!e.target.value) return; ym = e.target.value; render(); };
+  document.querySelectorAll('[data-pick]').forEach(el=> el.onclick = ()=>{
+    atletaSel = el.dataset.pick; document.getElementById('vendasAtletaSelect').value = atletaSel; disparar();
+    document.getElementById('vendasEquipeDashboard').scrollIntoView({behavior:'smooth'});
+  });
+  if(atletaSel) disparar();
 }
 (async function start(){
   const auth = await guardStaff('vendas'); if(!auth) return;
-  const { data } = await sb.from('athletes').select('*').order('team').order('name');
+  const [{ data }, { data: vm }] = await Promise.all([
+    sb.from('athletes').select('*').order('team').order('name'),
+    sb.from('vendas_mensais').select('*'),
+  ]);
   athletes = (data||[]).map(mapAthleteFromDB);
-  document.getElementById('main').innerHTML = viewVendas();
-  wire();
+  vendasMensais = vm || [];
+  render();
 })();
 </script></body></html>

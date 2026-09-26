@@ -1,0 +1,147 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Início — FourLab</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+let athlete = null, entries = [], vendasMensais = [], vendaAoVivo = null, carregandoAoVivo = true;
+const mesAtual = monthKey(todayISO());
+const META_PAGAMENTO = 100;
+
+function statusPost(e){
+  if(e.postou === 'sim') return {cls:'status-ok', txt:'Postado'};
+  if(e.postou === 'nao') return {cls:'status-bad', txt:'Não postado'};
+  if(e.roteiro && e.roteiro.trim()) return {cls:'status-wait', txt:'Roteiro pronto'};
+  return {cls:'', txt:'Aguardando roteiro'};
+}
+function diasAte(iso){
+  const a = new Date(todayISO()+'T12:00:00'), b = new Date(iso+'T12:00:00');
+  return Math.round((b-a)/86400000);
+}
+function camposFaltando(){
+  const f = [];
+  if(!athlete.email) f.push('e-mail');
+  if(!athlete.whatsapp) f.push('WhatsApp');
+  if(!athlete.instagram && !athlete.tiktok && !athlete.youtube) f.push('redes sociais');
+  if(!athlete.enderecoCep || !athlete.enderecoRua) f.push('endereço de envio');
+  if(athlete.cupomYampi && !athlete.pixKey) f.push('chave PIX');
+  return f;
+}
+
+function heroVendasHtml(){
+  const rowMes = vendasMensais.find(v=>v.ym===mesAtual);
+  const vendido = vendaAoVivo ? vendaAoVivo.valorVendido : Number(rowMes?.valor_vendido||0);
+  const comissao = vendaAoVivo ? vendaAoVivo.comissaoMes : Number(rowMes?.comissao_mes||0);
+  const pedidos = vendaAoVivo ? vendaAoVivo.numeroPedidos : Number(rowMes?.numero_pedidos||0);
+  const prev = vendasMensais.find(v=>v.ym===addMonths(mesAtual,-1));
+  const saldo = vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0;
+  const hist = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = vendasMensais.find(v=>v.ym===ym);
+    hist.push({label:shortMonth(ym), value: ym===mesAtual ? vendido : Number(r?.valor_vendido||0), tip:`${fmtBRL(ym===mesAtual ? vendido : Number(r?.valor_vendido||0))}|${fmtMonthLabel(ym)}`}); }
+  return `
+  <div class="section-title" style="margin-top:0; font-size:16px; text-transform:none; letter-spacing:0; color:var(--ink); font-weight:700;">Suas vendas</div>
+  <div class="bento">
+    <div class="card span-5" style="background:linear-gradient(180deg,#fff 0%, #fff7f0 100%);">
+      <div class="card-head" style="margin-bottom:4px;"><div>
+        <div class="kpi"><div class="kpi-value" style="margin:0;">${fmtBRLSplit(vendido)}</div></div>
+        <div class="desc" style="margin-top:4px;">Vendido com seu cupom em ${fmtMonthLabel(mesAtual).split('/')[0].toLowerCase()} ${!carregandoAoVivo?'':'<span class="loader" style="width:10px;height:10px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>'}</div></div>
+        <a class="icon-btn" href="atleta-vendas.html" title="Ver minhas vendas">${ICONS.arrow}</a></div>
+      ${areaChartHtml(hist, {axis:true, height:150, ariaLabel:'Vendas dos últimos 6 meses'})}
+    </div>
+    <div class="span-7 tiles-3">
+      <div class="tile t-orange"><div><div class="t-value">${fmtBRL(comissao)}</div><div class="t-label">Sua comissão no mês</div></div>
+        <div class="t-foot"><span class="t-ic" style="color:var(--orange);">${ICONS.vendas}</span>${deltaHtml(comissao, prev && Number(prev.comissao_mes))}</div></div>
+      <div class="tile t-purple"><div><div class="t-value">${fmtBRL(saldo)}</div><div class="t-label">Saldo acumulado</div></div>
+        <div class="t-foot"><span class="t-ic" style="color:var(--purple);">${ICONS.wallet}</span><span style="font-size:11px; font-weight:800; color:var(--purple);">${saldo>=META_PAGAMENTO?'Liberado!':`faltam ${fmtBRL(META_PAGAMENTO-saldo)}`}</span></div></div>
+      <div class="tile t-yellow"><div><div class="t-value">${fmtNum(pedidos)}</div><div class="t-label">Pedidos com seu cupom</div></div>
+        <div class="t-foot"><span class="t-ic" style="color:#8a6a00;">${ICONS.cart}</span>${deltaHtml(pedidos, prev && Number(prev.numero_pedidos))}</div></div>
+    </div>
+  </div>`;
+}
+
+function viewHome(){
+  const primeiroNome = (athlete.name||'').split(' ')[0];
+  const futuros = entries.filter(e=> e.date >= todayISO()).sort((a,b)=> a.date.localeCompare(b.date));
+  const doMes = entries.filter(e=> e.date.slice(0,7) === mesAtual);
+  const postadosMes = doMes.filter(e=> e.postou==='sim').length;
+  const proximo = futuros[0];
+  const lista = (futuros.length ? futuros : entries.slice().sort((a,b)=> b.date.localeCompare(a.date))).slice(0,5);
+  const faltando = camposFaltando();
+  const d = proximo ? diasAte(proximo.date) : null;
+
+  return `
+  <div class="page-head">
+    <div><h1>Olá, <span class="soft">${escHtml(primeiroNome)}</span> 👋</h1>
+      <div class="sub">${proximo ? `Seu próximo post é ${d===0?'<strong>hoje</strong>':d===1?'<strong>amanhã</strong>':`em <strong>${d} dias</strong>`} (${fmtDateBR(proximo.date)} · ${escHtml(proximo.product)}).` : 'Nenhum post agendado pra você no momento.'}</div></div>
+    <a href="atleta-perfil.html" class="row" style="text-decoration:none; color:var(--ink); background:#fff; border-radius:999px; padding:5px 14px 5px 5px; box-shadow:var(--shadow);">
+      ${avatarHtml(athlete.name,'sm')}<span style="font-size:12.5px; font-weight:700;">${escHtml(athlete.name)}</span><span class="badge team-${escHtml((athlete.team||'').replace(/\s/g,''))}">${escHtml(athlete.team||'')}</span></a>
+  </div>
+
+  ${faltando.length ? `<div class="panel" style="display:flex; align-items:center; gap:14px; padding:14px 18px; background:var(--orange-soft); border-color:#f8d6ba;">
+    <span class="ic-bubble" style="background:#fff; color:var(--orange); border-color:#f8d6ba;">${ICONS.perfil}</span>
+    <div style="flex:1; font-size:13px;"><strong>Complete seu perfil</strong> — falta: ${faltando.join(', ')}.</div>
+    <a class="btn btn-primary btn-sm" href="atleta-perfil.html">Completar</a></div>` : ''}
+
+  ${athlete.cupomYampi ? `<div id="heroVendas">${heroVendasHtml()}</div>` : ''}
+
+  <div class="bento">
+    <div class="card span-8">
+      <div class="card-head">
+        <div><h2 style="font-size:16px;">Seus conteúdos</h2><div class="desc">${doMes.length} post(s) em ${fmtMonthLabel(mesAtual).split('/')[0].toLowerCase()} · ${postadosMes} postado(s)</div></div>
+        <a class="btn btn-ghost btn-sm" href="atleta-roteiros.html">Ver todos os roteiros ${ICONS.arrow}</a>
+      </div>
+      ${lista.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>Data</th><th>Produto</th><th>Formato</th><th>Status</th><th></th></tr></thead><tbody>
+        ${lista.map(e=>{ const st = statusPost(e); const dd = diasAte(e.date);
+          return `<tr><td><div class="cell-person"><span class="ic-bubble" style="width:34px;height:34px;">${ICONS.calendar}</span>
+            <div><strong>${fmtDateBR(e.date)}</strong><div class="sub">${dd===0?'hoje':dd>0?`em ${dd} dia(s)`:`há ${-dd} dia(s)`}</div></div></div></td>
+            <td><strong>${escHtml(e.product)}</strong></td><td style="color:var(--muted);">${escHtml(e.format)}</td>
+            <td><span class="status-dot ${st.cls}" ${st.cls?'':'style="color:var(--muted);"'}>${st.txt}</span></td>
+            <td style="text-align:right;">${e.roteiro && e.roteiro.trim() ? `<a class="icon-btn" href="atleta-roteiros.html#${e.id}" title="Abrir roteiro">${ICONS.arrow}</a>` : ''}</td></tr>`; }).join('')}
+        </tbody></table></div>` : '<div class="empty-state"><div class="big">📝</div>Nenhum conteúdo agendado ainda.</div>'}
+    </div>
+    <div class="span-4" style="display:flex; flex-direction:column; gap:18px;">
+      ${athlete.cupomYampi ? `<div class="promo-card">
+        <h3>Ganhe <span class="pill-outline">${athlete.comissaoPct!=null?athlete.comissaoPct:10}%</span> em cada venda com seu cupom</h3>
+        <p>Seus seguidores ganham ${athlete.descontoCupomPct!=null?athlete.descontoCupomPct:10}% de desconto na loja FourLab e você recebe comissão.</p>
+        <div class="row"><span style="font-family:monospace; font-size:16px; font-weight:700; letter-spacing:1px;">${escHtml(athlete.cupomYampi.toUpperCase())}</span>
+          <button class="btn btn-sm" id="btnCopiarCupom" style="background:#fde3cf; color:var(--ink); position:relative; z-index:1;">${ICONS.copy} Copiar cupom</button></div>
+      </div>` : ''}
+      <div class="card">
+        <div class="card-head"><div><h2>Seu mês</h2><div class="desc">Progresso de postagens</div></div><span class="ic-bubble">${ICONS.check}</span></div>
+        ${ringHtml(doMes.length ? postadosMes/doMes.length : 0, `${postadosMes}/${doMes.length}`, 'posts feitos')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function render(){
+  document.getElementById('main').innerHTML = viewHome();
+  const b = document.getElementById('btnCopiarCupom');
+  if(b) b.onclick = ()=> navigator.clipboard.writeText(athlete.cupomYampi).then(()=> toast('Cupom copiado'));
+}
+
+(async function start(){
+  const auth = await guardAthlete('inicio'); if(!auth) return;
+  athlete = auth.athlete;
+  if(!athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum atleta vinculado a este login.</div>'; return; }
+  const [{ data: ent }, { data: vm }] = await Promise.all([
+    sb.from('entries').select('*').eq('athlete_id', athlete.id).order('post_date', {ascending:true}),
+    athlete.cupomYampi ? sb.from('vendas_mensais').select('*').eq('athlete_id', athlete.id).order('ym', {ascending:false}) : Promise.resolve({data:[]}),
+  ]);
+  entries = (ent||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro:r.roteiro||'', postou:r.postou }));
+  vendasMensais = vm || [];
+  render();
+  // vendas ao vivo do mês atual (Yampi) — atualiza só o bloco de vendas quando chegar
+  if(athlete.cupomYampi){
+    try{
+      const { data } = await sb.functions.invoke('yampi-sync-atleta', { body: { alias: YAMPI_ALIAS, cupomCode: athlete.cupomYampi, ym: mesAtual,
+        descontoCupomPct: athlete.descontoCupomPct||10, comissaoPct: athlete.comissaoPct||10 } });
+      vendaAoVivo = (data && !data.error) ? data : null;
+    }catch(err){ console.error(err); vendaAoVivo = null; }
+    carregandoAoVivo = false;
+    const el = document.getElementById('heroVendas');
+    if(el) el.innerHTML = heroVendasHtml();
+  }
+})();
+</script></body></html>

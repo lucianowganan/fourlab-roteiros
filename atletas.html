@@ -6,14 +6,18 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-const State = { athletes:[], history:{} };
+const State = { athletes:[], history:{}, teamFilter:'Todas', busca:'' };
+const TEAM_STYLE = {
+  Trek:{bg:'#e6f0ff', fg:'#1d4ed8'}, Audax:{bg:'#fdeecb', fg:'#b5680a'}, Oggi:{bg:'#dbf3e4', fg:'#0f7a3d'},
+  Brou:{bg:'#fde0ea', fg:'#e3055f'}, Scott:{bg:'#f1e3f0', fg:'#731b58'}, '4Fun':{bg:'#fff4c2', fg:'#8a6a00'}, Avulsos:{bg:'#ececec', fg:'#555'} };
+function teamStyle(t){ return TEAM_STYLE[t] || {bg:'#ececec', fg:'#555'}; }
 
 async function carregarHistorico(){
-  const { data } = await sb.from('entries').select('athlete_id, product, theme, post_date, format, cycles(ym)');
+  const { data } = await sb.from('entries').select('athlete_id, product, theme, post_date, format, postou, cycles(ym)');
   const hist = {};
   (data||[]).forEach(r=>{
     const ym = r.cycles?.ym; if(!ym) return;
-    (hist[r.athlete_id] = hist[r.athlete_id] || []).push({ym, product:r.product, date:r.post_date});
+    (hist[r.athlete_id] = hist[r.athlete_id] || []).push({ym, product:r.product, date:r.post_date, format:r.format, postou:r.postou});
   });
   Object.keys(hist).forEach(k=> hist[k].sort((a,b)=> a.date.localeCompare(b.date)));
   State.history = hist;
@@ -29,25 +33,137 @@ async function saveOneAthlete(a){
 }
 async function deleteOneAthlete(id){ await sb.from('athletes').delete().eq('id', id); }
 
+// Bolinhas = últimos 5 posts (verde postou, vermelho não postou, cinza pendente)
+function postDotsHtml(athleteId){
+  const h = (State.history[athleteId]||[]).filter(e=> e.date <= todayISO()).slice(-5);
+  const cor = e=> e.postou==='sim' ? '#2fb463' : e.postou==='nao' ? '#f06b5b' : '#f5c342';
+  const dots = h.map(e=>`<span style="background:${cor(e)};" title="${fmtDateBR(e.date)} · ${e.postou==='sim'?'postou':e.postou==='nao'?'não postou':'sem confirmação'}"></span>`);
+  while(dots.length < 5) dots.unshift('<span></span>');
+  return `<span class="dots">${dots.join('')}</span>`;
+}
+function taxaPostagem(athleteId){
+  const h = (State.history[athleteId]||[]).filter(e=> e.postou);
+  return h.length ? Math.round(h.filter(e=>e.postou==='sim').length / h.length * 100) : null;
+}
+
+function filtrados(){
+  const q = State.busca.trim().toLowerCase();
+  return State.athletes.filter(a=> (State.teamFilter==='Todas' || a.team===State.teamFilter) &&
+    (!q || [a.name, a.team, a.instagram, a.cupomYampi].some(v=> (v||'').toLowerCase().includes(q))));
+}
+
 function viewAtletas(){
   const grouped = {}; TEAM_ORDER.forEach(t=> grouped[t]=[]);
   State.athletes.forEach(a=> (grouped[a.team]=grouped[a.team]||[]).push(a));
-  let html = `<div class="panel"><div class="row" style="justify-content:space-between;">
-      <div><h2>Atletas &amp; equipes</h2><div class="desc">${State.athletes.length} atletas cadastrados.</div></div>
-      <button class="btn btn-primary" id="btnNovoAtleta">+ Novo atleta</button></div></div>`;
-  TEAM_ORDER.forEach(team=>{
-    const list = grouped[team]; if(!list.length) return;
-    html += `<div class="panel"><h2><span class="badge team-${team.replace(/\s/g,'')}">${team}</span> &nbsp; <span style="font-weight:600;color:var(--muted);font-size:12.5px;">${list.length} atleta(s)</span></h2>
-      <table><thead><tr><th>Nome</th><th>Formato</th><th>Último produto usado</th><th>Notas</th><th></th></tr></thead><tbody>
-      ${list.map(a=>{
-        const last = lastEntryFor(a.id);
-        return `<tr><td><strong>${a.name}</strong></td><td>${a.formatPref||'—'}</td>
-          <td>${last ? `${last.product} <span style="color:var(--muted)">(${fmtMonthLabel(last.ym)})</span>` : '<span style="color:var(--muted)">nunca postou</span>'}</td>
-          <td style="max-width:220px;color:var(--muted);font-size:12px;">${a.notes||'—'}</td>
-          <td><button class="btn btn-ghost btn-sm" data-edit-athlete="${a.id}">Editar</button></td></tr>`;
-      }).join('')}</tbody></table></div>`;
-  });
-  return html;
+  const equipes = Object.keys(grouped).filter(t=> grouped[t].length);
+  const comCupom = State.athletes.filter(a=>a.cupomYampi).length;
+  const lista = filtrados();
+
+  const folders = equipes.map(t=>{ const st = teamStyle(t), l = grouped[t];
+    return `<div class="team-folder" data-team="${escHtml(t)}" style="background:${st.bg}; color:${st.fg}; ${State.teamFilter===t?`outline:2.5px solid ${st.fg}; outline-offset:2px;`:''}">
+      <div class="row" style="justify-content:space-between; align-items:flex-start;"><span style="display:flex;">${ICONS.folder}</span>
+        <span class="icon-btn" style="width:30px; height:30px; background:rgba(255,255,255,0.7); border-color:transparent; color:${st.fg};">${ICONS.arrow}</span></div>
+      <div><div class="tf-name">${escHtml(t)}</div>
+        <div class="row" style="justify-content:space-between; margin-top:6px;"><span class="tf-meta">${l.length} atleta(s)</span>
+          <span class="avatar-stack">${l.slice(0,4).map(a=>avatarHtml(a.name,'sm')).join('')}${l.length>4?`<span class="avatar sm" style="background:${st.fg};">+${l.length-4}</span>`:''}</span></div></div>
+    </div>`; }).join('');
+
+  const cards = lista.map(a=>{
+    const last = lastEntryFor(a.id), st = teamStyle(a.team), taxa = taxaPostagem(a.id);
+    return `<div class="person-card" data-open-athlete="${a.id}">
+      <div class="pc-top">${avatarHtml(a.name,'lg')}
+        <button class="icon-btn" data-open-athlete="${a.id}" title="Ver ficha">${ICONS.arrow}</button></div>
+      <div class="pc-name">${escHtml(a.name)}</div>
+      <div class="pc-role"><span style="color:${st.fg}; font-weight:700;">${escHtml(a.team)}</span> · ${escHtml(a.formatPref||'—')}${a.instagram?` · ${escHtml(a.instagram.startsWith('@')||a.instagram.startsWith('http')?a.instagram:'@'+a.instagram)}`:''}</div>
+      <div style="margin-top:16px;"><div class="pc-label">Redes</div>${socialLinksHtml(a)}</div>
+      <div class="row" style="justify-content:space-between; margin-top:12px;"><span class="pc-label" style="margin:0;">Últimos posts${taxa!=null?` · ${taxa}% postados`:''}</span>${postDotsHtml(a.id)}</div>
+      <div class="row" style="margin-top:14px; gap:6px;">
+        ${a.cupomYampi ? `<span class="chip static">${ICONS.vendas} ${escHtml(a.cupomYampi)}</span>` : ''}
+        ${last ? `<span class="chip static">${escHtml(last.product)} · ${shortMonth(last.ym)}</span>` : '<span class="chip static" style="color:var(--muted);">nunca postou</span>'}
+        ${a.dificuldadeGravacao==='sim' ? '<span class="chip static" style="color:#b5680a;">trava na câmera</span>' : ''}
+      </div>
+    </div>`; }).join('');
+
+  return `
+  <div class="page-head">
+    <div><h1>Atletas <span class="soft">&amp; equipes</span></h1><div class="sub">Organize por pasta de equipe e abra a ficha completa de cada atleta.</div></div>
+    <div class="row" style="gap:26px;">
+      <div><span style="font-size:34px; font-weight:500; letter-spacing:-1px;">${State.athletes.length}</span> <span style="color:var(--muted); font-size:14px;">Atletas</span></div>
+      <div><span style="font-size:34px; font-weight:500; letter-spacing:-1px;">${equipes.length}</span> <span style="color:var(--muted); font-size:14px;">Equipes</span></div>
+      <div><span style="font-size:34px; font-weight:500; letter-spacing:-1px;">${comCupom}</span> <span style="color:var(--muted); font-size:14px;">Com cupom</span></div>
+      <button class="btn btn-dark" id="btnNovoAtleta">${ICONS.plus} Novo atleta</button>
+    </div>
+  </div>
+
+  <div class="section-title" style="font-size:12px;">Pastas de equipe</div>
+  <div class="folder-grid" style="grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); margin-bottom:28px;">${folders}</div>
+
+  <div class="row" style="justify-content:space-between; margin-bottom:16px;">
+    <div class="row"><h2 style="font-size:22px; font-weight:500; letter-spacing:-0.3px; margin-right:10px;">${State.teamFilter==='Todas'?'Todos os atletas':escHtml(State.teamFilter)}</h2>
+      <span style="font-size:13px; font-weight:700; border-bottom:2px solid var(--ink);">${lista.length} atleta(s)</span></div>
+    <div class="row">
+      <div class="input-ic"><span class="ic">${ICONS.search}</span><input id="buscaAtleta" placeholder="Buscar nome, @, cupom..." value="${escHtml(State.busca)}" style="background:#fff; border-radius:999px; min-width:230px;"></div>
+      <div class="filter-pills">
+        <button class="fpill ${State.teamFilter==='Todas'?'active':''}" data-filter-team="Todas">Todas <span class="count">${State.athletes.length}</span></button>
+        ${equipes.map(t=>`<button class="fpill ${State.teamFilter===t?'active':''}" data-filter-team="${escHtml(t)}">${escHtml(t)} <span class="count">${grouped[t].length}</span></button>`).join('')}
+      </div>
+    </div>
+  </div>
+  ${lista.length ? `<div class="folder-grid">${cards}</div>` : '<div class="panel"><div class="empty-state">Nenhum atleta encontrado.</div></div>'}`;
+}
+
+function linhaInfo(ic, label, valor){
+  return `<div style="display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-bottom:1px solid #f3eee8;">
+    <span class="ic-bubble" style="width:34px; height:34px;">${ic}</span>
+    <div style="min-width:0;"><div style="font-size:11px; color:var(--muted); font-weight:600;">${label}</div>
+      <div style="font-size:13px; font-weight:600; word-break:break-word;">${valor || '<span style="color:var(--muted); font-weight:500;">não informado</span>'}</div></div></div>`;
+}
+function athleteDrawerHtml(a){
+  const st = teamStyle(a.team), hist = (State.history[a.id]||[]).slice().reverse().slice(0,6);
+  const end = [a.enderecoRua && `${a.enderecoRua}${a.enderecoNumero?', '+a.enderecoNumero:''}${a.enderecoComplemento?' — '+a.enderecoComplemento:''}`,
+    a.enderecoBairro, [a.enderecoCidade, a.enderecoEstado].filter(Boolean).join('/'), a.enderecoCep && 'CEP '+a.enderecoCep].filter(Boolean).map(escHtml).join('<br>');
+  return `
+    <div class="row" style="justify-content:space-between;"><button class="icon-btn" onclick="closeDrawer()" title="Fechar">${ICONS.back}</button>
+      <div class="row"><button class="btn btn-ghost btn-sm" id="drBanco">📂 Banco de roteiros</button><button class="btn btn-dark btn-sm" id="drEditar">Editar</button></div></div>
+    <div style="text-align:center; margin:18px 0 8px;">${avatarHtml(a.name,'xl')}
+      <div style="font-size:22px; font-weight:700; margin-top:12px;">${escHtml(a.name)}</div>
+      <div style="margin-top:6px;"><span class="badge" style="background:${st.bg}; color:${st.fg};">${escHtml(a.team)}</span> <span class="chip static">${escHtml(a.formatPref||'—')}</span></div>
+      <div style="display:flex; justify-content:center; margin-top:12px;">${socialLinksHtml(a)}</div></div>
+
+    <div class="section-title">Contato</div>
+    ${linhaInfo(ICONS.mail, 'E-mail', a.email ? `<a href="mailto:${escHtml(a.email)}" style="color:var(--ink);">${escHtml(a.email)}</a>` : '')}
+    ${linhaInfo(ICONS.whatsapp, 'WhatsApp', a.whatsapp ? `<a href="${escHtml(socialUrl(SOCIAL_FIELDS.find(f=>f.key==='whatsapp'), a.whatsapp))}" target="_blank" style="color:var(--green);">${escHtml(a.whatsapp)}</a>` : '')}
+    ${linhaInfo(ICONS.endereco, 'Endereço de envio', end)}
+
+    <div class="section-title">Comissão</div>
+    ${a.cupomYampi ? `<div class="coupon-card purple" style="min-height:130px;"><div class="cc-top"><span>Cupom Yampi</span><span>${a.descontoCupomPct??10}% OFF · ${a.comissaoPct??10}% comissão</span></div>
+      <div class="cc-value" style="font-family:monospace; letter-spacing:1px; font-size:26px;">${escHtml(a.cupomYampi.toUpperCase())}</div>
+      <div class="cc-bottom"><span>PIX: ${a.pixKey?escHtml(a.pixKey):'<em style="opacity:0.7;">não cadastrado</em>'}</span></div></div>`
+      : '<div style="font-size:12.5px; color:var(--muted);">Este atleta não recebe comissão.</div>'}
+
+    <div class="section-title">Perfil de conteúdo</div>
+    <div class="row" style="gap:6px;">
+      ${a.dificuldadeGravacao ? `<span class="chip static">${a.dificuldadeGravacao==='sim'?'Trava na câmera':'Solto na câmera'}</span>`:''}
+      ${a.estiloFala ? `<span class="chip static">Fala: ${escHtml(a.estiloFala)}</span>`:''}
+      ${a.estiloVideo ? `<span class="chip static">Vídeo: ${escHtml(a.estiloVideo)}</span>`:''}
+      ${a.username ? `<span class="chip static">${ICONS.lock} login: ${escHtml(a.username)}</span>`:'<span class="chip static" style="color:var(--muted);">sem acesso ao painel</span>'}
+    </div>
+    ${a.notes ? `<div style="font-size:12.5px; background:var(--surface-2); border-radius:12px; padding:12px; margin-top:10px; white-space:pre-wrap;">${escHtml(a.notes)}</div>` : ''}
+
+    <div class="section-title">Últimos posts</div>
+    ${hist.length ? hist.map(e=>`<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:12.5px;">
+      <div><strong>${escHtml(e.product)}</strong> <span style="color:var(--muted);">· ${escHtml(e.format||'')}</span><div style="font-size:11px; color:var(--muted);">${fmtDateBR(e.date)}</div></div>
+      <span class="status-dot ${e.postou==='sim'?'status-ok':e.postou==='nao'?'status-bad':'status-wait'}">${e.postou==='sim'?'Postou':e.postou==='nao'?'Não postou':'Pendente'}</span></div>`).join('')
+      : '<div style="font-size:12.5px; color:var(--muted);">Nenhum post ainda.</div>'}`;
+}
+function openAthleteDrawer(a){
+  openDrawer(athleteDrawerHtml(a));
+  document.getElementById('drEditar').onclick = ()=>{ closeDrawer(); openAthleteModal(a); };
+  document.getElementById('drBanco').onclick = async ()=>{
+    const { data, error } = await sb.from('roteiro_exemplos').select('*').eq('athlete_id', a.id).order('created_at', {ascending:false});
+    if(error){ toast('Erro ao buscar'); console.error(error); return; }
+    openBancoDadosModal(a.name, data||[]);
+  };
 }
 
 function athleteFormHtml(a){
@@ -173,9 +289,14 @@ function openAthleteModal(athlete){ openModal(athleteFormHtml(athlete)); wireAth
 function render(){
   document.getElementById('main').innerHTML = viewAtletas();
   document.getElementById('btnNovoAtleta').onclick = ()=> openAthleteModal(null);
-  document.querySelectorAll('[data-edit-athlete]').forEach(btn=>{
-    btn.onclick = ()=> openAthleteModal(State.athletes.find(x=>x.id===btn.dataset.editAthlete));
+  document.querySelectorAll('[data-open-athlete]').forEach(el=>{
+    el.onclick = (ev)=>{ if(ev.target.closest('a')) return; ev.stopPropagation(); openAthleteDrawer(State.athletes.find(x=>x.id===el.dataset.openAthlete)); };
   });
+  document.querySelectorAll('[data-filter-team], [data-team]').forEach(el=>{
+    el.onclick = ()=>{ const t = el.dataset.filterTeam || el.dataset.team; State.teamFilter = (State.teamFilter===t && el.dataset.team) ? 'Todas' : t; render(); };
+  });
+  const busca = document.getElementById('buscaAtleta');
+  busca.oninput = ()=>{ State.busca = busca.value; const pos = busca.selectionStart; render(); const b2 = document.getElementById('buscaAtleta'); b2.focus(); b2.setSelectionRange(pos,pos); };
 }
 
 (async function start(){
