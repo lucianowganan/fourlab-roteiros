@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mês / Roteiros — FourLab Roteiros</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="shell" id="appShell">
+  <div id="sidebarMount"></div>
+  <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main>
+</div>
+
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const REAL_TEAMS = ["Trek","Audax","Oggi","Brou","Scott","4Fun"];
+const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false };
+
+/* ---------- utilitários de data ---------- */
+function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
+function dateFromDay(ym, day){ return `${ym}-${String(day).padStart(2,'0')}`; }
+function weekdayShort(iso){ return ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][new Date(iso+'T12:00:00').getDay()]; }
+function athleteName(id){ const a = State.athletes.find(x=>x.id===id); return a?a.name:'(removido)'; }
+
+/* ---------- mapeadores ---------- */
+function mapProductFromDB(r){ return {id:r.id, name:r.name, cat:r.cat, desc:r.descricao||''}; }
+function mapEntryFromDB(r){
+  return { id:r.id, athleteId:r.athlete_id, team:r.team, product:r.product, theme:r.theme,
+    format:r.format, date:r.post_date, roteiro:r.roteiro||'',
+    status:{ postou:r.postou, collab:r.collab, obs:r.obs||'',
+      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} } };
+}
+
+/* ---------- ciclo / persistência ---------- */
+function getOrCreateCycle(ym){
+  if(!State.cycles[ym]) State.cycles[ym] = {ym, id:null, themeGeral:'', trendsNotes:'', briefingText:'', briefingFileUrl:'', briefingFileName:'', entries:[]};
+  return State.cycles[ym];
+}
+async function getOrCreateCycleDB(ym){
+  if(State.cycles[ym] && State.cycles[ym].id) return State.cycles[ym];
+  const existing = State.cycles[ym];
+  const { data } = await sb.from('cycles').upsert({ym, theme_geral: existing?.themeGeral||'', trends_notes: existing?.trendsNotes||'',
+    briefing_text: existing?.briefingText||'', briefing_file_url: existing?.briefingFileUrl||'', briefing_file_name: existing?.briefingFileName||''
+  }, {onConflict:'ym'}).select().single();
+  State.cycles[ym] = {ym, id:data.id, themeGeral:data.theme_geral||'', trendsNotes:data.trends_notes||'',
+    briefingText:data.briefing_text||'', briefingFileUrl:data.briefing_file_url||'', briefingFileName:data.briefing_file_name||'',
+    entries: existing?.entries||[]};
+  return State.cycles[ym];
+}
+async function persistCycleMeta(ym){
+  const cycle = await getOrCreateCycleDB(ym);
+  await sb.from('cycles').update({ theme_geral:cycle.themeGeral, trends_notes:cycle.trendsNotes,
+    briefing_text:cycle.briefingText, briefing_file_url:cycle.briefingFileUrl, briefing_file_name:cycle.briefingFileName }).eq('id', cycle.id);
+}
+async function persistCycleEntries(ym){
+  const cycle = await getOrCreateCycleDB(ym);
+  await sb.from('entries').delete().eq('cycle_id', cycle.id);
+  const rows = cycle.entries.map(e=>({
+    cycle_id: cycle.id, athlete_id:e.athleteId, team:e.team, product:e.product, theme:e.theme,
+    format:e.format, post_date:e.date, roteiro:e.roteiro||'',
+    postou:e.status?.postou||null, collab:e.status?.collab||null, obs:e.status?.obs||'',
+    metric_views:e.status?.metrics?.views||0, metric_likes:e.status?.metrics?.likes||0,
+    metric_comments:e.status?.metrics?.comments||0, metric_shares:e.status?.metrics?.shares||0, metric_saves:e.status?.metrics?.saves||0,
+  }));
+  if(rows.length){
+    const { data } = await sb.from('entries').insert(rows).select();
+    cycle.entries = (data||[]).map(mapEntryFromDB);
+  }
+  await carregarHistorico();
+}
+async function persistOneEntry(ym, entry){
+  const cycle = await getOrCreateCycleDB(ym);
+  await sb.from('entries').update({ post_date:entry.date, roteiro:entry.roteiro,
+    postou:entry.status?.postou||null, collab:entry.status?.collab||null, obs:entry.status?.obs||'',
+    metric_views:entry.status?.metrics?.views||0, metric_likes:entry.status?.metrics?.likes||0,
+    metric_comments:entry.status?.metrics?.comments||0, metric_shares:entry.status?.metrics?.shares||0, metric_saves:entry.status?.metrics?.saves||0,
+  }).eq('id', entry.id);
+  await carregarHistorico();
+}
+
+async function carregarMes(ym){
+  const { data: cycleRow } = await sb.from('cycles').select('*').eq('ym', ym).maybeSingle();
+  if(!cycleRow){ State.cycles[ym] = {ym, id:null, themeGeral:'', trendsNotes:'', briefingText:'', briefingFileUrl:'', briefingFileName:'', entries:[]}; return; }
+  const { data: entriesData } = await sb.from('entries').select('*').eq('cycle_id', cycleRow.id);
+  State.cycles[ym] = { ym, id:cycleRow.id, themeGeral:cycleRow.theme_geral||'', trendsNotes:cycleRow.trends_notes||'',
+    briefingText:cycleRow.briefing_text||'', briefingFileUrl:cycleRow.briefing_file_url||'', briefingFileName:cycleRow.briefing_file_name||'',
+    entries: (entriesData||[]).map(mapEntryFromDB) };
+}
+
+async function carregarHistorico(){
+  // pra saber o "último produto usado" de cada atleta, olhando todos os meses
+  const { data } = await sb.from('entries').select('athlete_id, product, theme, post_date, format, cycles(ym)');
+  const hist = {};
+  (data||[]).forEach(r=>{
+    const ym = r.cycles?.ym; if(!ym) return;
+    if(!hist[r.athlete_id]) hist[r.athlete_id] = [];
+    hist[r.athlete_id].push({ym, product:r.product, theme:r.theme, date:r.post_date, format:r.format});
+  });
+  Object.keys(hist).forEach(k=> hist[k].sort((a,b)=> a.date.localeCompare(b.date)));
+  State.history = hist;
+}
+function lastEntryFor(athleteId, beforeYM){
+  const h = State.history[athleteId] || [];
+  const filtered = beforeYM ? h.filter(e=>e.ym < beforeYM) : h;
+  return filtered.length ? filtered[filtered.length-1] : null;
+}
+
+/* ---------- algoritmo de agendamento ---------- */
+function autoScheduleCycle(ym, activeSelections){
+  const nDays = daysInMonth(ym);
+  const byTeam = {};
+  activeSelections.forEach(sel=>{
+    const key = REAL_TEAMS.includes(sel.team) ? sel.team : ('AVULSO_'+sel.athleteId);
+    (byTeam[key] = byTeam[key] || []).push(sel);
+  });
+  const groups = Object.values(byTeam);
+  const interleaved = [];
+  let idx = 0, more = true;
+  while(more){
+    more = false;
+    for(const g of groups){ if(idx < g.length){ interleaved.push(g[idx]); more = true; } }
+    idx++;
+  }
+  const n = interleaved.length;
+  const entries = interleaved.map((sel, i)=>{
+    const day = n<=1 ? 1 : Math.min(nDays, 1 + Math.round((i * (nDays-1)) / (n-1)));
+    return { id: uid(), athleteId: sel.athleteId, team: sel.team, product: sel.product,
+      theme: sel.theme, format: sel.format, date: dateFromDay(ym, day), roteiro: '',
+      status: { postou:null, collab:null, obs:'', metrics:{views:'',likes:'',comments:'',shares:'',saves:''} } };
+  });
+  entries.sort((a,b)=> a.date.localeCompare(b.date));
+  const lastDayByTeam = {};
+  entries.forEach(e=>{
+    if(!REAL_TEAMS.includes(e.team)) return;
+    let day = Number(e.date.split('-')[2]);
+    const last = lastDayByTeam[e.team];
+    if(last !== undefined && day - last < 3){ day = Math.min(nDays, last + 3); e.date = dateFromDay(ym, day); }
+    lastDayByTeam[e.team] = day;
+  });
+  entries.sort((a,b)=> a.date.localeCompare(b.date));
+  return entries;
+}
+
+/* ---------- IA (Edge Functions) ---------- */
+async function gerarRoteiroAtleta(entry, athlete, produto, temaGeral, trendsNotes, briefingText, exemplosBons, exemplosRuins, bibliotecaRefs){
+  const histAnterior = lastEntryFor(athlete.id, entry.__ym);
+  const { data, error } = await sb.functions.invoke('gerar-roteiro', {
+    body: { athlete, produto, entry, temaGeral, trendsNotes, briefingText, histAnterior, exemplosBons, exemplosRuins, bibliotecaRefs }
+  });
+  if(error) throw error;
+  return data?.roteiro || '(sem resposta)';
+}
+async function salvarExemplo(entry, athlete, tipo, motivo){
+  try{
+    await sb.from('roteiro_exemplos').insert({ athlete_id: athlete?.id || null, team: entry.team, produto: entry.product,
+      formato: entry.format, roteiro_text: entry.roteiro, tipo, motivo: motivo||'' });
+  }catch(err){ console.error('Erro ao salvar exemplo', err); }
+}
+async function buscarExemplosBons(limit){
+  const { data } = await sb.from('roteiro_exemplos').select('roteiro_text, team, produto, formato').eq('tipo', 'bom').order('created_at', {ascending:false}).limit(limit||3);
+  return data || [];
+}
+async function buscarExemplosRuinsComMotivo(limit){
+  const { data } = await sb.from('roteiro_exemplos').select('motivo').eq('tipo', 'ruim').not('motivo', 'eq', '').order('created_at', {ascending:false}).limit(limit||8);
+  return data || [];
+}
+async function buscarReferenciasBiblioteca(limit){
+  const { data } = await sb.from('roteiro_biblioteca').select('titulo, roteiro_text').order('created_at', {ascending:false}).limit(limit||2);
+  return data || [];
+}
+async function gerarUmRoteiro(cycle, entryId, motivoRegeracao){
+  const e = cycle.entries.find(x=>x.id===entryId);
+  const a = State.athletes.find(x=>x.id===e.athleteId);
+  const isSemProduto = e.product === 'Sem produto (tema livre)';
+  const produto = isSemProduto ? {name:'__SEM_PRODUTO__', desc:''} : (State.products.find(p=>p.name===e.product) || {name:e.product, desc:''});
+  if(!a) return;
+  e.__ym = cycle.ym;
+  if(e.roteiro && e.roteiro.trim()) await salvarExemplo(e, a, 'ruim', motivoRegeracao||'');
+  try{
+    const exemplosBons = await buscarExemplosBons(3);
+    const exemplosRuins = await buscarExemplosRuinsComMotivo(8);
+    const bibliotecaRefs = await buscarReferenciasBiblioteca(2);
+    e.roteiro = await gerarRoteiroAtleta(e, a, produto, cycle.themeGeral, cycle.trendsNotes, cycle.briefingText, exemplosBons, exemplosRuins, bibliotecaRefs);
+  }catch(err){ console.error(err); toast('Erro ao gerar roteiro de ' + a.name); }
+  await persistOneEntry(cycle.ym, e);
+}
+
+/* ---------- markdown -> html (pra PDF) ---------- */
+function markdownParaHtml(texto){
+  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const linhas = texto.split('\n');
+  let html = ''; let emLista = false;
+  linhas.forEach(linhaOriginal=>{
+    let linha = linhaOriginal.trim();
+    if(!linha){ if(emLista){ html += '</ul>'; emLista=false; } return; }
+    if(/^-{3,}$/.test(linha)){ if(emLista){html+='</ul>'; emLista=false;} html += '<hr>'; return; }
+    let m;
+    if((m = linha.match(/^###\s+(.*)/))){ if(emLista){html+='</ul>'; emLista=false;} html += `<h3>${esc(m[1])}</h3>`; return; }
+    if((m = linha.match(/^##\s+(.*)/))){ if(emLista){html+='</ul>'; emLista=false;} html += `<h3>${esc(m[1])}</h3>`; return; }
+    if((m = linha.match(/^#\s+(.*)/))){ if(emLista){html+='</ul>'; emLista=false;} html += `<h2>${esc(m[1])}</h2>`; return; }
+    if((m = linha.match(/^[-*]\s+(.*)/))){ if(!emLista){ html += '<ul>'; emLista = true; } html += `<li>${aplicarNegrito(esc(m[1]))}</li>`; return; }
+    if(/^\d+\.\s+/.test(linha)){ if(!emLista){ html += '<ul>'; emLista = true; } html += `<li>${aplicarNegrito(esc(linha.replace(/^\d+\.\s+/,'')))}</li>`; return; }
+    if(emLista){ html += '</ul>'; emLista = false; }
+    html += `<p>${aplicarNegrito(esc(linha))}</p>`;
+  });
+  if(emLista) html += '</ul>';
+  return html;
+}
+function aplicarNegrito(s){ return s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
+
+function exportPDFGroup(cycle, groupLabel, entriesGroup, filenameSlug){
+  const gerados = entriesGroup.filter(e=>e.roteiro && e.roteiro.trim());
+  if(!gerados.length){ toast(`Nenhum roteiro gerado ainda pra ${groupLabel}`); return; }
+  const w = window.open('', '_blank');
+  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const blocks = gerados.map(e=>{
+    const a = State.athletes.find(x=>x.id===e.athleteId);
+    return `<div class="roteiro-block"><div class="cabecalho"><h2>${esc(a?a.name:'—')} <span class="team">${esc(e.team)}</span></h2>
+      <div class="meta">${e.date.split('-').reverse().join('/')} · ${esc(e.product)} · ${esc(e.format)}</div></div>
+      <div class="conteudo">${markdownParaHtml(e.roteiro)}</div></div>`;
+  }).join('<div class="pagebreak"></div>');
+  w.document.write(`<html><head><title>CRONOGRAMA_${filenameSlug}_${cycle.ym}_FOURLAB</title>
+    <style>
+      body{font-family:'Segoe UI',Arial,Helvetica,sans-serif; color:#1a1315; padding:36px; max-width:760px; margin:0 auto; font-size:13px; line-height:1.55;}
+      h1{color:#731b58; font-size:21px; margin-bottom:2px;}
+      .subtitle{color:#8a7c72; font-size:12px; margin-bottom:34px; text-transform:uppercase; letter-spacing:0.4px;}
+      .roteiro-block{margin-bottom:10px;}
+      .cabecalho{border-bottom:2px solid #fdcc03; padding-bottom:8px; margin-bottom:14px;}
+      .roteiro-block h2{color:#e96709; font-size:17px; margin:0 0 2px 0;}
+      .roteiro-block .team{color:#731b58; font-size:11px; font-weight:normal; margin-left:8px;}
+      .meta{color:#8a7c72; font-size:11px;}
+      .conteudo h2{color:#731b58; font-size:14px; margin:16px 0 4px 0; text-transform:uppercase; letter-spacing:0.3px;}
+      .conteudo h3{color:#e96709; font-size:12.5px; margin:14px 0 4px 0; text-transform:uppercase; letter-spacing:0.3px;}
+      .conteudo p{margin:0 0 8px 0;} .conteudo ul{margin:0 0 10px 0; padding-left:20px;} .conteudo li{margin-bottom:4px;}
+      .conteudo hr{border:none; border-top:1px solid #e8ded3; margin:14px 0;}
+      .pagebreak{page-break-before:always;} @media print{ body{padding:0;} }
+    </style></head><body>
+      <h1>Cronograma de Roteiros — FourLab</h1>
+      <div class="subtitle">${groupLabel} · ${fmtMonthLabel(cycle.ym)} · ${gerados.length} roteiro(s)</div>
+      ${blocks}
+      <script>window.onload = ()=> window.print();<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+function pdfExportChoicesHtml(cycle){
+  const byTeam = {};
+  cycle.entries.forEach(e=>{ if(e.roteiro && e.roteiro.trim() && REAL_TEAMS.includes(e.team)) (byTeam[e.team] = byTeam[e.team] || []).push(e); });
+  const avulsosPorAtleta = {};
+  cycle.entries.forEach(e=>{ if(e.roteiro && e.roteiro.trim() && !REAL_TEAMS.includes(e.team)) (avulsosPorAtleta[e.athleteId] = avulsosPorAtleta[e.athleteId] || []).push(e); });
+  let html = `<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Exportar PDF</h3>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:14px;">Um PDF por equipe, e um PDF por atleta avulso.</div>
+    <div class="section-title">Equipes</div>`;
+  REAL_TEAMS.forEach(team=>{
+    const list = byTeam[team] || [];
+    html += `<div class="row" style="justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line);">
+      <span><span class="badge team-${team}">${team}</span> ${list.length} roteiro(s) prontos</span>
+      <button class="btn btn-outline btn-sm" data-pdf-team="${team}" ${!list.length?'disabled':''}>Gerar PDF</button></div>`;
+  });
+  html += `<div class="section-title">Avulsos</div>`;
+  Object.keys(avulsosPorAtleta).forEach(athleteId=>{
+    const list = avulsosPorAtleta[athleteId];
+    const a = State.athletes.find(x=>x.id===athleteId);
+    html += `<div class="row" style="justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line);">
+      <span>${a?a.name:'(removido)'} — ${list.length} roteiro(s) prontos</span>
+      <button class="btn btn-outline btn-sm" data-pdf-avulso="${athleteId}">Gerar PDF</button></div>`;
+  });
+  if(!Object.keys(avulsosPorAtleta).length) html += `<div style="color:var(--muted); font-size:12px;">Nenhum avulso com roteiro gerado ainda.</div>`;
+  return html;
+}
+function openPDFExportModal(cycle){
+  openModal(pdfExportChoicesHtml(cycle));
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.querySelectorAll('[data-pdf-team]').forEach(btn=>{
+    btn.onclick = ()=>{ const team = btn.dataset.pdfTeam; exportPDFGroup(cycle, `Equipe ${team}`, cycle.entries.filter(e=>e.team===team), team.toUpperCase()); };
+  });
+  document.querySelectorAll('[data-pdf-avulso]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const athleteId = btn.dataset.pdfAvulso;
+      const a = State.athletes.find(x=>x.id===athleteId);
+      exportPDFGroup(cycle, a?a.name:'Avulso', cycle.entries.filter(e=>e.athleteId===athleteId), (a?a.name:'avulso').toUpperCase().replace(/\s+/g,'_'));
+    };
+  });
+}
+
+async function apagarTudoDoMes(cycle){
+  if(!confirm(`Apagar TODOS os ${cycle.entries.length} posts agendados de ${fmtMonthLabel(cycle.ym)}? Isso não afeta o histórico salvo no banco de exemplos, só o calendário deste mês. Não tem como desfazer.`)) return false;
+  try{
+    if(cycle.id) await sb.from('entries').delete().eq('cycle_id', cycle.id);
+    cycle.entries = [];
+    await carregarHistorico();
+    toast('Mês apagado');
+    return true;
+  }catch(err){ console.error(err); toast('Erro ao apagar — veja o console (F12)'); return false; }
+}
+
+/* ---------- render ---------- */
+function renderEntriesList(cycle){
+  return cycle.entries.map(e=>{
+    const a = State.athletes.find(x=>x.id===e.athleteId);
+    return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;">
+      <div class="row" style="justify-content:space-between;">
+        <div class="row" style="gap:8px;">
+          <span class="badge team-${(e.team||'').replace(/\s/g,'')}">${e.team}</span>
+          <strong>${a?a.name:'(removido)'}</strong>
+          <span style="color:var(--muted);font-size:12px;">${weekdayShort(e.date)} ${e.date.split('-').reverse().join('/')} · ${e.product} · ${e.format}</span>
+        </div>
+        <div class="row" style="gap:6px;">
+          <button class="btn btn-ghost btn-sm" data-change-date="${e.id}">Alterar data</button>
+          <button class="btn btn-outline btn-sm" data-gen-one="${e.id}">${e.roteiro?'Regerar':'Gerar'}</button>
+          ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-copy="${e.id}">Copiar</button>`:''}
+          ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-mark-bom="${e.id}" title="Marcar como bom exemplo">👍</button>`:''}
+          ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-mark-ruim="${e.id}" title="Descartar (ruim)">👎</button>`:''}
+        </div>
+      </div>
+      ${e.roteiro ? `<textarea style="margin-top:10px;min-height:160px;font-size:12.5px;" data-roteiro-edit="${e.id}">${e.roteiro}</textarea>` : '<div style="color:var(--muted);font-size:12px;margin-top:8px;">Roteiro ainda não gerado.</div>'}
+    </div>`;
+  }).join('');
+}
+
+function viewCiclo(){
+  const ym = State.currentCycleYM;
+  const cycle = getOrCreateCycle(ym);
+  const hasEntries = cycle.entries && cycle.entries.length > 0;
+  const grouped = {}; TEAM_ORDER.forEach(t=> grouped[t]=[]);
+  State.athletes.forEach(a=> grouped[a.team].push(a));
+
+  let html = `<div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Mês de trabalho</h2><div class="desc">Escolha o mês e defina o tema geral. Briefing/trends ficam na aba Briefing.</div></div>
+      <input type="month" id="cycleMonth" value="${ym}" style="width:auto;"></div>
+    <div class="field" style="margin-top:12px;"><label>Tema geral do mês (opcional)</label>
+      <input id="temaGeral" value="${cycle.themeGeral||''}" placeholder="Ex: Mês da Hidratação"></div></div>
+
+  <div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Quem entra neste mês</h2><div class="desc">Marque os atletas ativos, escolha produto e (opcional) tema específico. Scott é confirmação manual.</div></div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--purple); text-transform:none; cursor:pointer;">
+        <input type="checkbox" id="selectAllAthletes" style="width:auto;"> Selecionar todos</label></div>`;
+
+  TEAM_ORDER.forEach(team=>{
+    const list = grouped[team];
+    if(!list.length) return;
+    html += `<div class="section-title"><span class="badge team-${team.replace(/\s/g,'')}">${team}</span>${team==='Scott'?' <span style="color:var(--pink); text-transform:none; font-weight:700;">— confirmação manual</span>':''}</div>
+    <table><thead><tr><th style="width:26px;"></th><th>Atleta</th><th>Produto</th><th>Tema/ângulo específico</th><th style="width:110px;">Formato</th></tr></thead><tbody>
+    ${list.map(a=>{
+      const existing = cycle.entries.find(e=>e.athleteId===a.id);
+      const checked = existing ? 'checked' : '';
+      const last = lastEntryFor(a.id, ym);
+      return `<tr>
+        <td><input type="checkbox" class="selAthlete" data-athlete="${a.id}" data-team="${team}" ${checked}></td>
+        <td><strong>${a.name}</strong>${last?`<div style="font-size:11px;color:var(--muted);">último: ${last.product}</div>`:''}</td>
+        <td><select class="selProduct" data-athlete="${a.id}">
+          <option value="__SEM_PRODUTO__" ${existing&&existing.product==='Sem produto (tema livre)'?'selected':''}>— Sem produto (tema livre) —</option>
+          ${State.products.map(p=>`<option value="${p.id}" ${existing&&existing.product===p.name?'selected':''}>${p.name}</option>`).join('')}
+        </select></td>
+        <td><input class="selTheme" data-athlete="${a.id}" placeholder="livre / deixa a IA decidir" value="${existing?existing.theme.replace(/"/g,'&quot;'):''}"></td>
+        <td><select class="selFormat" data-athlete="${a.id}">
+          <option ${((existing&&existing.format)||a.formatPref)==='Vídeo'?'selected':''}>Vídeo</option>
+          <option ${((existing&&existing.format)||a.formatPref)==='Carrossel'?'selected':''}>Carrossel</option>
+        </select></td></tr>`;
+    }).join('')}
+    </tbody></table>`;
+  });
+
+  html += `<div class="row" style="margin-top:16px;">
+      <button class="btn btn-primary" id="btnGerarCalendario">1. Gerar calendário deste mês</button>
+      <span style="font-size:12px;color:var(--muted);">Recalcula as datas dos selecionados respeitando espaçamento por equipe.</span></div></div>`;
+
+  if(hasEntries){
+    html += `<div class="panel"><div class="row" style="justify-content:space-between;">
+        <div><h2>Roteiros — ${fmtMonthLabel(ym)}</h2><div class="desc">${cycle.entries.length} posts agendados.</div></div>
+        <div class="row" style="gap:6px;">
+          <button class="btn btn-danger" id="btnApagarMes">🗑️ Apagar tudo deste mês</button>
+          <button class="btn btn-outline" id="btnExportarPDF">📄 Exportar PDF</button>
+          <button class="btn btn-primary" id="btnGerarTodosRoteiros">2. Gerar todos os roteiros</button>
+          <button class="btn btn-danger" id="btnCancelarGeracao" style="display:none;">Cancelar</button>
+        </div></div>
+      <div id="entriesList">${renderEntriesList(cycle)}</div></div>`;
+  }
+  return html;
+}
+
+function wireEntriesList(){
+  document.querySelectorAll('[data-gen-one]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM);
+      btn.disabled = true; btn.innerHTML = '<span class="loader"></span>';
+      await gerarUmRoteiro(cycle, btn.dataset.genOne);
+      render();
+    };
+  });
+  document.querySelectorAll('[data-copy]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const ta = document.querySelector(`[data-roteiro-edit="${btn.dataset.copy}"]`);
+      navigator.clipboard.writeText(ta.value).then(()=> toast('Roteiro copiado'));
+    };
+  });
+  document.querySelectorAll('[data-mark-bom]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM);
+      const e = cycle.entries.find(x=>x.id===btn.dataset.markBom);
+      const a = State.athletes.find(x=>x.id===e.athleteId);
+      await salvarExemplo(e, a, 'bom');
+      e.roteiro = '';
+      await persistOneEntry(State.currentCycleYM, e);
+      toast('Marcado como bom exemplo — arquivado no banco do atleta');
+      render();
+    };
+  });
+  document.querySelectorAll('[data-mark-ruim]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM);
+      const e = cycle.entries.find(x=>x.id===btn.dataset.markRuim);
+      const a = State.athletes.find(x=>x.id===e.athleteId);
+      openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Reprovar roteiro</h3>
+        <div style="font-size:12.5px; color:var(--muted); margin-bottom:12px;">O que não gostou? (opcional). Isso ajuda a IA a não repetir o mesmo erro.</div>
+        <div class="field"><textarea id="motivoRuim" style="min-height:110px;" placeholder="Ex: soou muito artificial..."></textarea></div>
+        <div class="row" style="justify-content:flex-end; gap:8px;">
+          <button class="btn btn-ghost btn-sm" id="btnDescartarSemMotivo">Descartar sem motivo</button>
+          <button class="btn btn-primary btn-sm" id="btnDescartarComMotivo">Descartar</button></div>`);
+      document.getElementById('modalCloseBtn').onclick = closeModal;
+      const confirmar = async (motivo)=>{
+        await salvarExemplo(e, a, 'ruim', motivo);
+        e.roteiro = '';
+        await persistOneEntry(State.currentCycleYM, e);
+        closeModal(); toast('Descartado — arquivado no banco do atleta'); render();
+      };
+      document.getElementById('btnDescartarSemMotivo').onclick = ()=> confirmar('');
+      document.getElementById('btnDescartarComMotivo').onclick = ()=> confirmar(document.getElementById('motivoRuim').value.trim());
+    };
+  });
+  document.querySelectorAll('[data-roteiro-edit]').forEach(ta=>{
+    ta.onchange = async ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM);
+      const e = cycle.entries.find(x=>x.id===ta.dataset.roteiroEdit);
+      if(e){ e.roteiro = ta.value; await persistOneEntry(State.currentCycleYM, e); }
+    };
+  });
+  document.querySelectorAll('[data-change-date]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM);
+      const e = cycle.entries.find(x=>x.id===btn.dataset.changeDate);
+      openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Alterar data — ${athleteName(e.athleteId)}</h3>
+        <div class="field"><label>Nova data</label><input type="date" id="newDateInput" value="${e.date}"></div>
+        <button class="btn btn-primary" id="btnSaveDate">Salvar</button>`);
+      document.getElementById('modalCloseBtn').onclick = closeModal;
+      document.getElementById('btnSaveDate').onclick = async ()=>{
+        e.date = document.getElementById('newDateInput').value;
+        cycle.entries.sort((a,b)=>a.date.localeCompare(b.date));
+        await persistOneEntry(State.currentCycleYM, e);
+        closeModal(); render();
+      };
+    };
+  });
+}
+
+function wireCicloView(){
+  const selectAll = document.getElementById('selectAllAthletes');
+  if(selectAll) selectAll.onchange = ()=> document.querySelectorAll('.selAthlete').forEach(chk=> chk.checked = selectAll.checked);
+
+  document.getElementById('cycleMonth').onchange = async (e)=>{
+    State.currentCycleYM = e.target.value;
+    document.getElementById('main').innerHTML = `<div class="empty-state"><span class="loader"></span></div>`;
+    await carregarMes(State.currentCycleYM);
+    render();
+  };
+
+  document.getElementById('temaGeral').onchange = async (e)=>{
+    const cycle = getOrCreateCycle(State.currentCycleYM);
+    cycle.themeGeral = e.target.value;
+    await persistCycleMeta(State.currentCycleYM);
+  };
+
+  document.getElementById('btnGerarCalendario').onclick = async ()=>{
+    const ym = State.currentCycleYM;
+    const checks = Array.from(document.querySelectorAll('.selAthlete:checked'));
+    if(!checks.length){ toast('Marque ao menos um atleta'); return; }
+    const selections = checks.map(chk=>{
+      const athleteId = chk.dataset.athlete, team = chk.dataset.team;
+      const prodSel = document.querySelector(`.selProduct[data-athlete="${athleteId}"]`);
+      const isSemProduto = prodSel.value === '__SEM_PRODUTO__';
+      const productObj = isSemProduto ? null : State.products.find(p=>p.id===prodSel.value);
+      const themeInput = document.querySelector(`.selTheme[data-athlete="${athleteId}"]`);
+      const formatSel = document.querySelector(`.selFormat[data-athlete="${athleteId}"]`);
+      return { athleteId, team, product: isSemProduto ? 'Sem produto (tema livre)' : (productObj ? productObj.name : ''),
+        theme: themeInput.value.trim(), format: formatSel.value };
+    });
+    const cycle = getOrCreateCycle(ym);
+    cycle.entries = autoScheduleCycle(ym, selections);
+    cycle.themeGeral = document.getElementById('temaGeral').value;
+    await persistCycleMeta(ym);
+    await persistCycleEntries(ym);
+    toast('Calendário gerado');
+    render();
+  };
+
+  wireEntriesList();
+
+  const btnExportPDF = document.getElementById('btnExportarPDF');
+  if(btnExportPDF) btnExportPDF.onclick = ()=> openPDFExportModal(getOrCreateCycle(State.currentCycleYM));
+
+  const btnApagarMes = document.getElementById('btnApagarMes');
+  if(btnApagarMes) btnApagarMes.onclick = async ()=>{ const ok = await apagarTudoDoMes(getOrCreateCycle(State.currentCycleYM)); if(ok) render(); };
+
+  const btnGerarTodos = document.getElementById('btnGerarTodosRoteiros');
+  const btnCancelar = document.getElementById('btnCancelarGeracao');
+  if(btnGerarTodos){
+    btnGerarTodos.onclick = async ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM);
+      btnGerarTodos.disabled = true;
+      State.cancelGeracao = false;
+      if(btnCancelar) btnCancelar.style.display = 'inline-block';
+      for(let i=0;i<cycle.entries.length;i++){
+        if(State.cancelGeracao){ toast('Geração cancelada'); break; }
+        btnGerarTodos.innerHTML = `<span class="loader"></span> Gerando ${i+1}/${cycle.entries.length}...`;
+        await gerarUmRoteiro(cycle, cycle.entries[i].id);
+      }
+      btnGerarTodos.disabled = false;
+      btnGerarTodos.textContent = '2. Gerar todos os roteiros';
+      if(btnCancelar) btnCancelar.style.display = 'none';
+      if(!State.cancelGeracao) toast('Todos os roteiros gerados');
+      render();
+    };
+  }
+  if(btnCancelar) btnCancelar.onclick = ()=>{ State.cancelGeracao = true; btnCancelar.textContent = 'Cancelando...'; btnCancelar.disabled = true; };
+}
+
+function render(){
+  document.getElementById('main').innerHTML = viewCiclo();
+  wireCicloView();
+}
+
+(async function start(){
+  const auth = await guardStaff('ciclo');
+  if(!auth) return;
+  const { data: athletesData } = await sb.from('athletes').select('*').order('team').order('name');
+  State.athletes = (athletesData||[]).map(mapAthleteFromDB);
+  const { data: productsData } = await sb.from('products').select('*').order('cat').order('name');
+  State.products = (productsData||[]).map(mapProductFromDB);
+  await carregarMes(State.currentCycleYM);
+  await carregarHistorico();
+  render();
+})();
+</script>
+</body>
+</html>

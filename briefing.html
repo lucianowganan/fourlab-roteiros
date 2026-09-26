@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Briefing — FourLab Roteiros</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<div class="shell" id="appShell">
+  <div id="sidebarMount"></div>
+  <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main>
+</div>
+
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const State = { currentCycleYM: monthKey(todayISO()), cycle: null };
+
+async function getOrCreateCycleDB(ym){
+  const { data: existing } = await sb.from('cycles').select('*').eq('ym', ym).maybeSingle();
+  if(existing) return existing;
+  const { data } = await sb.from('cycles').upsert({ym, theme_geral:'', trends_notes:'', briefing_text:'', briefing_file_url:'', briefing_file_name:''}, {onConflict:'ym'}).select().single();
+  return data;
+}
+
+function mapCycle(data){
+  return { ym:data.ym, id:data.id, themeGeral:data.theme_geral||'', trendsNotes:data.trends_notes||'',
+    briefingText:data.briefing_text||'', briefingFileUrl:data.briefing_file_url||'', briefingFileName:data.briefing_file_name||'' };
+}
+
+async function persistCycleMeta(ym, cycle){
+  await sb.from('cycles').update({
+    theme_geral:cycle.themeGeral, trends_notes:cycle.trendsNotes,
+    briefing_text:cycle.briefingText, briefing_file_url:cycle.briefingFileUrl, briefing_file_name:cycle.briefingFileName
+  }).eq('id', cycle.id);
+}
+
+async function carregarMes(ym){
+  const row = await getOrCreateCycleDB(ym);
+  State.cycle = mapCycle(row);
+}
+
+function viewBriefing(){
+  const ym = State.currentCycleYM;
+  const cycle = State.cycle;
+  return `
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;">
+      <div><h2>Briefing da campanha — ${fmtMonthLabel(ym)}</h2><div class="desc">Espaço pra detalhar a campanha do mês além do tema geral: contexto, objetivos, referências, restrições. Isso entra no prompt de geração dos roteiros.</div></div>
+      <input type="month" id="briefingMonth" value="${ym}" style="width:auto;">
+    </div>
+    <div class="field" style="margin-top:12px;"><label>Briefing detalhado</label>
+      <textarea id="briefingText" style="min-height:220px;" placeholder="Ex: campanha focada em provas de trail de 21-42km, tom mais técnico, evitar mencionar concorrentes, foco em recuperação pós-prova...">${cycle.briefingText||''}</textarea>
+    </div>
+    <div class="row" style="justify-content:space-between; margin-top:10px;">
+      <button class="btn btn-primary btn-sm" id="btnSaveBriefing">Salvar briefing</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Anexar PDF de referência</h2>
+    <div class="desc">Pra campanhas mais elaboradas — sobe um briefing em PDF. O texto acima é o que entra no prompt; o PDF fica salvo aqui como referência.</div>
+    <div class="field" style="margin-top:12px;">
+      <input type="file" id="briefingFile" accept="application/pdf">
+    </div>
+    ${cycle.briefingFileUrl ? `<div style="font-size:12.5px; margin-top:8px;">Arquivo atual: <a href="${cycle.briefingFileUrl}" target="_blank" style="color:var(--orange); font-weight:700;">${cycle.briefingFileName||'ver PDF'}</a></div>` : ''}
+    <button class="btn btn-outline btn-sm" id="btnUploadBriefing" style="margin-top:10px;">Enviar PDF</button>
+  </div>
+
+  <div class="panel">
+    <h2>Trends do mês</h2>
+    <div class="desc">Cole aqui o resultado da pesquisa de trends feita fora do app (ChatGPT, Gemini etc). Isso entra direto no prompt de geração dos roteiros.</div>
+    <div class="field" style="margin-top:12px;">
+      <textarea id="trendsNotes" style="min-height:180px;" placeholder="Cole aqui os formatos/ganchos em alta este mês...">${cycle.trendsNotes||''}</textarea>
+    </div>
+    <button class="btn btn-primary btn-sm" id="btnSaveTrendsNotes">Salvar trends</button>
+  </div>`;
+}
+
+function wire(){
+  document.getElementById('briefingMonth').onchange = async (e)=>{
+    State.currentCycleYM = e.target.value;
+    document.getElementById('main').innerHTML = `<div class="empty-state"><span class="loader"></span></div>`;
+    await carregarMes(State.currentCycleYM);
+    render();
+  };
+  document.getElementById('btnSaveBriefing').onclick = async (e)=>{
+    const btn = e.target;
+    State.cycle.briefingText = document.getElementById('briefingText').value;
+    btn.disabled = true;
+    try{ await persistCycleMeta(State.currentCycleYM, State.cycle); toast('Briefing salvo'); }
+    catch(err){ console.error(err); toast('Erro ao salvar — veja o console (F12)'); }
+    btn.disabled = false;
+  };
+  document.getElementById('btnUploadBriefing').onclick = async (e)=>{
+    const btn = e.target;
+    const fileInput = document.getElementById('briefingFile');
+    const file = fileInput.files[0];
+    if(!file){ toast('Escolha um arquivo primeiro'); return; }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader"></span> Enviando...';
+    try{
+      const ym = State.currentCycleYM;
+      const path = `${ym}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await sb.storage.from('briefings').upload(path, file, {upsert:true});
+      if(upErr) throw upErr;
+      const { data: urlData } = sb.storage.from('briefings').getPublicUrl(path);
+      State.cycle.briefingFileUrl = urlData.publicUrl;
+      State.cycle.briefingFileName = file.name;
+      await persistCycleMeta(ym, State.cycle);
+      toast('PDF enviado');
+      render();
+    }catch(err){
+      console.error('Erro no upload', err);
+      toast('Erro ao enviar PDF — veja o console (F12)');
+    }
+    btn.disabled = false;
+  };
+  document.getElementById('btnSaveTrendsNotes').onclick = async ()=>{
+    State.cycle.trendsNotes = document.getElementById('trendsNotes').value;
+    try{ await persistCycleMeta(State.currentCycleYM, State.cycle); toast('Trends salvos'); }
+    catch(err){ console.error(err); toast('Erro ao salvar — veja o console (F12)'); }
+  };
+}
+
+function render(){
+  document.getElementById('main').innerHTML = viewBriefing();
+  wire();
+}
+
+(async function start(){
+  const auth = await guardStaff('briefing');
+  if(!auth) return;
+  await carregarMes(State.currentCycleYM);
+  render();
+})();
+</script>
+</body>
+</html>
