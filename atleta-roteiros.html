@@ -28,9 +28,9 @@ function viewRoteiros(){
   if(!comRoteiro.length) return `<div class="panel"><div class="empty-state"><div class="big">📝</div>Nenhum roteiro gerado ainda pra você.</div></div>`;
   const porMes = {};
   comRoteiro.forEach(e=>{ (porMes[e.ym||'—'] = porMes[e.ym||'—'] || []).push(e); });
-  return Object.keys(porMes).sort().reverse().map(ym=>`
+  return `<div class="page-head"><div><h1>Meus roteiros</h1><div class="sub">${comRoteiro.length} roteiro(s) prontos pra gravar.</div></div></div>` + Object.keys(porMes).sort().reverse().map(ym=>`
     <div class="panel"><h2>${fmtMonthLabel(ym)}</h2>
-      ${porMes[ym].map(e=>`<div style="border:1px solid var(--line); border-radius:10px; padding:14px; margin-top:10px;">
+      ${porMes[ym].map(e=>`<div id="${e.id}" style="border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:12px; scroll-margin-top:20px;">
           <div class="row" style="justify-content:space-between;">
             <strong>${e.date.split('-').reverse().join('/')} · ${e.product} · ${e.format}</strong>
             <button class="btn btn-ghost btn-sm" data-acopy="${e.id}">Copiar</button></div>
@@ -39,6 +39,7 @@ function viewRoteiros(){
 }
 function render(){
   document.getElementById('main').innerHTML = viewRoteiros();
+  if(location.hash){ const alvo = document.getElementById(location.hash.slice(1)); if(alvo){ alvo.style.borderColor = 'var(--orange)'; alvo.scrollIntoView({behavior:'smooth'}); } }
   document.querySelectorAll('[data-acopy]').forEach(btn=>{
     btn.onclick = ()=>{ const e = entries.find(x=>x.id===btn.dataset.acopy); if(e) navigator.clipboard.writeText(e.roteiro).then(()=> toast('Copiado')); };
   });

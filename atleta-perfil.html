@@ -1,0 +1,142 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meu Perfil — FourLab</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+let athlete = null;
+
+// campo do formulário ↔ coluna no banco
+const CAMPOS = [
+  ['pEmail','email','email'], ['pWhatsapp','whatsapp','whatsapp'],
+  ['pInstagram','instagram','instagram'], ['pTiktok','tiktok','tiktok'], ['pYoutube','youtube','youtube'], ['pFacebook','facebook','facebook'],
+  ['pPix','pixKey','pix_key'],
+  ['pCep','enderecoCep','endereco_cep'], ['pRua','enderecoRua','endereco_rua'], ['pNumero','enderecoNumero','endereco_numero'],
+  ['pComplemento','enderecoComplemento','endereco_complemento'], ['pBairro','enderecoBairro','endereco_bairro'],
+  ['pCidade','enderecoCidade','endereco_cidade'], ['pEstado','enderecoEstado','endereco_estado'],
+];
+
+function campo(id, label, valor, opts){
+  opts = opts || {};
+  return `<div class="field" ${opts.span?`style="grid-column:span ${opts.span};"`:''}><label for="${id}">${label}</label>
+    ${opts.ic ? `<div class="input-ic"><span class="ic">${opts.ic}</span>` : ''}
+    <input id="${id}" value="${escHtml(valor||'')}" placeholder="${escHtml(opts.placeholder||'')}" ${opts.type?`type="${opts.type}"`:''} ${opts.attrs||''}>
+    ${opts.suffix ? `<span class="suffix" id="${id}Suffix">${opts.suffix}</span>` : ''}
+    ${opts.ic ? '</div>' : ''}</div>`;
+}
+
+function viewPerfil(){
+  const a = athlete;
+  const recebeComissao = !!a.cupomYampi;
+  const preenchidos = CAMPOS.filter(([,k])=> k!=='pixKey' || recebeComissao).filter(([,k])=> k!=='enderecoComplemento' && k!=='facebook' && k!=='youtube' && k!=='tiktok');
+  const pct = Math.round(preenchidos.filter(([,k])=> a[k]).length / preenchidos.length * 100);
+  return `
+  <div class="page-head"><div><h1>Meu perfil</h1><div class="sub">Seus dados ficam visíveis só pra equipe FourLab — usamos pra contato, envio de produtos e pagamento de comissão.</div></div></div>
+  <div class="profile-layout">
+    <div class="panel profile-side">
+      <div style="position:relative; display:inline-block;">${avatarHtml(a.name,'xl')}</div>
+      <div class="pname">${escHtml(a.name)}</div>
+      <div class="prole">Atleta · <span class="badge team-${escHtml((a.team||'').replace(/\s/g,''))}">${escHtml(a.team||'')}</span></div>
+      <div style="text-align:left; margin-top:18px;">
+        <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;"><span>Perfil completo</span><span id="pctLabel">${pct}%</span></div>
+        <div class="progress"><div id="pctBar" style="width:${pct}%;"></div></div>
+      </div>
+      <nav class="side-nav">
+        <a href="#secPessoais" class="active">${ICONS.perfil} Dados pessoais</a>
+        <a href="#secRedes">${ICONS.instagram} Redes sociais</a>
+        ${recebeComissao ? `<a href="#secPagamento">${ICONS.pix} Pagamento</a>` : ''}
+        <a href="#secEndereco">${ICONS.endereco} Endereço de envio</a>
+        <a href="#" onclick="logout(); return false;" style="color:var(--muted);">${ICONS.sair.replace('width="14" height="14"','width="18" height="18"')} Sair</a>
+      </nav>
+    </div>
+
+    <div class="panel" id="perfilForm">
+      <section class="form-section" id="secPessoais">
+        <h3>Dados pessoais</h3><div class="hint">Nome e equipe são definidos pela FourLab — fale com a gente se precisar corrigir.</div>
+        <div class="grid-2" style="gap:14px;">
+          <div class="field"><label>Nome</label><input value="${escHtml(a.name)}" disabled style="opacity:0.7;"></div>
+          <div class="field"><label>Equipe</label><input value="${escHtml(a.team||'')}" disabled style="opacity:0.7;"></div>
+          ${campo('pEmail','E-mail', a.email, {ic:ICONS.mail, type:'email', placeholder:'seuemail@exemplo.com'})}
+          ${campo('pWhatsapp','WhatsApp', a.whatsapp, {ic:ICONS.whatsapp, placeholder:'(11) 99999-9999', attrs:'inputmode="tel"'})}
+        </div>
+      </section>
+
+      <section class="form-section" id="secRedes">
+        <h3>Redes sociais</h3><div class="hint">Preencha só as que você usa. Pode ser o @ ou o link do perfil.</div>
+        <div class="grid-2" style="gap:14px;">
+          ${SOCIAL_FIELDS.filter(f=>f.key!=='whatsapp').map(f=> campo('p'+f.key[0].toUpperCase()+f.key.slice(1), f.label, a[f.key], {ic:ICONS[f.ic], placeholder:f.placeholder})).join('')}
+        </div>
+      </section>
+
+      ${recebeComissao ? `<section class="form-section" id="secPagamento">
+        <h3>Pagamento da comissão</h3><div class="hint">A comissão do cupom <strong>${escHtml(a.cupomYampi.toUpperCase())}</strong> é paga via PIX quando o saldo passa de R$ 100.</div>
+        ${campo('pPix','Chave PIX', a.pixKey, {ic:ICONS.pix, placeholder:'CPF, e-mail, telefone ou chave aleatória', suffix: a.pixKey ? `${ICONS.check.replace('width="18" height="18"','width="14" height="14"')} Cadastrada` : ''})}
+      </section>` : ''}
+
+      <section class="form-section" id="secEndereco">
+        <h3>Endereço de envio</h3><div class="hint">Pra onde mandamos os produtos. Digite o CEP que o resto é preenchido automaticamente.</div>
+        <div class="addr-grid">
+          ${campo('pCep','CEP', a.enderecoCep, {span:2, placeholder:'00000-000', attrs:'inputmode="numeric" maxlength="9"'})}
+          ${campo('pRua','Rua / Avenida', a.enderecoRua, {span:4})}
+          ${campo('pNumero','Número', a.enderecoNumero, {span:2})}
+          ${campo('pComplemento','Complemento', a.enderecoComplemento, {span:4, placeholder:'Apto, bloco, referência...'})}
+          ${campo('pBairro','Bairro', a.enderecoBairro, {span:2})}
+          ${campo('pCidade','Cidade', a.enderecoCidade, {span:3})}
+          ${campo('pEstado','UF', a.enderecoEstado, {span:1, attrs:'maxlength="2" style="text-transform:uppercase;"'})}
+        </div>
+      </section>
+
+      <div class="grid-2" style="gap:14px; margin-top:22px;">
+        <button class="btn btn-outline" id="btnDescartar" style="width:100%;">Descartar alterações</button>
+        <button class="btn btn-primary" id="btnSalvarPerfil" style="width:100%;">Salvar alterações</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function buscarCep(){
+  const el = document.getElementById('pCep');
+  const cep = el.value.replace(/\D/g,'');
+  if(cep.length === 8) el.value = cep.slice(0,5)+'-'+cep.slice(5);
+  if(cep.length !== 8) return;
+  try{
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const d = await r.json();
+    if(d.erro){ toast('CEP não encontrado'); return; }
+    const set = (id, v)=>{ const i = document.getElementById(id); if(v && !i.value) i.value = v; };
+    set('pRua', d.logradouro); set('pBairro', d.bairro); set('pCidade', d.localidade); set('pEstado', d.uf);
+    document.getElementById('pNumero').focus();
+  }catch(err){ console.error(err); }
+}
+
+function render(){
+  document.getElementById('main').innerHTML = viewPerfil();
+  document.getElementById('pCep').addEventListener('blur', buscarCep);
+  document.getElementById('pCep').addEventListener('input', e=>{ if(e.target.value.replace(/\D/g,'').length===8) buscarCep(); });
+  document.getElementById('btnDescartar').onclick = ()=>{ render(); toast('Alterações descartadas'); };
+  // destaca a seção atual no menu lateral
+  const links = document.querySelectorAll('.side-nav a[href^="#sec"]');
+  links.forEach(l=> l.addEventListener('click', ()=>{ links.forEach(x=>x.classList.remove('active')); l.classList.add('active'); }));
+  document.getElementById('btnSalvarPerfil').onclick = async (ev)=>{
+    const btn = ev.target;
+    const payload = {}, novo = {};
+    CAMPOS.forEach(([id, k, col])=>{ const el = document.getElementById(id); if(!el) return; let v = el.value.trim(); if(k==='enderecoEstado') v = v.toUpperCase(); payload[col] = v; novo[k] = v; });
+    if(payload.email && !/^\S+@\S+\.\S+$/.test(payload.email)){ toast('E-mail inválido'); return; }
+    btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Salvando...';
+    // RPC restrita: o atleta só consegue alterar os próprios dados de contato/endereço/PIX
+    const { error } = await sb.rpc('atualizar_meu_perfil', { dados: payload });
+    if(error){ console.error(error); toast('Não foi possível salvar — avise a equipe FourLab'); btn.disabled = false; btn.textContent = 'Salvar alterações'; return; }
+    Object.assign(athlete, novo);
+    toast('Perfil salvo ✔'); render();
+  };
+}
+
+(async function start(){
+  const auth = await guardAthlete('perfil'); if(!auth) return;
+  athlete = auth.athlete;
+  if(!athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum atleta vinculado a este login.</div>'; return; }
+  render();
+})();
+</script></body></html>

@@ -32,7 +32,7 @@ document.getElementById('loginLogo').style.cssText = 'height:44px;width:auto;fil
   const user = await getSessionUser();
   if(user){
     const profile = await loadProfile(user.id);
-    location.href = profile.role === 'atleta' ? 'atleta-roteiros.html' : 'home.html';
+    location.href = profile.role === 'atleta' ? 'atleta-home.html' : 'home.html';
   }
 })();
 
@@ -55,7 +55,7 @@ async function tryLogin(){
     return;
   }
   const profile = await loadProfile(data.session.user.id);
-  location.href = profile.role === 'atleta' ? 'atleta-roteiros.html' : 'home.html';
+  location.href = profile.role === 'atleta' ? 'atleta-home.html' : 'home.html';
 }
 
 document.getElementById('btnLogin').onclick = tryLogin;
