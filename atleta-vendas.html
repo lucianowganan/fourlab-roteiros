@@ -15,7 +15,7 @@ function viewVendas(){
   const totalHistorico = vendasMensais.reduce((s,v)=> s + Number(v.comissao_mes||0), 0);
   return `
   <div class="page-head">
-    <div><h1>Minhas vendas <span class="soft">· ${escHtml(athlete.cupomYampi.toUpperCase())}</span></h1>
+    <div><h1>Minhas vendas · ${escHtml(athlete.cupomYampi.toUpperCase())}</h1>
       <div class="sub">Tudo que foi vendido com o seu cupom na loja FourLab.</div></div>
     <div class="row"><div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="athleteVendasMonth" value="${mesSel}" style="width:auto; background:#fff;"></div></div>
   </div>
@@ -44,8 +44,8 @@ function viewVendas(){
     </tbody></table></div></div>`;
 }
 function carregarMesSel(){
-  const prev = vendasMensais.find(v=> v.ym === addMonths(mesSel, -1)) || null;
-  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard', {prev});
+  // o "vs. mês anterior" é buscado ao vivo na Yampi dentro de carregarDashboardVendas
+  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard');
 }
 function render(){
   document.getElementById('main').innerHTML = viewVendas();
@@ -55,7 +55,7 @@ function render(){
 (async function start(){
   const auth = await guardAthlete('vendas'); if(!auth) return;
   athlete = auth.athlete;
-  if(!athlete || !athlete.cupomYampi){ location.href = 'atleta-home.html'; return; }
+  if(!temAcessoVendas(athlete)){ location.href = 'atleta-home.html'; return; }
   const { data } = await sb.from('vendas_mensais').select('*').eq('athlete_id', athlete.id).order('ym', {ascending:false});
   vendasMensais = data || [];
   render();

@@ -6,7 +6,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-let athlete = null, entries = [], vendasMensais = [], vendaAoVivo = null, carregandoAoVivo = true;
+let athlete = null, entries = [], vendasMensais = [], vendaAoVivo = null, vendaMesAnterior = null, carregandoAoVivo = true;
 const mesAtual = monthKey(todayISO());
 const META_PAGAMENTO = 100;
 
@@ -26,7 +26,7 @@ function camposFaltando(){
   if(!athlete.whatsapp) f.push('WhatsApp');
   if(!athlete.instagram && !athlete.tiktok && !athlete.youtube) f.push('redes sociais');
   if(!athlete.enderecoCep || !athlete.enderecoRua) f.push('endereço de envio');
-  if(athlete.cupomYampi && !athlete.pixKey) f.push('chave PIX');
+  if(temAcessoVendas(athlete) && !athlete.pixKey) f.push('chave PIX');
   return f;
 }
 
@@ -35,10 +35,12 @@ function heroVendasHtml(){
   const vendido = vendaAoVivo ? vendaAoVivo.valorVendido : Number(rowMes?.valor_vendido||0);
   const comissao = vendaAoVivo ? vendaAoVivo.comissaoMes : Number(rowMes?.comissao_mes||0);
   const pedidos = vendaAoVivo ? vendaAoVivo.numeroPedidos : Number(rowMes?.numero_pedidos||0);
-  const prev = vendasMensais.find(v=>v.ym===addMonths(mesAtual,-1));
+  // mês anterior: dado real da Yampi; se não vier, usa o histórico salvo
+  const prev = vendaParaLinha(vendaMesAnterior) || vendasMensais.find(v=>v.ym===addMonths(mesAtual,-1));
   const saldo = vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0;
   const hist = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = vendasMensais.find(v=>v.ym===ym);
-    hist.push({label:shortMonth(ym), value: ym===mesAtual ? vendido : Number(r?.valor_vendido||0), tip:`${fmtBRL(ym===mesAtual ? vendido : Number(r?.valor_vendido||0))}|${fmtMonthLabel(ym)}`}); }
+    const v = ym===mesAtual ? vendido : (ym===addMonths(mesAtual,-1) && prev) ? Number(prev.valor_vendido||0) : Number(r?.valor_vendido||0);
+    hist.push({label:shortMonth(ym), value:v, tip:`${fmtBRL(v)}|${fmtMonthLabel(ym)}`}); }
   return `
   <div class="section-title" style="margin-top:0; font-size:16px; text-transform:none; letter-spacing:0; color:var(--ink); font-weight:700;">Suas vendas</div>
   <div class="bento">
@@ -83,7 +85,7 @@ function viewHome(){
     <div style="flex:1; font-size:13px;"><strong>Complete seu perfil</strong> — falta: ${faltando.join(', ')}.</div>
     <a class="btn btn-primary btn-sm" href="atleta-perfil.html">Completar</a></div>` : ''}
 
-  ${athlete.cupomYampi ? `<div id="heroVendas">${heroVendasHtml()}</div>` : ''}
+  ${temAcessoVendas(athlete) ? `<div id="heroVendas">${heroVendasHtml()}</div>` : ''}
 
   <div class="bento">
     <div class="card span-8">
@@ -102,8 +104,11 @@ function viewHome(){
     </div>
     <div class="span-4" style="display:flex; flex-direction:column; gap:18px;">
       ${athlete.cupomYampi ? `<div class="promo-card">
-        <h3>Ganhe <span class="pill-outline">${athlete.comissaoPct!=null?athlete.comissaoPct:10}%</span> em cada venda com seu cupom</h3>
-        <p>Seus seguidores ganham ${athlete.descontoCupomPct!=null?athlete.descontoCupomPct:10}% de desconto na loja FourLab e você recebe comissão.</p>
+        ${temAcessoVendas(athlete)
+          ? `<h3>Ganhe <span class="pill-outline">${athlete.comissaoPct!=null?athlete.comissaoPct:10}%</span> em cada venda com seu cupom</h3>
+             <p>Seus seguidores ganham ${athlete.descontoCupomPct!=null?athlete.descontoCupomPct:10}% de desconto na loja FourLab e você recebe comissão.</p>`
+          : `<h3>Seu cupom dá <span class="pill-outline">${athlete.descontoCupomPct!=null?athlete.descontoCupomPct:10}% OFF</span> pros seus seguidores</h3>
+             <p>Divulgue nos seus posts e stories — vale em toda a loja FourLab.</p>`}
         <div class="row"><span style="font-family:monospace; font-size:16px; font-weight:700; letter-spacing:1px;">${escHtml(athlete.cupomYampi.toUpperCase())}</span>
           <button class="btn btn-sm" id="btnCopiarCupom" style="background:#fde3cf; color:var(--ink); position:relative; z-index:1;">${ICONS.copy} Copiar cupom</button></div>
       </div>` : ''}
@@ -127,18 +132,15 @@ function render(){
   if(!athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum atleta vinculado a este login.</div>'; return; }
   const [{ data: ent }, { data: vm }] = await Promise.all([
     sb.from('entries').select('*').eq('athlete_id', athlete.id).order('post_date', {ascending:true}),
-    athlete.cupomYampi ? sb.from('vendas_mensais').select('*').eq('athlete_id', athlete.id).order('ym', {ascending:false}) : Promise.resolve({data:[]}),
+    temAcessoVendas(athlete) ? sb.from('vendas_mensais').select('*').eq('athlete_id', athlete.id).order('ym', {ascending:false}) : Promise.resolve({data:[]}),
   ]);
   entries = (ent||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro:r.roteiro||'', postou:r.postou }));
   vendasMensais = vm || [];
   render();
-  // vendas ao vivo do mês atual (Yampi) — atualiza só o bloco de vendas quando chegar
-  if(athlete.cupomYampi){
-    try{
-      const { data } = await sb.functions.invoke('yampi-sync-atleta', { body: { alias: YAMPI_ALIAS, cupomCode: athlete.cupomYampi, ym: mesAtual,
-        descontoCupomPct: athlete.descontoCupomPct||10, comissaoPct: athlete.comissaoPct||10 } });
-      vendaAoVivo = (data && !data.error) ? data : null;
-    }catch(err){ console.error(err); vendaAoVivo = null; }
+  // vendas ao vivo (Yampi) do mês atual e do anterior — atualiza só o bloco de vendas quando chegar
+  if(temAcessoVendas(athlete)){
+    const busca = m=> buscarVendasYampi(athlete.cupomYampi, m, athlete.descontoCupomPct, athlete.comissaoPct).catch(err=>{ console.error(err); return null; });
+    [vendaAoVivo, vendaMesAnterior] = await Promise.all([busca(mesAtual), busca(addMonths(mesAtual,-1))]);
     carregandoAoVivo = false;
     const el = document.getElementById('heroVendas');
     if(el) el.innerHTML = heroVendasHtml();

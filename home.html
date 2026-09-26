@@ -137,8 +137,7 @@ function barChartHtml(data){
 function viewHome(){
   const ym = State.currentCycleYM;
   const stats = computeDashboardStats(ym);
-  const teamColors = {Trek:'#1d4ed8',Audax:'#b5680a',Oggi:'#0f7a3d',Brou:'var(--pink)',Scott:'var(--purple)','4Fun':'#c99a00',Avulsos:'#888'};
-  const teamData = Object.keys(stats.byTeam).map(t=>({label:t, value:stats.byTeam[t], color:teamColors[t]}));
+  const teamData = Object.keys(stats.byTeam).map(t=>({label:t, value:stats.byTeam[t], color:teamColor(t)}));
   const taxaPostagem = stats.total ? Math.round((stats.postouSim/stats.total)*100) : 0;
 
   const nome = (State.profile?.nome || '').split(' ')[0];

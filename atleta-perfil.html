@@ -29,7 +29,7 @@ function campo(id, label, valor, opts){
 
 function viewPerfil(){
   const a = athlete;
-  const recebeComissao = !!a.cupomYampi;
+  const recebeComissao = temAcessoVendas(a);
   const preenchidos = CAMPOS.filter(([,k])=> k!=='pixKey' || recebeComissao).filter(([,k])=> k!=='enderecoComplemento' && k!=='facebook' && k!=='youtube' && k!=='tiktok');
   const pct = Math.round(preenchidos.filter(([,k])=> a[k]).length / preenchidos.length * 100);
   return `
@@ -38,7 +38,7 @@ function viewPerfil(){
     <div class="panel profile-side">
       <div style="position:relative; display:inline-block;">${avatarHtml(a.name,'xl')}</div>
       <div class="pname">${escHtml(a.name)}</div>
-      <div class="prole">Atleta · <span class="badge team-${escHtml((a.team||'').replace(/\s/g,''))}">${escHtml(a.team||'')}</span></div>
+      <div class="prole">${escHtml(categoriaLabel(a))} · ${teamBadge(a.team||'')}</div>
       <div style="text-align:left; margin-top:18px;">
         <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:700; color:var(--muted); margin-bottom:6px;"><span>Perfil completo</span><span id="pctLabel">${pct}%</span></div>
         <div class="progress"><div id="pctBar" style="width:${pct}%;"></div></div>

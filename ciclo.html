@@ -19,7 +19,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-const REAL_TEAMS = ["Trek","Audax","Oggi","Brou","Scott","4Fun"];
+// Equipes "de verdade" (postam em grupo). Avulsos e profissionais parceiros são tratados individualmente.
+let REAL_TEAMS = ["Trek","Audax","Oggi","Brou","Scott","4Fun"];
 const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false };
 
 /* ---------- utilitários de data ---------- */
@@ -329,7 +330,7 @@ function viewCiclo(){
   const cycle = getOrCreateCycle(ym);
   const hasEntries = cycle.entries && cycle.entries.length > 0;
   const grouped = {}; TEAM_ORDER.forEach(t=> grouped[t]=[]);
-  State.athletes.forEach(a=> grouped[a.team].push(a));
+  State.athletes.forEach(a=> (grouped[a.team] = grouped[a.team] || []).push(a));
 
   let html = `<div class="panel"><div class="row" style="justify-content:space-between;">
       <div><h2>Mês de trabalho</h2><div class="desc">Escolha o mês e defina o tema geral. Briefing/trends ficam na aba Briefing.</div></div>
@@ -342,10 +343,10 @@ function viewCiclo(){
       <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--purple); text-transform:none; cursor:pointer;">
         <input type="checkbox" id="selectAllAthletes" style="width:auto;"> Selecionar todos</label></div>`;
 
-  TEAM_ORDER.forEach(team=>{
+  Object.keys(grouped).forEach(team=>{
     const list = grouped[team];
     if(!list.length) return;
-    html += `<div class="section-title"><span class="badge team-${team.replace(/\s/g,'')}">${team}</span>${team==='Scott'?' <span style="color:var(--pink); text-transform:none; font-weight:700;">— confirmação manual</span>':''}</div>
+    html += `<div class="section-title">${teamBadge(team)}${team==='Scott'?' <span style="color:var(--pink); text-transform:none; font-weight:700;">— confirmação manual</span>':''}</div>
     <table><thead><tr><th style="width:26px;"></th><th>Atleta</th><th>Produto</th><th>Tema/ângulo específico</th><th style="width:110px;">Formato</th></tr></thead><tbody>
     ${list.map(a=>{
       const existing = cycle.entries.find(e=>e.athleteId===a.id);
@@ -538,6 +539,7 @@ function render(){
 (async function start(){
   const auth = await guardStaff('ciclo');
   if(!auth) return;
+  REAL_TEAMS = EQUIPES.filter(e=> e.tipo==='equipe' && e.name!=='Avulsos').map(e=>e.name);
   const { data: athletesData } = await sb.from('athletes').select('*').order('team').order('name');
   State.athletes = (athletesData||[]).map(mapAthleteFromDB);
   const { data: productsData } = await sb.from('products').select('*').order('cat').order('name');
