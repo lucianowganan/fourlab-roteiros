@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vendas — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+let athletes = [];
+function viewVendas(){
+  const comCupom = athletes.filter(a=>a.cupomYampi);
+  const ym = monthKey(todayISO());
+  return `<div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Vendas por atleta</h2><div class="desc">Selecione o atleta e o mês pra ver o desempenho dele na Yampi.</div></div>
+      <div class="row"><select id="vendasAtletaSelect" style="width:auto; min-width:220px;">
+          <option value="">— Selecione um atleta —</option>
+          ${comCupom.map(a=>`<option value="${a.id}">${a.name} (${a.team})</option>`).join('')}
+        </select><input type="month" id="vendasMesInput" value="${ym}" style="width:auto;"></div></div>
+    ${!comCupom.length ? '<div style="color:var(--muted); font-size:12px; margin-top:10px;">Nenhum atleta com cupom Yampi cadastrado ainda.</div>' : ''}</div>
+  <div id="vendasEquipeDashboard"></div>`;
+}
+function wire(){
+  const select = document.getElementById('vendasAtletaSelect'), monthInput = document.getElementById('vendasMesInput');
+  const disparar = ()=>{
+    const a = athletes.find(x=>x.id===select.value);
+    if(!a || !a.cupomYampi) return;
+    carregarDashboardVendas(a.cupomYampi, monthInput.value, a.descontoCupomPct, a.comissaoPct, 'vendasEquipeDashboard');
+  };
+  select.onchange = disparar; monthInput.onchange = disparar;
+}
+(async function start(){
+  const auth = await guardStaff('vendas'); if(!auth) return;
+  const { data } = await sb.from('athletes').select('*').order('team').order('name');
+  athletes = (data||[]).map(mapAthleteFromDB);
+  document.getElementById('main').innerHTML = viewVendas();
+  wire();
+})();
+</script></body></html>

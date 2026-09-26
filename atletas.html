@@ -1,0 +1,188 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atletas — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const State = { athletes:[], history:{} };
+
+async function carregarHistorico(){
+  const { data } = await sb.from('entries').select('athlete_id, product, theme, post_date, format, cycles(ym)');
+  const hist = {};
+  (data||[]).forEach(r=>{
+    const ym = r.cycles?.ym; if(!ym) return;
+    (hist[r.athlete_id] = hist[r.athlete_id] || []).push({ym, product:r.product, date:r.post_date});
+  });
+  Object.keys(hist).forEach(k=> hist[k].sort((a,b)=> a.date.localeCompare(b.date)));
+  State.history = hist;
+}
+function lastEntryFor(athleteId){ const h = State.history[athleteId]||[]; return h.length ? h[h.length-1] : null; }
+
+async function saveOneAthlete(a){
+  const payload = { name:a.name, team:a.team, format_pref:a.formatPref, notes:a.notes,
+    dificuldade_gravacao:a.dificuldadeGravacao||'', estilo_fala:a.estiloFala||'', estilo_video:a.estiloVideo||'', videos_transcritos:a.videosTranscritos||'',
+    cupom_yampi:a.cupomYampi||'', desconto_cupom_pct:a.descontoCupomPct!=null?a.descontoCupomPct:10, comissao_pct:a.comissaoPct!=null?a.comissaoPct:10 };
+  if(a.id) await sb.from('athletes').update(payload).eq('id', a.id);
+  else { const { data } = await sb.from('athletes').insert(payload).select().single(); if(data) a.id = data.id; }
+}
+async function deleteOneAthlete(id){ await sb.from('athletes').delete().eq('id', id); }
+
+function viewAtletas(){
+  const grouped = {}; TEAM_ORDER.forEach(t=> grouped[t]=[]);
+  State.athletes.forEach(a=> (grouped[a.team]=grouped[a.team]||[]).push(a));
+  let html = `<div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Atletas &amp; equipes</h2><div class="desc">${State.athletes.length} atletas cadastrados.</div></div>
+      <button class="btn btn-primary" id="btnNovoAtleta">+ Novo atleta</button></div></div>`;
+  TEAM_ORDER.forEach(team=>{
+    const list = grouped[team]; if(!list.length) return;
+    html += `<div class="panel"><h2><span class="badge team-${team.replace(/\s/g,'')}">${team}</span> &nbsp; <span style="font-weight:600;color:var(--muted);font-size:12.5px;">${list.length} atleta(s)</span></h2>
+      <table><thead><tr><th>Nome</th><th>Formato</th><th>Último produto usado</th><th>Notas</th><th></th></tr></thead><tbody>
+      ${list.map(a=>{
+        const last = lastEntryFor(a.id);
+        return `<tr><td><strong>${a.name}</strong></td><td>${a.formatPref||'—'}</td>
+          <td>${last ? `${last.product} <span style="color:var(--muted)">(${fmtMonthLabel(last.ym)})</span>` : '<span style="color:var(--muted)">nunca postou</span>'}</td>
+          <td style="max-width:220px;color:var(--muted);font-size:12px;">${a.notes||'—'}</td>
+          <td><button class="btn btn-ghost btn-sm" data-edit-athlete="${a.id}">Editar</button></td></tr>`;
+      }).join('')}</tbody></table></div>`;
+  });
+  return html;
+}
+
+function athleteFormHtml(a){
+  const isNew = !a;
+  a = a || {id:'', name:'', team:'Avulsos', formatPref:'Vídeo', notes:'', dificuldadeGravacao:'', estiloFala:'', estiloVideo:'', videosTranscritos:''};
+  return `<button class="modal-close" id="modalCloseBtn">&times;</button><h3>${isNew?'Novo atleta':'Editar atleta'}</h3>
+    <input type="hidden" id="fId" value="${a.id}">
+    <div class="field"><label>Nome</label><input id="fName" value="${a.name.replace(/"/g,'&quot;')}"></div>
+    <div class="grid-2">
+      <div class="field"><label>Equipe</label><select id="fTeam">${TEAM_ORDER.map(t=>`<option value="${t}" ${t===a.team?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label>Formato preferido</label><select id="fFormat">
+        <option ${a.formatPref==='Vídeo'?'selected':''}>Vídeo</option><option ${a.formatPref==='Carrossel'?'selected':''}>Carrossel</option><option ${a.formatPref==='Os dois'?'selected':''}>Os dois</option></select></div></div>
+    <div class="grid-2">
+      <div class="field"><label>Dificuldade pra gravar?</label><select id="fDificuldade">
+        <option value="" ${!a.dificuldadeGravacao?'selected':''}>Não avaliado</option>
+        <option value="sim" ${a.dificuldadeGravacao==='sim'?'selected':''}>Sim, trava na frente da câmera</option>
+        <option value="nao" ${a.dificuldadeGravacao==='nao'?'selected':''}>Não, é solto</option></select></div>
+      <div class="field"><label>Estilo de fala</label><input id="fEstiloFala" value="${(a.estiloFala||'').replace(/"/g,'&quot;')}" placeholder="Ex: direto, bem-humorado..."></div></div>
+    <div class="field"><label>Estilo de vídeo que ele costuma produzir</label><input id="fEstiloVideo" value="${(a.estiloVideo||'').replace(/"/g,'&quot;')}" placeholder="Ex: bastidor, storytelling..."></div>
+    <div class="field"><label>Notas</label><textarea id="fNotes">${a.notes||''}</textarea></div>
+    <div class="field"><label>Vídeos transcritos (3-5 vídeos, referência de tom pra IA)</label><textarea id="fVideosTranscritos" style="min-height:140px;">${a.videosTranscritos||''}</textarea></div>
+    <div class="section-title">Comissão / cupom Yampi</div>
+    <div class="desc" style="margin-bottom:10px;">Deixe o cupom em branco se este atleta não recebe comissão.</div>
+    <div class="grid-3">
+      <div class="field"><label>Código do cupom</label><input id="fCupomYampi" value="${(a.cupomYampi||'').replace(/"/g,'&quot;')}" placeholder="ex: 30luiza"></div>
+      <div class="field"><label>% desconto do cupom</label><input id="fDescontoCupom" type="number" value="${a.descontoCupomPct!=null?a.descontoCupomPct:10}"></div>
+      <div class="field"><label>% comissão</label><input id="fComissaoPct" type="number" value="${a.comissaoPct!=null?a.comissaoPct:10}"></div></div>
+    ${!isNew ? `<div class="section-title">Acesso do atleta ao painel</div>
+    <div class="desc" style="margin-bottom:10px;">${a.username ? `Usuário atual: <strong>${a.username}</strong>. Preencha senha nova pra redefinir.` : 'Ainda sem acesso criado.'}</div>
+    <div class="grid-3">
+      <div class="field"><label>Usuário</label><input id="fUsername" value="${a.username||''}" placeholder="ex: danielzoia"></div>
+      <div class="field"><label>Senha</label><input id="fPassword" type="text" placeholder="mín. 6 caracteres"></div>
+      <div class="field" style="display:flex; align-items:flex-end;"><button class="btn btn-outline btn-sm" id="btnCriarAcesso" type="button" style="width:100%;">${a.username?'Redefinir senha':'Criar acesso'}</button></div></div>
+    <div id="acessoResultado" style="font-size:12px; margin-bottom:6px;"></div>` : ''}
+    ${!isNew ? `<div class="row" style="margin-bottom:10px;"><button class="btn btn-outline btn-sm" id="btnVerBancoDados" type="button">📂 Ver banco de dados</button></div>` : ''}
+    <div class="row" style="justify-content:space-between;margin-top:10px;">
+      ${isNew?'<span></span>':`<button class="btn btn-danger btn-sm" id="btnDeleteAthlete">Remover atleta</button>`}
+      <button class="btn btn-primary" id="btnSaveAthlete">${isNew?'Adicionar':'Salvar'}</button></div>`;
+}
+
+function openBancoDadosModal(athleteName, exemplos){
+  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const html = `<button class="modal-close" id="modalCloseBtn2">&times;</button><h3>Banco de dados — ${esc(athleteName)}</h3>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">${exemplos.length} roteiro(s) arquivados.</div>
+    ${exemplos.length===0 ? '<div style="color:var(--muted);font-size:12px;">Nada arquivado ainda.</div>' :
+      exemplos.map(ex=>`<div style="border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:10px;">
+          <div class="row" style="justify-content:space-between;">
+            <span class="badge" style="background:${ex.tipo==='bom'?'#dbf3e4':'#fdeceb'}; color:${ex.tipo==='bom'?'#0f7a3d':'#c0392b'};">${ex.tipo==='bom'?'👍 Bom':'👎 Descartado'}</span>
+            <span style="font-size:11px; color:var(--muted);">${ex.team||''} · ${ex.produto||''} · ${ex.formato||''} · ${new Date(ex.created_at).toLocaleDateString('pt-BR')}</span></div>
+          <pre style="white-space:pre-wrap; font-size:12px; margin-top:8px; max-height:220px; overflow-y:auto;">${esc(ex.roteiro_text)}</pre>
+          <button class="btn btn-ghost btn-sm" data-copy-exemplo="${ex.id}" style="margin-top:6px;">Copiar</button></div>`).join('')}`;
+  openModal(html);
+  document.getElementById('modalCloseBtn2').onclick = closeModal;
+  document.querySelectorAll('[data-copy-exemplo]').forEach((btn, i)=>{ btn.onclick = ()=> navigator.clipboard.writeText(exemplos[i].roteiro_text).then(()=> toast('Copiado')); });
+}
+
+function wireAthleteModalHandlers(){
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const btnCriarAcesso = document.getElementById('btnCriarAcesso');
+  if(btnCriarAcesso){
+    btnCriarAcesso.onclick = async ()=>{
+      const athleteId = document.getElementById('fId').value, athleteName = document.getElementById('fName').value;
+      const username = document.getElementById('fUsername').value.trim(), password = document.getElementById('fPassword').value;
+      const resBox = document.getElementById('acessoResultado');
+      if(!username || !password){ resBox.innerHTML = '<span style="color:#c0392b;">Preenche usuário e senha</span>'; return; }
+      btnCriarAcesso.disabled = true; btnCriarAcesso.innerHTML = '<span class="loader"></span>'; resBox.innerHTML = '';
+      try{
+        const { data, error } = await sb.functions.invoke('criar-acesso-atleta', { body: { athleteId, athleteName, username, password } });
+        if(error) throw error;
+        if(data.error){ resBox.innerHTML = `<span style="color:#c0392b;">${data.error}</span>`; }
+        else{
+          resBox.innerHTML = `<span style="color:#0f7a3d;">Acesso pronto — usuário: <strong>${data.username}</strong></span>`;
+          const idx = State.athletes.findIndex(x=>x.id===athleteId); if(idx>-1) State.athletes[idx].username = data.username;
+        }
+      }catch(err){ console.error(err); resBox.innerHTML = `<span style="color:#c0392b;">Falhou: ${err.message||err}</span>`; }
+      btnCriarAcesso.disabled = false;
+      btnCriarAcesso.textContent = document.getElementById('fUsername').value ? 'Redefinir senha' : 'Criar acesso';
+    };
+  }
+  const btnBanco = document.getElementById('btnVerBancoDados');
+  if(btnBanco){
+    btnBanco.onclick = async ()=>{
+      const id = document.getElementById('fId').value, name = document.getElementById('fName').value;
+      btnBanco.disabled = true; btnBanco.innerHTML = '<span class="loader"></span>';
+      const { data, error } = await sb.from('roteiro_exemplos').select('*').eq('athlete_id', id).order('created_at', {ascending:false});
+      btnBanco.disabled = false; btnBanco.textContent = '📂 Ver banco de dados';
+      if(error){ toast('Erro ao buscar'); console.error(error); return; }
+      openBancoDadosModal(name, data||[]);
+    };
+  }
+  document.getElementById('btnSaveAthlete').onclick = async ()=>{
+    const saveBtn = document.getElementById('btnSaveAthlete');
+    const name = document.getElementById('fName').value.trim();
+    if(!name){ toast('Nome é obrigatório'); return; }
+    const fields = {
+      team: document.getElementById('fTeam').value, formatPref: document.getElementById('fFormat').value,
+      notes: document.getElementById('fNotes').value.trim(), dificuldadeGravacao: document.getElementById('fDificuldade').value,
+      estiloFala: document.getElementById('fEstiloFala').value.trim(), estiloVideo: document.getElementById('fEstiloVideo').value.trim(),
+      videosTranscritos: document.getElementById('fVideosTranscritos').value.trim(), cupomYampi: document.getElementById('fCupomYampi').value.trim(),
+      descontoCupomPct: Number(document.getElementById('fDescontoCupom').value) || 10, comissaoPct: Number(document.getElementById('fComissaoPct').value) || 10 };
+    const id = document.getElementById('fId').value;
+    saveBtn.disabled = true; saveBtn.innerHTML = '<span class="loader"></span>';
+    try{
+      let athleteObj;
+      if(id){ const idx = State.athletes.findIndex(x=>x.id===id); State.athletes[idx] = {...State.athletes[idx], name, ...fields}; athleteObj = State.athletes[idx]; }
+      else{ athleteObj = {id:null, name, ...fields}; State.athletes.push(athleteObj); }
+      await saveOneAthlete(athleteObj);
+      closeModal(); toast('Atleta salvo'); render();
+    }catch(err){ console.error(err); toast('Erro ao salvar — veja o console (F12)'); saveBtn.disabled = false; }
+  };
+  const delBtn = document.getElementById('btnDeleteAthlete');
+  if(delBtn){
+    delBtn.onclick = async ()=>{
+      const id = document.getElementById('fId').value;
+      if(!confirm('Remover este atleta? Isso não apaga o histórico de meses já gerados.')) return;
+      try{ State.athletes = State.athletes.filter(x=>x.id!==id); await deleteOneAthlete(id); closeModal(); toast('Atleta removido'); render(); }
+      catch(err){ console.error(err); toast('Erro ao remover — veja o console (F12)'); }
+    };
+  }
+}
+function openAthleteModal(athlete){ openModal(athleteFormHtml(athlete)); wireAthleteModalHandlers(); }
+
+function render(){
+  document.getElementById('main').innerHTML = viewAtletas();
+  document.getElementById('btnNovoAtleta').onclick = ()=> openAthleteModal(null);
+  document.querySelectorAll('[data-edit-athlete]').forEach(btn=>{
+    btn.onclick = ()=> openAthleteModal(State.athletes.find(x=>x.id===btn.dataset.editAthlete));
+  });
+}
+
+(async function start(){
+  const auth = await guardStaff('atletas'); if(!auth) return;
+  const { data } = await sb.from('athletes').select('*').order('team').order('name');
+  State.athletes = (data||[]).map(mapAthleteFromDB);
+  await carregarHistorico();
+  render();
+})();
+</script></body></html>

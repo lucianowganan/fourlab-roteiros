@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acompanhamento — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+const State = { currentCycleYM: monthKey(todayISO()), cycle: null };
+function mapEntryFromDB(r){
+  return { id:r.id, athleteId:r.athlete_id, team:r.team, product:r.product, theme:r.theme, format:r.format, date:r.post_date, roteiro:r.roteiro||'',
+    status:{ postou:r.postou, collab:r.collab, obs:r.obs||'',
+      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} } };
+}
+async function carregarMes(ym){
+  const { data: cycleRow } = await sb.from('cycles').select('*').eq('ym', ym).maybeSingle();
+  if(!cycleRow){ State.cycle = {ym, id:null, entries:[]}; return; }
+  const { data: entriesData } = await sb.from('entries').select('*').eq('cycle_id', cycleRow.id);
+  State.cycle = { ym, id:cycleRow.id, entries:(entriesData||[]).map(mapEntryFromDB) };
+}
+async function persistOneEntry(entry){
+  await sb.from('entries').update({ postou:entry.status?.postou||null, collab:entry.status?.collab||null, obs:entry.status?.obs||'',
+    metric_views:entry.status?.metrics?.views||0, metric_likes:entry.status?.metrics?.likes||0,
+    metric_comments:entry.status?.metrics?.comments||0, metric_shares:entry.status?.metrics?.shares||0, metric_saves:entry.status?.metrics?.saves||0
+  }).eq('id', entry.id);
+}
+function athleteName(id){ const a = State.athletes.find(x=>x.id===id); return a?a.name:'(removido)'; }
+
+function viewAcompanhamento(){
+  const ym = State.currentCycleYM, cycle = State.cycle;
+  if(!cycle.entries.length) return `<div class="panel"><div class="empty-state"><div class="big">📋</div>Nenhum post gerado para ${fmtMonthLabel(ym)} ainda.<br>Vá em "Mês / Roteiros" pra montar o calendário primeiro.</div></div>`;
+  return `<div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Acompanhamento — ${fmtMonthLabel(ym)}</h2><div class="desc">Marque quem postou, se aceitou collab, e as métricas.</div></div>
+      <input type="month" id="acMonth" value="${ym}" style="width:auto;"></div></div>
+  <div class="panel" style="overflow-x:auto;"><table style="min-width:920px;">
+    <thead><tr><th>Atleta</th><th>Data</th><th>Postou?</th><th>Collab?</th><th>Visualiz.</th><th>Curtidas</th><th>Coment.</th><th>Compart.</th><th>Salvos</th><th>Obs</th></tr></thead>
+    <tbody>${cycle.entries.map(e=>{
+      const s = e.status||{postou:null,collab:null,obs:'',metrics:{}}, met = s.metrics||{};
+      return `<tr data-entry-row="${e.id}">
+        <td><strong>${athleteName(e.athleteId)}</strong><div style="font-size:10.5px;color:var(--muted);">${e.team}</div></td>
+        <td>${e.date.split('-').reverse().join('/')}</td>
+        <td><select class="st-postou"><option value="" ${s.postou===null?'selected':''}>—</option><option value="sim" ${s.postou==='sim'?'selected':''}>Sim</option><option value="nao" ${s.postou==='nao'?'selected':''}>Não</option></select></td>
+        <td><select class="st-collab"><option value="" ${s.collab===null?'selected':''}>—</option><option value="sim" ${s.collab==='sim'?'selected':''}>Sim</option><option value="nao" ${s.collab==='nao'?'selected':''}>Não</option></select></td>
+        <td><input class="st-views" style="width:70px;" value="${met.views||''}"></td>
+        <td><input class="st-likes" style="width:60px;" value="${met.likes||''}"></td>
+        <td><input class="st-comments" style="width:60px;" value="${met.comments||''}"></td>
+        <td><input class="st-shares" style="width:60px;" value="${met.shares||''}"></td>
+        <td><input class="st-saves" style="width:60px;" value="${met.saves||''}"></td>
+        <td><input class="st-obs" style="width:140px;" value="${(s.obs||'').replace(/"/g,'&quot;')}"></td>
+      </tr>`;
+    }).join('')}</tbody></table>
+    <div class="row" style="margin-top:14px;"><button class="btn btn-primary" id="btnSalvarAcompanhamento">Salvar acompanhamento</button></div></div>`;
+}
+function wire(){
+  document.getElementById('acMonth').onchange = async (e)=>{
+    State.currentCycleYM = e.target.value;
+    document.getElementById('main').innerHTML = `<div class="empty-state"><span class="loader"></span></div>`;
+    await carregarMes(State.currentCycleYM); render();
+  };
+  document.getElementById('btnSalvarAcompanhamento').onclick = async ()=>{
+    const rows = Array.from(document.querySelectorAll('[data-entry-row]'));
+    const touched = [];
+    rows.forEach(row=>{
+      const e = State.cycle.entries.find(x=>x.id===row.dataset.entryRow);
+      if(!e) return;
+      e.status = { postou: row.querySelector('.st-postou').value || null, collab: row.querySelector('.st-collab').value || null,
+        obs: row.querySelector('.st-obs').value,
+        metrics:{ views: row.querySelector('.st-views').value, likes: row.querySelector('.st-likes').value,
+          comments: row.querySelector('.st-comments').value, shares: row.querySelector('.st-shares').value, saves: row.querySelector('.st-saves').value } };
+      touched.push(e);
+    });
+    for(const e of touched) await persistOneEntry(e);
+    toast('Acompanhamento salvo');
+  };
+}
+function render(){ if(!State.cycle.entries.length){ document.getElementById('main').innerHTML = viewAcompanhamento(); return; } document.getElementById('main').innerHTML = viewAcompanhamento(); wire(); }
+(async function start(){
+  const auth = await guardStaff('acompanhamento'); if(!auth) return;
+  const { data: athletesData } = await sb.from('athletes').select('id,name').order('name');
+  State.athletes = athletesData||[];
+  await carregarMes(State.currentCycleYM);
+  render();
+})();
+</script></body></html>

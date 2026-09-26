@@ -1,0 +1,80 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogo — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+let products = [];
+function mapProductFromDB(r){ return {id:r.id, name:r.name, cat:r.cat, desc:r.descricao||''}; }
+async function saveOneProduct(p){
+  if(p.id) await sb.from('products').update({name:p.name, cat:p.cat, descricao:p.desc}).eq('id', p.id);
+  else { const { data } = await sb.from('products').insert({name:p.name, cat:p.cat, descricao:p.desc}).select().single(); if(data) p.id = data.id; }
+}
+async function deleteOneProduct(id){ await sb.from('products').delete().eq('id', id); }
+
+function viewProdutos(){
+  const byCat = {}; products.forEach(p=>{ (byCat[p.cat]=byCat[p.cat]||[]).push(p); });
+  let html = `<div class="panel"><div class="row" style="justify-content:space-between;">
+    <div><h2>Catálogo de produtos</h2><div class="desc">${products.length} produtos.</div></div>
+    <button class="btn btn-primary" id="btnNovoProduto">+ Novo produto</button></div></div>`;
+  Object.keys(byCat).forEach(cat=>{
+    html += `<div class="panel"><h2>${cat}</h2><table><thead><tr><th style="width:180px;">Produto</th><th>Descrição</th><th></th></tr></thead><tbody>
+      ${byCat[cat].map(p=>`<tr><td><strong>${p.name}</strong></td><td style="color:var(--muted);font-size:12.5px;">${p.desc}</td>
+        <td><button class="btn btn-ghost btn-sm" data-edit-product="${p.id}">Editar</button></td></tr>`).join('')}
+      </tbody></table></div>`;
+  });
+  return html;
+}
+function productFormHtml(p){
+  const isNew = !p; p = p || {id:'', name:'', cat:'', desc:''};
+  return `<button class="modal-close" id="modalCloseBtn">&times;</button><h3>${isNew?'Novo produto':'Editar produto'}</h3>
+    <input type="hidden" id="pId" value="${p.id}">
+    <div class="field"><label>Nome</label><input id="pName" value="${p.name.replace(/"/g,'&quot;')}"></div>
+    <div class="field"><label>Categoria</label><input id="pCat" value="${p.cat.replace(/"/g,'&quot;')}"></div>
+    <div class="field"><label>Descrição / dados técnicos</label><textarea id="pDesc">${p.desc}</textarea></div>
+    <div class="row" style="justify-content:space-between;margin-top:10px;">
+      ${isNew?'<span></span>':`<button class="btn btn-danger btn-sm" id="btnDeleteProduct">Remover</button>`}
+      <button class="btn btn-primary" id="btnSaveProduct">${isNew?'Adicionar':'Salvar'}</button></div>`;
+}
+function openProductModal(product){
+  openModal(productFormHtml(product));
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('btnSaveProduct').onclick = async ()=>{
+    const saveBtn = document.getElementById('btnSaveProduct');
+    const name = document.getElementById('pName').value.trim();
+    if(!name){ toast('Nome é obrigatório'); return; }
+    const cat = document.getElementById('pCat').value.trim(), desc = document.getElementById('pDesc').value.trim();
+    const id = document.getElementById('pId').value;
+    saveBtn.disabled = true; saveBtn.innerHTML = '<span class="loader"></span>';
+    try{
+      let productObj;
+      if(id){ const idx = products.findIndex(x=>x.id===id); products[idx] = {...products[idx], name, cat, desc}; productObj = products[idx]; }
+      else{ productObj = {id:null, name, cat, desc}; products.push(productObj); }
+      await saveOneProduct(productObj);
+      closeModal(); toast('Produto salvo'); render();
+    }catch(err){ console.error(err); toast('Erro ao salvar — veja o console (F12)'); saveBtn.disabled = false; }
+  };
+  const delBtn = document.getElementById('btnDeleteProduct');
+  if(delBtn){
+    delBtn.onclick = async ()=>{
+      const id = document.getElementById('pId').value;
+      if(!confirm('Remover este produto?')) return;
+      try{ products = products.filter(x=>x.id!==id); await deleteOneProduct(id); closeModal(); toast('Produto removido'); render(); }
+      catch(err){ console.error(err); toast('Erro ao remover — veja o console (F12)'); }
+    };
+  }
+}
+function render(){
+  document.getElementById('main').innerHTML = viewProdutos();
+  document.getElementById('btnNovoProduto').onclick = ()=> openProductModal(null);
+  document.querySelectorAll('[data-edit-product]').forEach(btn=>{ btn.onclick = ()=> openProductModal(products.find(x=>x.id===btn.dataset.editProduct)); });
+}
+(async function start(){
+  const auth = await guardStaff('produtos'); if(!auth) return;
+  const { data } = await sb.from('products').select('*').order('cat').order('name');
+  products = (data||[]).map(mapProductFromDB);
+  render();
+})();
+</script></body></html>

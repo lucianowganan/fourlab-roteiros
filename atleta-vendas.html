@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minhas Vendas — FourLab</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+let athlete = null, vendasMensais = [];
+
+function viewVendas(){
+  const saldoAtual = vendasMensais.length ? vendasMensais[0].saldo_total : 0;
+  const faltam = Math.max(0, 100 - saldoAtual);
+  const mesAtual = monthKey(todayISO());
+  return `<div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Minhas vendas</h2><div class="desc">Cupom: <strong>${athlete.cupomYampi}</strong></div></div>
+      <input type="month" id="athleteVendasMonth" value="${mesAtual}" style="width:auto;"></div></div>
+  <div id="athleteVendasDashboard"></div>
+  <div class="panel" style="margin-top:14px;"><h2>Saldo acumulado</h2><div class="desc">Pagamento liberado a cada R$ 100 acumulados.</div>
+    <div class="grid-2" style="margin-top:10px;">
+      <div style="text-align:center; padding:10px;"><div style="font-family:var(--font-display); font-size:26px; color:var(--orange);">R$ ${saldoAtual.toFixed(2)}</div>
+        <div style="font-size:10.5px; color:var(--muted); font-weight:700; text-transform:uppercase;">Saldo acumulado</div></div>
+      <div style="text-align:center; padding:10px;"><div style="font-family:var(--font-display); font-size:26px; color:var(--pink);">R$ ${faltam.toFixed(2)}</div>
+        <div style="font-size:10.5px; color:var(--muted); font-weight:700; text-transform:uppercase;">Falta pra bater R$100</div></div></div></div>
+  <div class="panel"><h2>Extrato mensal</h2>
+    <table><thead><tr><th>Mês</th><th>Vendido</th><th>Pedidos</th><th>Comissão do mês</th><th>Saldo acumulado</th><th>Status</th></tr></thead><tbody>
+      ${vendasMensais.map(v=>`<tr><td>${fmtMonthLabel(v.ym)}</td><td>R$ ${Number(v.valor_vendido).toFixed(2)}</td><td>${v.numero_pedidos}</td>
+        <td>R$ ${Number(v.comissao_mes).toFixed(2)}</td><td>R$ ${Number(v.saldo_total).toFixed(2)}</td>
+        <td>${v.pago ? `✅ Pago em ${v.data_pagamento ? v.data_pagamento.split('-').reverse().join('/') : ''}` : '⏳ Acumulando'}</td></tr>`).join('')}
+      ${!vendasMensais.length ? '<tr><td colspan="6" style="color:var(--muted);">Ainda sem vendas registradas.</td></tr>' : ''}
+    </tbody></table></div>`;
+}
+function render(){
+  document.getElementById('main').innerHTML = viewVendas();
+  const mesAtual = monthKey(todayISO());
+  carregarDashboardVendas(athlete.cupomYampi, mesAtual, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard');
+  document.getElementById('athleteVendasMonth').onchange = (e)=>{
+    carregarDashboardVendas(athlete.cupomYampi, e.target.value, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard');
+  };
+}
+(async function start(){
+  const auth = await guardAthlete('vendas'); if(!auth) return;
+  athlete = auth.athlete;
+  if(!athlete || !athlete.cupomYampi){ location.href = 'atleta-roteiros.html'; return; }
+  const { data } = await sb.from('vendas_mensais').select('*').eq('athlete_id', athlete.id).order('ym', {ascending:false});
+  vendasMensais = data || [];
+  render();
+})();
+</script></body></html>

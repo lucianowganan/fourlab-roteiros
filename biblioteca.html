@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biblioteca — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+let bibliotecaCache = null;
+async function carregarBiblioteca(){
+  const { data, error } = await sb.from('roteiro_biblioteca').select('*').order('created_at', {ascending:false});
+  if(error){ console.error(error); return []; }
+  return data || [];
+}
+function bibliotecaFormHtml(){
+  return `<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Adicionar roteiro à biblioteca</h3>
+    <div class="field"><label>Título / identificação curta</label><input id="bTitulo" placeholder="Ex: Roteiro Cocuzzi - Recovery - Julho"></div>
+    <div class="grid-2">
+      <div class="field"><label>Atleta (opcional)</label><input id="bAtleta" placeholder="Nome"></div>
+      <div class="field"><label>Equipe (opcional)</label><input id="bEquipe" placeholder="Ex: Audax"></div></div>
+    <div class="grid-2">
+      <div class="field"><label>Produto (opcional)</label><input id="bProduto" placeholder="Ex: Recovery"></div>
+      <div class="field"><label>Tema (opcional)</label><input id="bTema" placeholder="Ex: pós-treino"></div></div>
+    <div class="field"><label>Texto do roteiro</label><textarea id="bTexto" style="min-height:200px;" placeholder="Cole o roteiro completo aqui..."></textarea></div>
+    <button class="btn btn-primary" id="btnSaveBiblioteca">Adicionar</button>`;
+}
+async function renderBibliotecaList(){
+  const container = document.getElementById('bibliotecaList');
+  if(bibliotecaCache === null) bibliotecaCache = await carregarBiblioteca();
+  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if(!bibliotecaCache.length){ container.innerHTML = '<div style="color:var(--muted); font-size:12px;">Nenhum roteiro na biblioteca ainda.</div>'; return; }
+  container.innerHTML = bibliotecaCache.map(r=>`
+    <div style="border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin-bottom:10px;">
+      <div class="row" style="justify-content:space-between;"><strong>${esc(r.titulo)}</strong>
+        <button class="btn btn-danger btn-sm" data-del-biblio="${r.id}">Remover</button></div>
+      <div style="font-size:11px; color:var(--muted); margin:4px 0 8px;">${esc(r.atleta_nome)} ${r.equipe?'· '+esc(r.equipe):''} ${r.produto?'· '+esc(r.produto):''} ${r.tema?'· '+esc(r.tema):''}</div>
+      <pre style="white-space:pre-wrap; font-size:12px; max-height:160px; overflow-y:auto;">${esc(r.roteiro_text)}</pre></div>`).join('');
+  document.querySelectorAll('[data-del-biblio]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      if(!confirm('Remover este roteiro da biblioteca?')) return;
+      await sb.from('roteiro_biblioteca').delete().eq('id', btn.dataset.delBiblio);
+      bibliotecaCache = null; renderBibliotecaList();
+    };
+  });
+}
+function render(){
+  document.getElementById('main').innerHTML = `<div class="panel"><div class="row" style="justify-content:space-between;">
+      <div><h2>Biblioteca de roteiros</h2><div class="desc">Roteiros já criados fora deste app — servem de base/referência de tom e qualidade.</div></div>
+      <button class="btn btn-primary" id="btnNovaReferencia">+ Adicionar roteiro</button></div></div>
+    <div class="panel" id="bibliotecaList"><div style="color:var(--muted); font-size:12px;">Carregando...</div></div>`;
+  document.getElementById('btnNovaReferencia').onclick = ()=>{
+    openModal(bibliotecaFormHtml());
+    document.getElementById('modalCloseBtn').onclick = closeModal;
+    document.getElementById('btnSaveBiblioteca').onclick = async ()=>{
+      const titulo = document.getElementById('bTitulo').value.trim(), texto = document.getElementById('bTexto').value.trim();
+      if(!titulo || !texto){ toast('Título e texto são obrigatórios'); return; }
+      try{
+        await sb.from('roteiro_biblioteca').insert({ titulo, roteiro_text: texto,
+          atleta_nome: document.getElementById('bAtleta').value.trim(), equipe: document.getElementById('bEquipe').value.trim(),
+          produto: document.getElementById('bProduto').value.trim(), tema: document.getElementById('bTema').value.trim() });
+        closeModal(); toast('Adicionado à biblioteca'); bibliotecaCache = null; renderBibliotecaList();
+      }catch(err){ console.error(err); toast('Erro ao salvar — veja o console (F12)'); }
+    };
+  };
+  renderBibliotecaList();
+}
+(async function start(){
+  const auth = await guardStaff('biblioteca'); if(!auth) return;
+  render();
+})();
+</script></body></html>

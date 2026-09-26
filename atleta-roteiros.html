@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meus Roteiros — FourLab</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+function markdownParaHtml(texto){
+  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const linhas = texto.split('\n'); let html = ''; let emLista = false;
+  linhas.forEach(l0=>{
+    let linha = l0.trim();
+    if(!linha){ if(emLista){ html += '</ul>'; emLista=false; } return; }
+    let m;
+    if((m = linha.match(/^[-*]\s+(.*)/))){ if(!emLista){ html += '<ul>'; emLista = true; } html += `<li>${esc(m[1]).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</li>`; return; }
+    if(emLista){ html += '</ul>'; emLista = false; }
+    html += `<p>${esc(linha).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</p>`;
+  });
+  if(emLista) html += '</ul>';
+  return html;
+}
+
+let entries = [], athlete = null;
+
+function viewRoteiros(){
+  const comRoteiro = entries.filter(e=>e.roteiro && e.roteiro.trim());
+  if(!comRoteiro.length) return `<div class="panel"><div class="empty-state"><div class="big">📝</div>Nenhum roteiro gerado ainda pra você.</div></div>`;
+  const porMes = {};
+  comRoteiro.forEach(e=>{ (porMes[e.ym||'—'] = porMes[e.ym||'—'] || []).push(e); });
+  return Object.keys(porMes).sort().reverse().map(ym=>`
+    <div class="panel"><h2>${fmtMonthLabel(ym)}</h2>
+      ${porMes[ym].map(e=>`<div style="border:1px solid var(--line); border-radius:10px; padding:14px; margin-top:10px;">
+          <div class="row" style="justify-content:space-between;">
+            <strong>${e.date.split('-').reverse().join('/')} · ${e.product} · ${e.format}</strong>
+            <button class="btn btn-ghost btn-sm" data-acopy="${e.id}">Copiar</button></div>
+          <div style="white-space:pre-wrap; font-size:13px; margin-top:10px;">${markdownParaHtml(e.roteiro)}</div></div>`).join('')}
+    </div>`).join('');
+}
+function render(){
+  document.getElementById('main').innerHTML = viewRoteiros();
+  document.querySelectorAll('[data-acopy]').forEach(btn=>{
+    btn.onclick = ()=>{ const e = entries.find(x=>x.id===btn.dataset.acopy); if(e) navigator.clipboard.writeText(e.roteiro).then(()=> toast('Copiado')); };
+  });
+}
+(async function start(){
+  const auth = await guardAthlete('roteiros'); if(!auth) return;
+  athlete = auth.athlete;
+  if(!athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum atleta vinculado a este login.</div>'; return; }
+  const { data } = await sb.from('entries').select('*, cycles(ym)').eq('athlete_id', athlete.id).order('post_date', {ascending:false});
+  entries = (data||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro:r.roteiro||'', ym:r.cycles?.ym||'' }));
+  render();
+})();
+</script></body></html>
