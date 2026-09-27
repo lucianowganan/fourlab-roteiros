@@ -363,9 +363,18 @@ function wireAthleteModalHandlers(){
           document.getElementById('btnCopiarBoasVindas').onclick = ()=> navigator.clipboard.writeText(msg).then(()=> toast('Mensagem copiada'));
           const idx = State.athletes.findIndex(x=>x.id===athleteId); if(idx>-1) State.athletes[idx].username = data.username;
         }
-      }catch(err){ console.error(err); resBox.innerHTML = `<span style="color:var(--red);">Falhou: ${escHtml(err.message||err)}</span>`; }
+      }catch(err){
+        console.error(err);
+        // FunctionsFetchError = o navegador nem conseguiu falar com a função (não publicada ou sem CORS)
+        const semFuncao = err && (err.name==='FunctionsFetchError' || /Failed to send a request/i.test(err.message||''));
+        resBox.innerHTML = semFuncao
+          ? `<div style="background:var(--red-soft); color:var(--red); border-radius:12px; padding:10px 12px;"><strong>A função de criar acesso não respondeu.</strong><br>
+             Ela precisa estar publicada no Supabase com o nome <code>criar-acesso-atleta</code> (código em <code>supabase/functions/criar-acesso-atleta/index.ts</code> no repositório).</div>`
+          : `<span style="color:var(--red);">Falhou: ${escHtml(err.message||err)}</span>`;
+      }
       btnCriarAcesso.disabled = false;
-      btnCriarAcesso.textContent = 'Redefinir senha';
+      const temAcesso = State.athletes.find(x=>x.id===document.getElementById('fId').value)?.username;
+      btnCriarAcesso.textContent = temAcesso ? 'Redefinir senha' : 'Liberar acesso ao painel';
     };
   }
   document.getElementById('btnSaveAthlete').onclick = async ()=>{

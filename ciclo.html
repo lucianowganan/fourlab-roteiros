@@ -155,7 +155,9 @@ async function gerarRoteiroAtleta(entry, athlete, produto, temaGeral, trendsNote
     body: { athlete, produto, entry, temaGeral, trendsNotes, briefingText, histAnterior, exemplosBons, exemplosRuins, bibliotecaRefs }
   });
   if(error) throw error;
-  return data?.roteiro || '(sem resposta)';
+  if(data?.error) throw new Error(data.error);
+  if(!data?.roteiro) throw new Error('A IA não devolveu roteiro');
+  return data.roteiro;
 }
 async function salvarExemplo(entry, athlete, tipo, motivo){
   try{
@@ -188,7 +190,7 @@ async function gerarUmRoteiro(cycle, entryId, motivoRegeracao){
     const exemplosRuins = await buscarExemplosRuinsComMotivo(8);
     const bibliotecaRefs = await buscarReferenciasBiblioteca(2);
     e.roteiro = await gerarRoteiroAtleta(e, a, produto, cycle.themeGeral, cycle.trendsNotes, cycle.briefingText, exemplosBons, exemplosRuins, bibliotecaRefs);
-  }catch(err){ console.error(err); toast('Erro ao gerar roteiro de ' + a.name); }
+  }catch(err){ console.error(err); toast(`Erro ao gerar roteiro de ${a.name}: ${err.message||err}`); }
   await persistOneEntry(cycle.ym, e);
 }
 
