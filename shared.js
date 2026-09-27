@@ -58,6 +58,8 @@ const ICONS = {
   wallet: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="4" y="7.5" width="16.5" height="12" rx="2.5"/><path d="M16 13.5h1.5"/></svg>`,
   list: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6.5h11M9 12h11M9 17.5h11M4.5 6.5h0M4.5 12h0M4.5 17.5h0"/></svg>`,
   trash: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg>`,
+  ia: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 8.2 18.5 10 13.8 11.8 12 16.5 10.2 11.8 5.5 10 10.2 8.2Z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7Z"/></svg>`,
+  like: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"/><path d="M7 10l4-6.5a1.8 1.8 0 0 1 3.3 1.2L13.5 9h5.2a2 2 0 0 1 2 2.3l-1.2 7a2 2 0 0 1-2 1.7H7"/></svg>`,
   sair: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l4-5-4-5M20 12H9"/></svg>`,
 };
 
@@ -72,6 +74,7 @@ const STAFF_NAV = [
   {id:'atletas', label:'Atletas & parceiros', ic:ICONS.atletas, href:'atletas.html'},
   {id:'produtos', label:'Catálogo', ic:ICONS.produtos, href:'produtos.html'},
   {id:'biblioteca', label:'Biblioteca', ic:ICONS.biblioteca, href:'biblioteca.html'},
+  {id:'ia', label:'Contexto da IA', ic:ICONS.ia, href:'ia.html'},
 ];
 
 const ATLETA_NAV = [

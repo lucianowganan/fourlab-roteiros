@@ -1,0 +1,261 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contexto da IA — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+/* Contexto da IA: o que a função gerar-roteiro lê antes de escrever cada roteiro.
+   - ia_contexto (uma linha): marca, tom de voz, palavras-chave, frases, o que evitar, estrutura
+   - roteiro_exemplos: TODOS os 👍 (tipo 'bom') e 👎 (tipo 'ruim' + motivo) */
+const CAMPOS = [
+  {key:'sobre_marca', titulo:'Sobre a marca', ajuda:'O que é a FourLab, quem são os atletas e como os posts funcionam.', linhas:5},
+  {key:'publico', titulo:'Público e objetivo dos vídeos', ajuda:'Pra quem o atleta está falando e o que o vídeo precisa causar.', linhas:4},
+  {key:'tom_voz', titulo:'Tom de voz', ajuda:'Como o texto deve soar. Um item por linha funciona bem.', linhas:5},
+  {key:'palavras_chave', titulo:'Palavras-chave', ajuda:'Termos da marca e do esporte que devem aparecer quando fizer sentido. Separe por vírgula.', linhas:3},
+  {key:'frases_usar', titulo:'Frases e ganchos que funcionam', ajuda:'Ganchos, bordões e jeitos de falar que já deram certo.', linhas:5},
+  {key:'evitar', titulo:'O que evitar', ajuda:'Palavras, promessas e vícios de texto que não podem aparecer.', linhas:5},
+  {key:'estrutura', titulo:'Estrutura do roteiro (formato da resposta)', ajuda:'Como a IA deve organizar o roteiro. As seções com # viram títulos no app e no PDF.', linhas:10},
+  {key:'regras_extras', titulo:'Regras extras', ajuda:'Qualquer outra orientação (ex.: duração máxima, regras de uma campanha fixa).', linhas:3},
+];
+const State = { aba:'contexto', ctx:null, ctxOriginal:null, tabelaOk:true, exemplos:[], atletas:[], filtro:'todos', busca:'', equipe:'', expandidos:new Set(), previa:null, carregandoPrevia:false, profile:null };
+
+function athleteNome(id){ return State.atletas.find(a=>a.id===id)?.name || ''; }
+function alterado(){ return State.ctx && State.ctxOriginal && CAMPOS.some(c=> (State.ctx[c.key]||'') !== (State.ctxOriginal[c.key]||'')); }
+
+async function carregar(){
+  const [ctx, ex, at] = await Promise.all([
+    sb.from('ia_contexto').select('*').eq('id', 1).maybeSingle(),
+    sb.from('roteiro_exemplos').select('*').order('created_at', {ascending:false}),
+    sb.from('athletes').select('id, name, team').order('name'),
+  ]);
+  State.tabelaOk = !ctx.error;
+  State.ctx = ctx.data ? {...ctx.data} : Object.fromEntries(CAMPOS.map(c=>[c.key,'']));
+  State.ctxOriginal = {...State.ctx};
+  State.exemplos = ex.data || [];
+  State.atletas = at.data || [];
+}
+
+/* ---------- Aba: contexto ---------- */
+function viewContexto(){
+  const c = State.ctx;
+  return `
+  ${!State.tabelaOk ? `<div class="panel" style="background:var(--orange-soft); border-color:#f8d6ba; font-size:13px;">A tabela do contexto ainda não existe. Rode <code>migrations/2026-09-27_contexto_ia.sql</code> no SQL Editor do Supabase e recarregue.</div>` : ''}
+  <div class="panel" style="display:flex; gap:14px; align-items:center; padding:14px 18px;">
+    <span class="ic-bubble" style="color:var(--orange);">${ICONS.ia}</span>
+    <div style="flex:1; font-size:12.5px; color:var(--ink-2); line-height:1.5;">Tudo aqui é lido pela IA <strong>antes de cada roteiro</strong>, junto com <strong>todos</strong> os roteiros marcados 👍 e 👎 (aba Exemplos), a biblioteca, e os dados do atleta, produto, briefing e trends do mês.
+      ${c.updated_at ? `<br><span style="color:var(--muted);">Última alteração: ${new Date(c.updated_at).toLocaleString('pt-BR')}${c.updated_by?` por ${escHtml(c.updated_by)}`:''}</span>` : ''}</div>
+  </div>
+  <div class="grid-2" style="align-items:start;">
+    ${CAMPOS.map(f=>`<div class="card" style="${f.key==='estrutura'?'grid-column:1/-1;':''}">
+      <h2>${f.titulo}</h2><div class="desc" style="margin-bottom:10px;">${f.ajuda}</div>
+      <textarea data-campo="${f.key}" rows="${f.linhas}" style="min-height:${f.linhas*22}px; font-size:13px; line-height:1.5;">${escHtml(c[f.key]||'')}</textarea>
+    </div>`).join('')}
+  </div>
+  <div id="barraSalvar" style="position:sticky; bottom:14px; margin-top:18px; display:${alterado()?'flex':'none'}; align-items:center; gap:12px; background:var(--ink); color:#fff; border-radius:999px; padding:10px 12px 10px 22px; box-shadow:0 12px 30px rgba(0,0,0,0.25);">
+    <span style="flex:1; font-size:13px; font-weight:600;">Você tem alterações não salvas no contexto da IA.</span>
+    <button class="btn btn-sm" id="btnDescartarCtx" style="background:transparent; color:#fff; border:1px solid rgba(255,255,255,0.4) !important;">Descartar</button>
+    <button class="btn btn-primary btn-sm" id="btnSalvarCtx">Salvar contexto</button>
+  </div>`;
+}
+
+/* ---------- Aba: exemplos 👍 / 👎 ---------- */
+function exemplosFiltrados(){
+  const q = State.busca.trim().toLowerCase();
+  return State.exemplos.filter(e=>{
+    if(State.filtro==='bons' && e.tipo!=='bom') return false;
+    if(State.filtro==='ruins' && e.tipo!=='ruim') return false;
+    if(State.equipe && e.team!==State.equipe) return false;
+    if(q && ![e.roteiro_text, e.motivo, e.produto, e.team, athleteNome(e.athlete_id)].some(v=>(v||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+function exemploCardHtml(e){
+  const bom = e.tipo==='bom', nome = athleteNome(e.athlete_id), aberto = State.expandidos.has(e.id);
+  const texto = e.roteiro_text||'', longo = texto.length > 420;
+  return `<div class="card" style="padding:18px; border-left:4px solid ${bom?'#2fb463':'#f06b5b'};">
+    <div class="row" style="justify-content:space-between; gap:8px;">
+      <span class="badge" style="background:${bom?'var(--green-soft)':'var(--red-soft)'}; color:${bom?'var(--green)':'var(--red)'};">${bom?'👍 Aprovado':'👎 Rejeitado'}</span>
+      <span style="font-size:11px; color:var(--muted);">${new Date(e.created_at).toLocaleDateString('pt-BR')}</span></div>
+    <div class="row" style="gap:6px; margin-top:10px;">
+      ${nome?`<span class="chip static">${avatarHtml(nome,'sm').replace('class="avatar sm"','class="avatar sm" style="width:18px;height:18px;font-size:8px;border:none;background:'+avatarColor(nome)+';"')} ${escHtml(nome)}</span>`:''}
+      ${e.team?teamBadge(e.team):''}${e.produto?`<span class="chip static">${escHtml(e.produto)}</span>`:''}${e.formato?`<span class="chip static">${escHtml(e.formato)}</span>`:''}
+    </div>
+    ${!bom ? `<div style="margin-top:10px; font-size:12.5px; background:var(--red-soft); color:#8c2a20; border-radius:10px; padding:8px 10px;"><strong>Motivo:</strong> ${e.motivo?escHtml(e.motivo):'<em style="opacity:0.7;">sem motivo — adicione um pra IA entender o erro</em>'}</div>` : ''}
+    <pre style="white-space:pre-wrap; font-family:inherit; font-size:12.5px; line-height:1.5; margin-top:10px; ${aberto||!longo?'':'max-height:150px; overflow:hidden; -webkit-mask-image:linear-gradient(#000 60%, transparent);'}">${escHtml(texto)}</pre>
+    ${longo?`<button class="btn btn-ghost btn-sm" data-expandir="${e.id}" style="margin-top:6px;">${aberto?'Mostrar menos':'Ver completo'}</button>`:''}
+    <div class="row" style="gap:6px; margin-top:12px; border-top:1px solid #f3eee8; padding-top:12px;">
+      <button class="btn btn-ghost btn-sm" data-mover="${e.id}">${bom?'Mover pra 👎':'Mover pra 👍'}</button>
+      ${!bom?`<button class="btn btn-ghost btn-sm" data-motivo="${e.id}">${e.motivo?'Editar motivo':'Adicionar motivo'}</button>`:''}
+      <button class="btn btn-ghost btn-sm" data-copiar="${e.id}">${ICONS.copy.replace('width="18" height="18"','width="13" height="13"')} Copiar</button>
+      <button class="btn btn-danger btn-sm" data-excluir="${e.id}" style="margin-left:auto;">Excluir</button>
+    </div></div>`;
+}
+function viewExemplos(){
+  const nBons = State.exemplos.filter(e=>e.tipo==='bom').length, nRuins = State.exemplos.filter(e=>e.tipo==='ruim').length;
+  const semMotivo = State.exemplos.filter(e=>e.tipo==='ruim' && !e.motivo).length;
+  const equipes = [...new Set(State.exemplos.map(e=>e.team).filter(Boolean))].sort();
+  const lista = exemplosFiltrados();
+  return `
+  <div class="row" style="justify-content:space-between; margin-bottom:16px;">
+    <div class="filter-pills">
+      <button class="fpill ${State.filtro==='todos'?'active':''}" data-filtro="todos">Todos <span class="count">${State.exemplos.length}</span></button>
+      <button class="fpill ${State.filtro==='bons'?'active':''}" data-filtro="bons">👍 Aprovados <span class="count">${nBons}</span></button>
+      <button class="fpill ${State.filtro==='ruins'?'active':''}" data-filtro="ruins">👎 Rejeitados <span class="count">${nRuins}</span></button>
+    </div>
+    <div class="row">
+      <div class="input-ic"><span class="ic">${ICONS.search}</span><input id="buscaEx" placeholder="Buscar no texto, motivo, atleta..." value="${escHtml(State.busca)}" style="background:#fff; border-radius:999px; min-width:240px;"></div>
+      <select id="equipeEx" style="width:auto; background:#fff; border-radius:999px;"><option value="">Todas as equipes</option>${equipes.map(t=>`<option ${t===State.equipe?'selected':''}>${escHtml(t)}</option>`).join('')}</select>
+      <button class="btn btn-dark btn-sm" id="btnNovoExemplo">${ICONS.plus.replace('width="18" height="18"','width="14" height="14"')} Adicionar exemplo</button>
+    </div>
+  </div>
+  ${semMotivo ? `<div class="panel" style="padding:12px 16px; font-size:12.5px; background:var(--orange-soft); border-color:#f8d6ba;"><strong>${semMotivo} rejeitado(s) sem motivo.</strong> O motivo é o que mais ajuda a IA a não repetir o erro — vale preencher.</div>` : ''}
+  ${lista.length ? `<div class="grid-2" style="align-items:start;">${lista.map(exemploCardHtml).join('')}</div>` : '<div class="panel"><div class="empty-state">Nenhum exemplo aqui ainda. Marque 👍 ou 👎 nos roteiros em Mês / Roteiros, ou adicione um exemplo.</div></div>'}`;
+}
+
+/* ---------- Aba: prévia do que vai pra IA ---------- */
+function viewPrevia(){
+  const p = State.previa;
+  return `
+  <div class="panel">
+    <div class="row" style="justify-content:space-between;">
+      <div><h2>O que a IA recebe</h2><div class="desc" style="margin-bottom:0;">Monta exatamente a parte fixa enviada antes de cada roteiro (contexto + exemplos + biblioteca). Não gera roteiro e não gasta créditos.</div></div>
+      <button class="btn btn-primary btn-sm" id="btnPrevia" ${State.carregandoPrevia?'disabled':''}>${State.carregandoPrevia?'<span class="loader"></span> Montando...':'Montar prévia'}</button>
+    </div>
+    ${alterado() ? '<div style="font-size:12px; color:#b5680a; margin-top:10px;">⚠ Há alterações não salvas no contexto — a prévia usa a versão salva.</div>' : ''}
+  </div>
+  ${p && p.erro ? `<div class="panel" style="background:var(--red-soft); color:var(--red); font-size:13px;">${p.erro}</div>` : ''}
+  ${p && !p.erro ? `
+  <div class="grid-4" style="margin-bottom:18px;">
+    <div class="card kpi"><div class="kpi-label">👍 Aprovados lidos</div><div class="kpi-value">${p.contagem.bons}</div></div>
+    <div class="card kpi"><div class="kpi-label">👎 Rejeitados lidos</div><div class="kpi-value">${p.contagem.ruins}</div></div>
+    <div class="card kpi"><div class="kpi-label">Da biblioteca</div><div class="kpi-value">${p.contagem.biblioteca}</div></div>
+    <div class="card kpi"><div class="kpi-label">Tamanho (~tokens)</div><div class="kpi-value">${fmtNum(Math.round(p.contagem.caracteres/4))}</div><div class="kpi-foot"><span>modelo: ${escHtml(p.modelo||'')}</span></div></div>
+  </div>
+  ${(p.avisos||[]).length ? `<div class="panel" style="background:var(--orange-soft); border-color:#f8d6ba; font-size:12.5px;">${p.avisos.map(escHtml).join('<br>')}</div>` : ''}
+  <div class="panel"><div class="row" style="justify-content:space-between; margin-bottom:10px;"><h2>Instruções enviadas</h2><button class="btn btn-ghost btn-sm" id="btnCopiarPrevia">${ICONS.copy.replace('width="18" height="18"','width="13" height="13"')} Copiar</button></div>
+    <pre style="white-space:pre-wrap; font-size:12px; line-height:1.5; background:var(--surface-2); border-radius:14px; padding:16px; max-height:70vh; overflow:auto;">${escHtml(p.system)}</pre>
+    <div style="font-size:12px; color:var(--muted); margin-top:10px;">Depois disso, em cada roteiro, vão os dados do atleta (estilo de fala, vídeos transcritos, cupom...), do produto, do post, o tema do mês, o briefing e as trends.</div></div>` : ''}`;
+}
+
+function view(){
+  const nBons = State.exemplos.filter(e=>e.tipo==='bom').length, nRuins = State.exemplos.filter(e=>e.tipo==='ruim').length;
+  return `
+  <div class="page-head">
+    <div><h1>Contexto da IA</h1><div class="sub">O que a IA sabe antes de escrever cada roteiro — e os exemplos de certo e errado que ela segue.</div></div>
+    <a class="btn btn-ghost btn-sm" href="biblioteca.html">${ICONS.biblioteca.replace('width="18" height="18"','width="14" height="14"')} Biblioteca de roteiros</a>
+  </div>
+  <div class="seg brand" style="margin-bottom:18px;">
+    <button class="${State.aba==='contexto'?'active':''}" data-aba="contexto">${ICONS.ia.replace('width="18" height="18"','width="14" height="14"')} Contexto${alterado()?' •':''}</button>
+    <button class="${State.aba==='exemplos'?'active':''}" data-aba="exemplos">👍 ${nBons} · 👎 ${nRuins} Exemplos</button>
+    <button class="${State.aba==='previa'?'active':''}" data-aba="previa">Prévia do que vai pra IA</button>
+  </div>
+  <div id="conteudoAba">${State.aba==='contexto' ? viewContexto() : State.aba==='exemplos' ? viewExemplos() : viewPrevia()}</div>`;
+}
+
+/* ---------- Ações ---------- */
+async function atualizarExemplo(id, campos, msg){
+  const { error } = await sb.from('roteiro_exemplos').update(campos).eq('id', id);
+  if(error){ console.error(error); toast('Não foi possível salvar — rodou a migração do contexto da IA?'); return false; }
+  Object.assign(State.exemplos.find(x=>x.id===id), campos); toast(msg); render(); return true;
+}
+function abrirMotivo(e){
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Por que esse roteiro foi rejeitado?</h3>
+    <div class="desc" style="font-size:12.5px; color:var(--muted); margin-bottom:12px;">Seja específico: "gancho genérico", "falou do produto como propaganda", "frase longa demais pra falar"...</div>
+    <div class="field"><textarea id="txtMotivo" style="min-height:110px;">${escHtml(e.motivo||'')}</textarea></div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnSalvarMotivo">Salvar motivo</button></div>`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('btnSalvarMotivo').onclick = async ()=>{ if(await atualizarExemplo(e.id, {motivo:document.getElementById('txtMotivo').value.trim()}, 'Motivo salvo')) closeModal(); };
+}
+function abrirNovoExemplo(){
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Adicionar exemplo</h3>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Tipo</label><select id="nTipo"><option value="bom">👍 Aprovado — a IA deve seguir</option><option value="ruim">👎 Rejeitado — a IA deve evitar</option></select></div>
+      <div class="field"><label>Atleta (opcional)</label><select id="nAtleta"><option value="">—</option>${State.atletas.map(a=>`<option value="${a.id}">${escHtml(a.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Produto (opcional)</label><input id="nProduto" placeholder="Ex: Recovery"></div>
+      <div class="field"><label>Formato</label><select id="nFormato"><option>Vídeo</option><option>Carrossel</option></select></div>
+    </div>
+    <div class="field"><label>Texto do roteiro</label><textarea id="nTexto" style="min-height:180px;" placeholder="Cole o roteiro aqui..."></textarea></div>
+    <div class="field" id="nMotivoWrap" style="display:none;"><label>Por que é ruim?</label><textarea id="nMotivo" placeholder="O que a IA não deve repetir"></textarea></div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnSalvarNovo">Adicionar</button></div>`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const tipo = document.getElementById('nTipo');
+  tipo.onchange = ()=> document.getElementById('nMotivoWrap').style.display = tipo.value==='ruim' ? '' : 'none';
+  document.getElementById('btnSalvarNovo').onclick = async (ev)=>{
+    const texto = document.getElementById('nTexto').value.trim();
+    if(!texto){ toast('Cole o texto do roteiro'); return; }
+    const atletaId = document.getElementById('nAtleta').value;
+    const row = { tipo:tipo.value, roteiro_text:texto, athlete_id: atletaId||null, team: State.atletas.find(a=>a.id===atletaId)?.team || null,
+      produto: document.getElementById('nProduto').value.trim(), formato: document.getElementById('nFormato').value,
+      motivo: tipo.value==='ruim' ? document.getElementById('nMotivo').value.trim() : '' };
+    ev.target.disabled = true;
+    const { data, error } = await sb.from('roteiro_exemplos').insert(row).select().single();
+    if(error){ console.error(error); toast('Erro ao salvar'); ev.target.disabled = false; return; }
+    State.exemplos.unshift(data); closeModal(); toast('Exemplo adicionado'); render();
+  };
+}
+async function montarPrevia(){
+  State.carregandoPrevia = true; render();
+  try{
+    const { data, error } = await sb.functions.invoke('gerar-roteiro', { body: { preview: true } });
+    if(error) throw error;
+    if(data?.error) State.previa = {erro: escHtml(data.error)};
+    else if(!data?.system) State.previa = {erro: 'A função <code>gerar-roteiro</code> publicada no Supabase ainda é a versão antiga (não tem prévia). Publique a nova versão: <code>supabase/functions/gerar-roteiro/index.ts</code>.'};
+    else State.previa = data;
+  }catch(err){
+    console.error(err);
+    State.previa = {erro: /Failed to send a request/i.test(err.message||'') ? 'A função <code>gerar-roteiro</code> não respondeu — confira se ela está publicada no Supabase.' : escHtml(err.message||err)};
+  }
+  State.carregandoPrevia = false; render();
+}
+
+function render(){
+  document.getElementById('main').innerHTML = view();
+  document.querySelectorAll('[data-aba]').forEach(b=> b.onclick = ()=>{ State.aba = b.dataset.aba; render(); });
+  if(State.aba==='contexto'){
+    const barra = document.getElementById('barraSalvar');
+    document.querySelectorAll('[data-campo]').forEach(t=> t.oninput = ()=>{ State.ctx[t.dataset.campo] = t.value; barra.style.display = alterado() ? 'flex' : 'none'; });
+    document.getElementById('btnDescartarCtx').onclick = ()=>{ State.ctx = {...State.ctxOriginal}; render(); };
+    document.getElementById('btnSalvarCtx').onclick = async (ev)=>{
+      ev.target.disabled = true;
+      const payload = { id:1, updated_at:new Date().toISOString(), updated_by: State.profile?.nome || '' };
+      CAMPOS.forEach(c=> payload[c.key] = State.ctx[c.key] || '');
+      const { error } = await sb.from('ia_contexto').upsert(payload);
+      if(error){ console.error(error); toast('Erro ao salvar — rodou a migração do contexto da IA?'); ev.target.disabled = false; return; }
+      Object.assign(State.ctx, payload); State.ctxOriginal = {...State.ctx}; State.previa = null;
+      toast('Contexto da IA salvo — vale pro próximo roteiro gerado'); render();
+    };
+  }
+  if(State.aba==='exemplos'){
+    document.querySelectorAll('[data-filtro]').forEach(b=> b.onclick = ()=>{ State.filtro = b.dataset.filtro; render(); });
+    document.getElementById('equipeEx').onchange = (e)=>{ State.equipe = e.target.value; render(); };
+    const busca = document.getElementById('buscaEx');
+    busca.oninput = ()=>{ State.busca = busca.value; const pos = busca.selectionStart; render(); const b2 = document.getElementById('buscaEx'); b2.focus(); b2.setSelectionRange(pos,pos); };
+    document.getElementById('btnNovoExemplo').onclick = abrirNovoExemplo;
+    const achar = id=> State.exemplos.find(x=>x.id===id);
+    document.querySelectorAll('[data-expandir]').forEach(b=> b.onclick = ()=>{ const id = b.dataset.expandir; State.expandidos.has(id) ? State.expandidos.delete(id) : State.expandidos.add(id); render(); });
+    document.querySelectorAll('[data-mover]').forEach(b=> b.onclick = ()=>{ const e = achar(b.dataset.mover); atualizarExemplo(e.id, {tipo: e.tipo==='bom'?'ruim':'bom'}, e.tipo==='bom'?'Movido pra 👎':'Movido pra 👍'); });
+    document.querySelectorAll('[data-motivo]').forEach(b=> b.onclick = ()=> abrirMotivo(achar(b.dataset.motivo)));
+    document.querySelectorAll('[data-copiar]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(achar(b.dataset.copiar).roteiro_text||'').then(()=> toast('Copiado')));
+    document.querySelectorAll('[data-excluir]').forEach(b=> b.onclick = async ()=>{
+      if(!confirm('Excluir este exemplo? A IA deixa de usá-lo.')) return;
+      const { error } = await sb.from('roteiro_exemplos').delete().eq('id', b.dataset.excluir);
+      if(error){ console.error(error); toast('Não foi possível excluir — rodou a migração do contexto da IA?'); return; }
+      State.exemplos = State.exemplos.filter(x=>x.id!==b.dataset.excluir); toast('Exemplo excluído'); render();
+    });
+  }
+  if(State.aba==='previa'){
+    document.getElementById('btnPrevia').onclick = montarPrevia;
+    const c = document.getElementById('btnCopiarPrevia'); if(c) c.onclick = ()=> navigator.clipboard.writeText(State.previa.system).then(()=> toast('Copiado'));
+  }
+}
+window.addEventListener('beforeunload', e=>{ if(alterado()){ e.preventDefault(); e.returnValue = ''; } });
+
+(async function start(){
+  const auth = await guardStaff('ia'); if(!auth) return;
+  State.profile = auth.profile;
+  await carregar();
+  render();
+})();
+</script></body></html>
