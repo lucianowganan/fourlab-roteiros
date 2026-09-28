@@ -196,7 +196,7 @@ function mapAthleteFromDB(r){
     dificuldadeGravacao:r.dificuldade_gravacao||'', estiloFala:r.estilo_fala||'',
     estiloVideo:r.estilo_video||'', videosTranscritos:r.videos_transcritos||'',
     cupomYampi:r.cupom_yampi||'', descontoCupomPct:r.desconto_cupom_pct, comissaoPct:r.comissao_pct,
-    recebeComissao: !!r.recebe_comissao, profissao:r.profissao||'',
+    recebeComissao: !!r.recebe_comissao, verVendas: !!r.ver_vendas, profissao:r.profissao||'',
     username:r.username||'',
     email:r.email||'', whatsapp:r.whatsapp||'', instagram:r.instagram||'', facebook:r.facebook||'',
     tiktok:r.tiktok||'', youtube:r.youtube||'', pixKey:r.pix_key||'',
@@ -292,8 +292,12 @@ function aplicarCoresEquipes(){
   st.textContent = EQUIPES.map(e=> `.team-${esc(teamSlug(e.name))}{background:${teamSoft(e.name)} !important; color:${e.color} !important;}`).join('\n');
 }
 function teamBadge(name){ return `<span class="badge" style="background:${teamSoft(name)}; color:${teamColor(name)};">${escHtml(name)}</span>`; }
-// quem recebe comissão enxerga a área de Vendas
-function temAcessoVendas(a){ return !!(a && a.recebeComissao && a.cupomYampi); }
+// Acesso à área de Vendas:
+//  - recebe comissão → vê tudo (valores, comissão, saldo, PIX)
+//  - não recebe, mas "ver volume de vendas" ligado → vê só quantidades (pedidos), sem valores
+function temAcessoVendas(a){ return !!(a && a.cupomYampi && (a.recebeComissao || a.verVendas)); }
+function recebeComissaoAtiva(a){ return !!(a && a.cupomYampi && a.recebeComissao); }
+function vendasSoVolume(a){ return temAcessoVendas(a) && !a.recebeComissao; }
 
 /* ---------- Drawer lateral ---------- */
 function openDrawer(html){
@@ -323,6 +327,7 @@ function niceMax(v){
 function compactNum(v){
   if(v >= 1e6) return (v/1e6).toFixed(1).replace('.0','').replace('.',',') + 'M';
   if(v >= 1e3) return (v/1e3).toFixed(1).replace('.0','').replace('.',',') + 'k';
+  if(v < 10 && !Number.isInteger(v)) return v.toFixed(1).replace('.',',');
   return String(Math.round(v));
 }
 
@@ -336,7 +341,7 @@ function pillBarChartHtml(data, opts){
   const bw = Math.min(58, slot * 0.56);
   const uid = 'hatch' + Math.random().toString(36).slice(2,7);
   const ticks = [0, 0.25, 0.5, 0.75, 1].map(t=> ({y: padT + plotH - t*plotH, v: t*max}));
-  const color = opts.color || 'var(--orange)';
+  const color = opts.color || `url(#${uid}g)`; // padrão: degradê laranja → amarelo
   const bars = data.map((d,i)=>{
     const x = padL + slot*i + (slot-bw)/2;
     const h = Math.max(d.value > 0 ? bw*0.5 : 0, (d.value/max) * plotH);
@@ -353,7 +358,8 @@ function pillBarChartHtml(data, opts){
   return `<div class="chart-wrap" data-w="${W}" data-h="${H}">
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(opts.ariaLabel||'Gráfico de barras')}">
       <defs><pattern id="${uid}" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-        <rect width="8" height="8" fill="${opts.soft || '#f6c49b'}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${opts.stripe || '#f0ae78'}" stroke-width="3"/></pattern></defs>
+        <rect width="8" height="8" fill="${opts.soft || '#fbd7a6'}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${opts.stripe || '#f6bf6a'}" stroke-width="3"/></pattern>
+        <linearGradient id="${uid}g" x1="0" y1="1" x2="0" y2="0"><stop offset="0%" stop-color="#e96709"/><stop offset="100%" stop-color="#fdb913"/></linearGradient></defs>
       ${ticks.map(t=>`<line class="chart-grid" x1="${padL}" x2="${W}" y1="${t.y}" y2="${t.y}"/><text class="chart-axis" x="${padL-8}" y="${t.y+3}" text-anchor="end">${compactNum(t.v)}</text>`).join('')}
       ${bars}
     </svg><div class="chart-tip"></div></div>`;
@@ -397,8 +403,9 @@ function areaChartHtml(points, opts){
 function ringHtml(pct, label, sub){
   const r = 52, c = 2*Math.PI*r, p = Math.max(0, Math.min(1, pct));
   return `<div style="position:relative; width:140px; height:140px; margin:0 auto;">
-    <svg viewBox="0 0 140 140" width="140" height="140"><circle cx="70" cy="70" r="${r}" fill="none" stroke="#f1ebe4" stroke-width="12"/>
-      <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--orange)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c*p} ${c}" transform="rotate(-90 70 70)"/></svg>
+    <svg viewBox="0 0 140 140" width="140" height="140"><defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#e96709"/><stop offset="100%" stop-color="#fdcc03"/></linearGradient></defs>
+      <circle cx="70" cy="70" r="${r}" fill="none" stroke="#f1ebe4" stroke-width="12"/>
+      <circle cx="70" cy="70" r="${r}" fill="none" stroke="url(#ringGrad)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c*p} ${c}" transform="rotate(-90 70 70)"/></svg>
     <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
       <div style="font-size:22px; font-weight:700; font-variant-numeric:tabular-nums;">${label}</div>
       <div style="font-size:10.5px; color:var(--muted); font-weight:700;">${sub||''}</div></div></div>`;
@@ -432,24 +439,69 @@ document.addEventListener('mouseout', (e)=>{
 
 /* ---------- Dashboard de vendas Yampi (compartilhado equipe/atleta) ---------- */
 // Série de vendas acumuladas por dia do mês, a partir da lista de pedidos
-function serieAcumuladaDoMes(pedidos, ym){
+function serieAcumuladaDoMes(pedidos, ym, soVolume){
   const [y,m] = ym.split('-').map(Number);
   const nDays = new Date(y, m, 0).getDate();
   const isCurrent = ym === monthKey(todayISO());
   const lastDay = isCurrent ? Number(todayISO().slice(8,10)) : nDays;
   const porDia = {};
-  (pedidos||[]).forEach(p=>{ const d = Number(String(p.data).slice(8,10)); porDia[d] = (porDia[d]||0) + Number(p.valor||0); });
+  (pedidos||[]).forEach(p=>{ const d = Number(String(p.data).slice(8,10)); porDia[d] = (porDia[d]||0) + (soVolume ? 1 : Number(p.valor||0)); });
+  const fmt = v=> soVolume ? `${fmtNum(v)} pedido${v===1?'':'s'}` : fmtBRL(v);
   let acc = 0; const pts = [];
   for(let d=1; d<=lastDay; d++){
     acc += porDia[d]||0;
-    pts.push({label:String(d).padStart(2,'0'), value:acc, tip:`${fmtBRL(acc)}|${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')} · ${porDia[d]?'+'+fmtBRL(porDia[d])+' no dia':'sem vendas no dia'}`});
+    pts.push({label:String(d).padStart(2,'0'), value:acc, tip:`${fmt(acc)}|${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')} · ${porDia[d]?'+'+fmt(porDia[d])+' no dia':'sem vendas no dia'}`});
   }
   return pts;
+}
+
+// Versão "só volume" (quem não recebe comissão): quantidades, sem nenhum valor em R$
+function dashboardVolumeHtml(data, opts){
+  const ym = opts.ym || monthKey(todayISO()), prev = opts.prev || null;
+  const pedidos = (data.pedidos||[]).slice().sort((a,b)=> String(b.data).localeCompare(String(a.data)));
+  const dias = new Set(pedidos.map(p=> String(p.data).slice(0,10))).size;
+  const porDia = {}; pedidos.forEach(p=>{ const d = String(p.data).slice(0,10); porDia[d] = (porDia[d]||0) + 1; });
+  const melhor = Object.entries(porDia).sort((a,b)=> b[1]-a[1])[0];
+  return `
+  <div class="bento">
+    <div class="card span-4" style="display:flex; flex-direction:column; gap:16px;">
+      <div class="card-head" style="margin-bottom:0;"><div><h2>Seu cupom</h2><div class="desc">${fmtMonthLabel(ym)}</div></div><span class="ic-bubble">${ICONS.card}</span></div>
+      <div class="coupon-card">
+        <div class="cc-top"><span>FourLab · Cupom</span><span>${opts.descontoPct!=null?opts.descontoPct:10}% OFF</span></div>
+        <div><div class="cc-label">Pedidos com seu cupom no mês</div><div class="cc-value">${fmtNum(data.numeroPedidos)}</div></div>
+        <div class="cc-bottom"><span style="font-family:monospace; font-size:14px; letter-spacing:1px;">${escHtml((opts.cupom||'').toUpperCase())}</span>
+          ${opts.cupom ? `<button class="cc-copy" onclick="navigator.clipboard.writeText('${escHtml(opts.cupom).replace(/'/g,'')}').then(()=>toast('Cupom copiado'))">Copiar</button>` : ''}</div>
+      </div>
+    </div>
+    <div class="card span-8">
+      <div class="card-head"><div><h2>Pedidos ao longo do mês</h2><div class="desc">Quantidade acumulada dia a dia · passe o mouse pra ver cada dia</div></div>
+        <div style="text-align:right;"><div style="font-size:11.5px; color:var(--muted);">Total no mês</div><div class="kpi"><span class="kpi-value" style="font-size:24px; margin:0;">${fmtNum(data.numeroPedidos)}</span></div></div></div>
+      ${areaChartHtml(serieAcumuladaDoMes(pedidos, ym, true), {axis:true, height:190, ariaLabel:'Pedidos acumulados no mês'})}
+    </div>
+  </div>
+  <div class="grid-4" style="margin-bottom:18px;">
+    <div class="card kpi"><div class="kpi-label">Pedidos no mês</div><div class="kpi-value">${fmtNum(data.numeroPedidos)}</div>
+      <div class="kpi-foot">${deltaHtml(data.numeroPedidos, prev && Number(prev.numero_pedidos))}<span>vs. mês anterior</span></div></div>
+    <div class="card kpi"><div class="kpi-label">Pedidos no mês anterior</div><div class="kpi-value">${prev ? fmtNum(prev.numero_pedidos) : '—'}</div>
+      <div class="kpi-foot"><span>${fmtMonthLabel(addMonths(ym,-1))}</span></div></div>
+    <div class="card kpi"><div class="kpi-label">Dias com venda</div><div class="kpi-value">${fmtNum(dias)}</div>
+      <div class="kpi-foot"><span>dias em que alguém usou o cupom</span></div></div>
+    <div class="card kpi"><div class="kpi-label">Melhor dia</div><div class="kpi-value">${melhor ? fmtDateBR(melhor[0]).slice(0,5) : '—'}</div>
+      <div class="kpi-foot"><span>${melhor ? `${melhor[1]} pedido${melhor[1]===1?'':'s'}` : 'sem vendas ainda'}</span></div></div>
+  </div>
+  <div class="panel">
+    <div class="card-head"><div><h2>Pedidos com seu cupom</h2><div class="desc">${fmtNum(data.numeroPedidos)} pedido(s) em ${fmtMonthLabel(ym)}</div></div><span class="ic-bubble">${ICONS.cart}</span></div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Data</th><th>Nº pedido</th><th>Status</th></tr></thead><tbody>
+      ${pedidos.map(p=>`<tr><td><strong>${fmtDateBR(p.data)}</strong></td><td style="color:var(--muted);">#${escHtml(p.numero)}</td><td><span class="status-dot status-ok">Aprovado</span></td></tr>`).join('')}
+      ${!pedidos.length ? '<tr><td colspan="3"><div class="empty-state" style="padding:24px;">Nenhum pedido neste mês ainda.</div></td></tr>' : ''}
+    </tbody></table></div>
+  </div>`;
 }
 
 // opts: {cupom, comissaoPct, descontoPct, ym, prev:{valor_vendido, comissao_mes, numero_pedidos}, titulo}
 function dashboardVendasHtml(data, opts){
   opts = opts || {};
+  if(opts.soVolume) return dashboardVolumeHtml(data, opts);
   const ym = opts.ym || monthKey(todayISO());
   const prev = opts.prev || null;
   const pedidos = (data.pedidos||[]).slice().sort((a,b)=> String(b.data).localeCompare(String(a.data)));
@@ -547,8 +599,9 @@ function barrasMensaisHtml(rows, ateYM, n, campo){
   for(let i=n-1; i>=0; i--){
     const ym = addMonths(ateYM, -i), v = porYM[ym]||0, prevV = porYM[addMonths(ym,-1)]||0;
     const pct = prevV ? ((v-prevV)/prevV*100) : null;
-    data.push({label:shortMonth(ym), value:v, highlight: ym===ateYM, tip:`${fmtBRL(v)}|${fmtMonthLabel(ym)}`,
-      badge: pct==null ? `R$ ${compactNum(v)}` : `${pct>=0?'+':''}${pct.toFixed(1).replace('.',',')}%`});
+    const qtd = campo === 'numero_pedidos';
+    data.push({label:shortMonth(ym), value:v, highlight: ym===ateYM, tip:`${qtd ? `${fmtNum(v)} pedidos` : fmtBRL(v)}|${fmtMonthLabel(ym)}`,
+      badge: pct==null ? (qtd ? fmtNum(v) : `R$ ${compactNum(v)}`) : `${pct>=0?'+':''}${pct.toFixed(1).replace('.',',')}%`});
   }
-  return pillBarChartHtml(data, {ariaLabel:'Vendas por mês'});
+  return pillBarChartHtml(data, {ariaLabel: campo==='numero_pedidos' ? 'Pedidos por mês' : 'Vendas por mês'});
 }

@@ -1,5 +1,25 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Início — FourLab</title><link rel="stylesheet" href="shared.css"></head><body>
+<title>Início · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
 <div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
@@ -26,7 +46,7 @@ function camposFaltando(){
   if(!athlete.whatsapp) f.push('WhatsApp');
   if(!athlete.instagram && !athlete.tiktok && !athlete.youtube) f.push('redes sociais');
   if(!athlete.enderecoCep || !athlete.enderecoRua) f.push('endereço de envio');
-  if(temAcessoVendas(athlete) && !athlete.pixKey) f.push('chave PIX');
+  if(recebeComissaoAtiva(athlete) && !athlete.pixKey) f.push('chave PIX');
   return f;
 }
 
@@ -38,6 +58,33 @@ function heroVendasHtml(){
   // mês anterior: dado real da Yampi; se não vier, usa o histórico salvo
   const prev = vendaParaLinha(vendaMesAnterior) || vendasMensais.find(v=>v.ym===addMonths(mesAtual,-1));
   const saldo = vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0;
+  if(vendasSoVolume(athlete)){
+    // Sem comissão: só quantidades, nenhum valor em R$
+    const pedidosPrev = prev ? Number(prev.numero_pedidos||0) : 0;
+    const dias = vendaAoVivo ? new Set((vendaAoVivo.pedidos||[]).map(p=> String(p.data).slice(0,10))).size : null;
+    const histQ = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = vendasMensais.find(v=>v.ym===ym);
+      const q = ym===mesAtual ? pedidos : (ym===addMonths(mesAtual,-1) && prev) ? pedidosPrev : Number(r?.numero_pedidos||0);
+      histQ.push({label:shortMonth(ym), value:q, tip:`${fmtNum(q)} pedidos|${fmtMonthLabel(ym)}`}); }
+    return `
+  <div class="section-title" style="margin-top:0; font-size:16px; text-transform:none; letter-spacing:0; color:var(--ink); font-weight:700;">Suas vendas</div>
+  <div class="bento">
+    <div class="card span-5" style="background:linear-gradient(180deg,#fff 0%, #fff7f0 100%);">
+      <div class="card-head" style="margin-bottom:4px;"><div>
+        <div class="kpi"><div class="kpi-value" style="margin:0;">${fmtNum(pedidos)} pedido${pedidos===1?'':'s'}</div></div>
+        <div class="desc" style="margin-top:4px;">com seu cupom em ${fmtMonthLabel(mesAtual).split('/')[0].toLowerCase()} ${!carregandoAoVivo?'':'<span class="loader" style="width:10px;height:10px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>'}</div></div>
+        <a class="icon-btn" href="atleta-vendas.html" title="Ver minhas vendas">${ICONS.arrow}</a></div>
+      ${areaChartHtml(histQ, {axis:true, height:150, ariaLabel:'Pedidos dos últimos 6 meses'})}
+    </div>
+    <div class="span-7 tiles-3">
+      <div class="tile t-orange"><div><div class="t-value">${fmtNum(pedidos)}</div><div class="t-label">Pedidos no mês</div></div>
+        <div class="t-foot"><span class="t-ic" style="color:var(--orange);">${ICONS.cart}</span>${deltaHtml(pedidos, pedidosPrev)}</div></div>
+      <div class="tile t-purple"><div><div class="t-value">${fmtNum(pedidosPrev)}</div><div class="t-label">Pedidos no mês anterior</div></div>
+        <div class="t-foot"><span class="t-ic" style="color:var(--purple);">${ICONS.calendar}</span></div></div>
+      <div class="tile t-yellow"><div><div class="t-value">${dias==null?'—':fmtNum(dias)}</div><div class="t-label">Dias com venda no mês</div></div>
+        <div class="t-foot"><span class="t-ic" style="color:#8a6a00;">${ICONS.trend}</span></div></div>
+    </div>
+  </div>`;
+  }
   const hist = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = vendasMensais.find(v=>v.ym===ym);
     const v = ym===mesAtual ? vendido : (ym===addMonths(mesAtual,-1) && prev) ? Number(prev.valor_vendido||0) : Number(r?.valor_vendido||0);
     hist.push({label:shortMonth(ym), value:v, tip:`${fmtBRL(v)}|${fmtMonthLabel(ym)}`}); }
@@ -104,7 +151,7 @@ function viewHome(){
     </div>
     <div class="span-4" style="display:flex; flex-direction:column; gap:18px;">
       ${athlete.cupomYampi ? `<div class="promo-card">
-        ${temAcessoVendas(athlete)
+        ${recebeComissaoAtiva(athlete)
           ? `<h3>Ganhe <span class="pill-outline">${athlete.comissaoPct!=null?athlete.comissaoPct:10}%</span> em cada venda com seu cupom</h3>
              <p>Seus seguidores ganham ${athlete.descontoCupomPct!=null?athlete.descontoCupomPct:10}% de desconto na loja FourLab e você recebe comissão.</p>`
           : `<h3>Seu cupom dá <span class="pill-outline">${athlete.descontoCupomPct!=null?athlete.descontoCupomPct:10}% OFF</span> pros seus seguidores</h3>

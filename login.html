@@ -3,7 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FourLab — Entrar</title>
+<title>Entrar · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
 <link rel="stylesheet" href="shared.css">
 </head>
 <body>
@@ -13,9 +33,9 @@
     <div class="logoWrap">
       <img id="loginLogo" alt="FourLab">
     </div>
-    <h2>Roteiros &amp; Atletas</h2>
-    <div class="sub">Painel interno de marketing</div>
-    <div class="field"><label>Usuário ou e-mail</label><input id="loginEmail" type="text" autocomplete="username" placeholder="e-mail (equipe) ou usuário (atleta)"></div>
+    <h2>Painel dos atletas</h2>
+    <div class="sub">Entre com o usuário e a senha que a FourLab te enviou.</div>
+    <div class="field"><label>Usuário ou e-mail</label><input id="loginEmail" type="text" autocomplete="username" placeholder="seu usuário"></div>
     <div class="field"><label>Senha</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
     <button class="btn btn-primary" id="btnLogin" style="width:100%; margin-top:6px;">Entrar</button>
     <div id="loginError"></div>
@@ -26,7 +46,9 @@
 <script src="shared.js"></script>
 <script>
 document.getElementById('loginLogo').src = LOGO_SIMBOLO_BRANCO;
-document.getElementById('loginLogo').style.cssText = 'height:44px;width:auto;filter:invert(1) grayscale(1) brightness(0.15);';
+document.getElementById('loginLogo').style.cssText = 'height:34px;width:auto;display:block;';
+// logo colorida num quadrado preto (mesmo visual do ícone do site)
+document.querySelector('#loginBox .logoWrap').style.cssText = 'width:72px;height:72px;margin:0 auto 22px;border-radius:20px;background:#140e10;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(20,14,16,0.25);';
 
 (async function checkSessaoExistente(){
   const user = await getSessionUser();
