@@ -1,0 +1,112 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avisos · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+/* Mural de avisos. Cada aviso tem um público:
+   equipe (só a administração vê) · todos · atletas · profissionais parceiros */
+const State = { avisos:[], filtro:'todos_avisos', profile:null, vistoAntes:'', tabelaOk:true, editando:null };
+
+async function carregar(){
+  const { data, error } = await sb.from('avisos').select('*').order('fixado', {ascending:false}).order('created_at', {ascending:false});
+  State.tabelaOk = !error; State.avisos = data || [];
+}
+
+function formHtml(){
+  const av = State.editando || {titulo:'', mensagem:'', publico:'equipe', fixado:false};
+  return `<div class="card" style="margin-bottom:18px;">
+    <div class="card-head"><div><h2>${State.editando?'Editar aviso':'Novo aviso'}</h2><div class="desc">Escolha quem vai ver. "Só administração" fica visível apenas pra equipe FourLab.</div></div><span class="ic-bubble">${ICONS.avisos}</span></div>
+    <div class="field"><label>Título</label><input id="aTitulo" value="${escHtml(av.titulo)}" placeholder="Ex: Envio dos kits de outubro"></div>
+    <div class="field"><label>Mensagem</label><textarea id="aMsg" style="min-height:110px;" placeholder="Escreva o aviso... (links viram clicáveis)">${escHtml(av.mensagem)}</textarea></div>
+    <div class="row" style="justify-content:space-between; gap:12px;">
+      <div class="row" style="gap:12px;">
+        <div class="seg" id="aPublico">${Object.entries(AVISO_PUBLICO).map(([k,v])=>`<button type="button" data-pub="${k}" class="${av.publico===k?'active':''}">${k==='equipe'?ICONS.lock.replace('width="18" height="18"','width="12" height="12"')+' ':''}${v.label}</button>`).join('')}</div>
+        <label style="display:flex; align-items:center; gap:6px; margin:0; font-size:12.5px; color:var(--ink-2); cursor:pointer;"><input type="checkbox" id="aFixado" ${av.fixado?'checked':''}> 📌 Fixar no topo</label>
+      </div>
+      <div class="row">${State.editando?'<button class="btn btn-ghost btn-sm" id="btnCancelarEd">Cancelar</button>':''}<button class="btn btn-primary" id="btnPublicar">${State.editando?'Salvar':'Publicar aviso'}</button></div>
+    </div></div>`;
+}
+
+function view(){
+  if(!State.tabelaOk) return `<div class="page-head"><div><h1>Avisos</h1></div></div>
+    <div class="panel"><div class="empty-state"><div class="big">🛠️</div>Rode <code>migrations/2026-09-28_blog_avisos.sql</code> no SQL Editor do Supabase e recarregue.</div></div>`;
+  const filtros = [['todos_avisos','Tudo'], ...Object.entries(AVISO_PUBLICO).map(([k,v])=>[k,v.label])];
+  const lista = State.avisos.filter(a=> State.filtro==='todos_avisos' || a.publico===State.filtro);
+  return `
+  <div class="page-head"><div><h1>Avisos</h1><div class="sub">Recados internos da administração e comunicados pros atletas e parceiros.</div></div></div>
+  ${formHtml()}
+  <div class="filter-pills" style="margin-bottom:14px;">${filtros.map(([k,l])=>`<button class="fpill ${State.filtro===k?'active':''}" data-filtro="${k}">${l} <span class="count">${k==='todos_avisos'?State.avisos.length:State.avisos.filter(a=>a.publico===k).length}</span></button>`).join('')}</div>
+  ${lista.length ? `<div class="grid-2" style="align-items:start;">${lista.map(av=> avisoCardHtml(av, {mostrarPublico:true, novo: State.vistoAntes && av.created_at > State.vistoAntes,
+    acoes:`<button class="btn btn-ghost btn-sm" data-fixar="${av.id}">${av.fixado?'Desafixar':'📌 Fixar'}</button><button class="btn btn-ghost btn-sm" data-editar="${av.id}">Editar</button><button class="btn btn-danger btn-sm" data-excluir="${av.id}" style="margin-left:auto;">Excluir</button>`})).join('')}</div>`
+    : '<div class="panel"><div class="empty-state">Nenhum aviso ainda.</div></div>'}`;
+}
+
+function render(){
+  document.getElementById('main').innerHTML = view();
+  if(!State.tabelaOk) return;
+  let publico = (State.editando||{}).publico || 'equipe';
+  document.querySelectorAll('[data-pub]').forEach(b=> b.onclick = ()=>{ publico = b.dataset.pub; document.querySelectorAll('[data-pub]').forEach(x=>x.classList.toggle('active', x===b)); });
+  document.querySelectorAll('[data-filtro]').forEach(b=> b.onclick = ()=>{ State.filtro = b.dataset.filtro; render(); });
+  const canc = document.getElementById('btnCancelarEd'); if(canc) canc.onclick = ()=>{ State.editando = null; render(); };
+  document.getElementById('btnPublicar').onclick = async (ev)=>{
+    const titulo = document.getElementById('aTitulo').value.trim(), mensagem = document.getElementById('aMsg').value.trim();
+    if(!titulo && !mensagem){ toast('Escreva o aviso'); return; }
+    const row = { titulo, mensagem, publico, fixado: document.getElementById('aFixado').checked };
+    ev.target.disabled = true;
+    if(State.editando){
+      const { error } = await sb.from('avisos').update(row).eq('id', State.editando.id);
+      if(error){ console.error(error); toast('Erro ao salvar'); ev.target.disabled = false; return; }
+      Object.assign(State.avisos.find(a=>a.id===State.editando.id), row); State.editando = null; toast('Aviso atualizado');
+    }else{
+      const { data, error } = await sb.from('avisos').insert({...row, autor: State.profile?.nome || ''}).select().single();
+      if(error){ console.error(error); toast('Erro ao publicar'); ev.target.disabled = false; return; }
+      State.avisos.unshift(data); toast(publico==='equipe' ? 'Aviso interno publicado' : 'Aviso publicado'); marcarAvisosComoVistos();
+    }
+    State.avisos.sort((a,b)=> (b.fixado-a.fixado) || b.created_at.localeCompare(a.created_at)); render();
+  };
+  document.querySelectorAll('[data-fixar]').forEach(b=> b.onclick = async ()=>{
+    const av = State.avisos.find(a=>a.id===b.dataset.fixar);
+    const { error } = await sb.from('avisos').update({fixado:!av.fixado}).eq('id', av.id); if(error){ toast('Erro'); return; }
+    av.fixado = !av.fixado; State.avisos.sort((a,b)=> (b.fixado-a.fixado) || b.created_at.localeCompare(a.created_at)); render();
+  });
+  document.querySelectorAll('[data-editar]').forEach(b=> b.onclick = ()=>{ State.editando = {...State.avisos.find(a=>a.id===b.dataset.editar)}; render(); window.scrollTo({top:0, behavior:'smooth'}); });
+  document.querySelectorAll('[data-excluir]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Excluir este aviso?')) return;
+    const { error } = await sb.from('avisos').delete().eq('id', b.dataset.excluir); if(error){ toast('Erro ao excluir'); return; }
+    State.avisos = State.avisos.filter(a=>a.id!==b.dataset.excluir); toast('Aviso excluído'); render();
+  });
+}
+
+(async function start(){
+  const auth = await guardStaff('avisos'); if(!auth) return;
+  State.profile = auth.profile;
+  State.vistoAntes = avisosVistosEm();
+  await carregar();
+  marcarAvisosComoVistos();
+  render();
+})();
+</script></body></html>

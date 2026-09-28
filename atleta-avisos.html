@@ -1,0 +1,43 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avisos · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+/* Avisos da FourLab pro atleta/parceiro. O banco só devolve os avisos do público dele
+   (todos + atletas ou profissionais) — os internos da administração nunca chegam aqui. */
+(async function start(){
+  const auth = await guardAthlete('avisos'); if(!auth) return;
+  const vistoAntes = avisosVistosEm();
+  const { data } = await sb.from('avisos').select('*').order('fixado', {ascending:false}).order('created_at', {ascending:false});
+  const avisos = (data||[]).filter(a=> a.publico !== 'equipe'); // redundante com o banco, por garantia
+  marcarAvisosComoVistos();
+  document.getElementById('main').innerHTML = `
+    <div class="page-head"><div><h1>Avisos</h1><div class="sub">Comunicados da FourLab pra você.</div></div></div>
+    ${avisos.length ? `<div style="display:flex; flex-direction:column; gap:14px; max-width:760px;">${avisos.map(av=> avisoCardHtml(av, {novo: vistoAntes && av.created_at > vistoAntes})).join('')}</div>`
+      : '<div class="panel"><div class="empty-state"><div class="big">📭</div>Nenhum aviso por enquanto.</div></div>'}`;
+})();
+</script></body></html>

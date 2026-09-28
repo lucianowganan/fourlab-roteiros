@@ -1,0 +1,125 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meus textos · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+/* Área do profissional parceiro: pauta do mês (tema) + editor do texto do blog,
+   com rascunho, envio pra revisão e o retorno da FourLab. */
+let parceiro = null, pautas = [], abertaId = null, alterado = false;
+
+function editavel(p){ return ['pendente','rascunho','ajustes','enviado'].includes(p.status); }
+function pautaPadrao(){
+  // a do mês atual; senão a mais recente ainda em aberto; senão a mais recente
+  return pautas.find(p=>p.ym===monthKey(todayISO())) || pautas.find(p=>editavel(p)) || pautas[0];
+}
+
+function editorHtml(p){
+  const podeEditar = editavel(p);
+  const prazoTxt = p.prazo ? (()=>{ const d = Math.round((new Date(p.prazo+'T12:00:00') - new Date(todayISO()+'T12:00:00'))/86400000);
+    return d<0 ? `<span style="color:var(--red); font-weight:700;">venceu em ${fmtDateBR(p.prazo)}</span>` : d===0 ? '<strong>hoje</strong>' : `${fmtDateBR(p.prazo)} (em ${d} dia${d===1?'':'s'})`; })() : 'sem prazo definido';
+  return `
+  <div class="bento">
+    <div class="card span-4" style="background:var(--ink); color:#fff; border-color:var(--ink);">
+      <div style="font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; opacity:0.7;">Pauta de ${fmtMonthLabel(p.ym)}</div>
+      <div style="font-family:var(--font-title); font-size:24px; font-weight:700; line-height:1.2; margin-top:10px; color:#fff;">${escHtml(blogTema(p))}</div>
+      ${p.tema_especifico && p.tema_mes ? `<div style="font-size:12px; opacity:0.65; margin-top:8px;">Tema geral do mês: ${escHtml(p.tema_mes)}</div>` : ''}
+      <div style="margin-top:16px; font-size:12.5px; opacity:0.85;">Prazo: ${prazoTxt}</div>
+      <div style="margin-top:12px;">${blogStatusHtml(p.status)}</div>
+      ${p.orientacoes ? `<div style="margin-top:16px; border-top:1px solid rgba(255,255,255,0.15); padding-top:14px;"><div style="font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; opacity:0.7; margin-bottom:6px;">Orientações</div>
+        <div style="font-size:13px; line-height:1.55; white-space:pre-wrap; opacity:0.92;">${escHtml(p.orientacoes)}</div></div>` : ''}
+    </div>
+    <div class="card span-8">
+      ${p.status==='ajustes' && p.feedback ? `<div style="background:var(--red-soft); color:#8c2a20; border-radius:14px; padding:12px 14px; margin-bottom:16px; font-size:13px; line-height:1.5;"><strong>A FourLab pediu ajustes:</strong><br>${escHtml(p.feedback).replace(/\n/g,'<br>')}</div>` : ''}
+      ${['aprovado','publicado'].includes(p.status) ? `<div style="background:var(--green-soft); color:var(--green); border-radius:14px; padding:12px 14px; margin-bottom:16px; font-size:13px;"><strong>${p.status==='publicado'?'Texto publicado no blog':'Texto aprovado'} — obrigado!</strong>${p.feedback?`<br><span style="color:var(--ink-2);">${escHtml(p.feedback)}</span>`:''}</div>` : ''}
+      ${p.status==='enviado' ? `<div style="background:#e6f0ff; color:#1d4ed8; border-radius:14px; padding:12px 14px; margin-bottom:16px; font-size:13px;">Enviado pra revisão${p.enviado_em?` em ${new Date(p.enviado_em).toLocaleString('pt-BR')}`:''}. Você ainda pode editar e reenviar enquanto a FourLab não aprova.</div>` : ''}
+      <div class="field"><label>Título</label><input id="bTitulo" value="${escHtml(p.titulo||'')}" placeholder="Título do texto" ${podeEditar?'':'disabled'} style="font-size:16px; font-weight:600;"></div>
+      <div class="field"><label>Texto</label><textarea id="bTexto" style="min-height:420px; font-size:14px; line-height:1.7;" placeholder="Escreva ou cole aqui o texto do blog..." ${podeEditar?'':'disabled'}>${escHtml(p.texto||'')}</textarea></div>
+      <div class="row" style="justify-content:space-between;">
+        <span id="bContagem" style="font-size:12px; color:var(--muted);">${fmtNum(contarPalavras(p.texto))} palavras</span>
+        ${podeEditar ? `<div class="row"><button class="btn btn-ghost" id="btnRascunho">Salvar rascunho</button><button class="btn btn-primary" id="btnEnviar">${p.status==='enviado'?'Reenviar pra revisão':'Enviar pra revisão'}</button></div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function view(){
+  if(!pautas.length) return `
+  <div class="page-head"><div><h1>Meus textos</h1><div class="sub">Textos pro blog da FourLab.</div></div></div>
+  <div class="panel"><div class="empty-state"><div class="big">📝</div>Ainda não tem pauta pra você.<br>Quando a FourLab liberar o tema do mês, ele aparece aqui.</div></div>`;
+  const p = pautas.find(x=>x.id===abertaId) || pautaPadrao();
+  abertaId = p.id;
+  const outras = pautas.filter(x=>x.id!==p.id);
+  return `
+  <div class="page-head"><div><h1>Meus textos</h1><div class="sub">Escreva o texto do blog a partir da pauta e envie pra revisão da FourLab.</div></div></div>
+  ${editorHtml(p)}
+  ${outras.length ? `<div class="section-title" style="font-size:12px;">Outras pautas</div>
+  <div class="grid-3">${outras.map(o=>`<div class="card" data-abrir="${o.id}" style="cursor:pointer; padding:18px;">
+      <div class="row" style="justify-content:space-between;"><span style="font-size:12px; color:var(--muted); font-weight:700;">${fmtMonthLabel(o.ym)}</span>${blogStatusHtml(o.status)}</div>
+      <div style="font-weight:700; margin-top:10px; font-family:var(--font-title);">${escHtml(o.titulo || blogTema(o))}</div>
+      <div style="font-size:12px; color:var(--muted); margin-top:4px;">${o.texto?`${fmtNum(contarPalavras(o.texto))} palavras`:'sem texto'}</div></div>`).join('')}</div>` : ''}`;
+}
+
+async function salvar(enviar){
+  const titulo = document.getElementById('bTitulo').value.trim(), texto = document.getElementById('bTexto').value;
+  if(enviar && !texto.trim()){ toast('Escreva o texto antes de enviar'); return; }
+  if(enviar && !confirm('Enviar este texto pra revisão da FourLab?')) return;
+  const btn = document.getElementById(enviar ? 'btnEnviar' : 'btnRascunho'); btn.disabled = true;
+  // RPC restrita: só altera a própria pauta, e só enquanto não foi aprovada
+  const { error } = await sb.rpc('salvar_meu_texto_blog', { p_id: abertaId, p_titulo: titulo, p_texto: texto, p_enviar: enviar });
+  if(error){ console.error(error); toast(error.message || 'Não foi possível salvar'); btn.disabled = false; return; }
+  const p = pautas.find(x=>x.id===abertaId);
+  Object.assign(p, { titulo, texto, status: enviar ? 'enviado' : 'rascunho', enviado_em: enviar ? new Date().toISOString() : p.enviado_em });
+  alterado = false;
+  toast(enviar ? 'Enviado pra revisão ✔' : 'Rascunho salvo'); render();
+}
+
+function render(){
+  document.getElementById('main').innerHTML = view();
+  document.querySelectorAll('[data-abrir]').forEach(el=> el.onclick = ()=>{
+    if(alterado && !confirm('Você tem alterações não salvas. Trocar de pauta mesmo assim?')) return;
+    abertaId = el.dataset.abrir; alterado = false; render(); window.scrollTo({top:0, behavior:'smooth'});
+  });
+  const texto = document.getElementById('bTexto');
+  if(texto){
+    const marcar = ()=>{ alterado = true; document.getElementById('bContagem').textContent = `${fmtNum(contarPalavras(texto.value))} palavras · não salvo`; };
+    texto.oninput = marcar; document.getElementById('bTitulo').oninput = marcar;
+  }
+  const r = document.getElementById('btnRascunho'); if(r) r.onclick = ()=> salvar(false);
+  const e = document.getElementById('btnEnviar'); if(e) e.onclick = ()=> salvar(true);
+}
+window.addEventListener('beforeunload', ev=>{ if(alterado){ ev.preventDefault(); ev.returnValue = ''; } });
+
+(async function start(){
+  const auth = await guardAthlete('blog'); if(!auth) return;
+  parceiro = auth.athlete;
+  if(!parceiro){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum cadastro vinculado a este login.</div>'; return; }
+  if(!isProfissional(parceiro)){ location.href = 'atleta-home.html'; return; }
+  const { data } = await sb.from('blog_textos').select('*').eq('athlete_id', parceiro.id).order('ym', {ascending:false});
+  pautas = data || [];
+  render();
+})();
+</script></body></html>

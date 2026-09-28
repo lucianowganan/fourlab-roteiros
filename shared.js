@@ -60,6 +60,8 @@ const ICONS = {
   trash: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/></svg>`,
   ia: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 13.8 8.2 18.5 10 13.8 11.8 12 16.5 10.2 11.8 5.5 10 10.2 8.2Z"/><path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7Z"/></svg>`,
   like: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"/><path d="M7 10l4-6.5a1.8 1.8 0 0 1 3.3 1.2L13.5 9h5.2a2 2 0 0 1 2 2.3l-1.2 7a2 2 0 0 1-2 1.7H7"/></svg>`,
+  blog: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z"/><path d="M14 3.5v5h5M8.5 12.5h7M8.5 16h5"/></svg>`,
+  avisos: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>`,
   sair: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l4-5-4-5M20 12H9"/></svg>`,
 };
 
@@ -70,6 +72,8 @@ const STAFF_NAV = [
   {id:'ciclo', label:'Mês / Roteiros', ic:ICONS.roteiro, href:'ciclo.html'},
   {id:'acompanhamento', label:'Acompanhamento', ic:ICONS.acompanhamento, href:'acompanhamento.html'},
   {id:'crm', label:'Pipeline / CRM', ic:ICONS.kanban, href:'crm.html'},
+  {id:'blog', label:'Blog (parceiros)', ic:ICONS.blog, href:'blog.html'},
+  {id:'avisos', label:'Avisos', ic:ICONS.avisos, href:'avisos.html'},
   {id:'vendas', label:'Vendas', ic:ICONS.vendas, href:'vendas.html'},
   {id:'atletas', label:'Atletas & parceiros', ic:ICONS.atletas, href:'atletas.html'},
   {id:'produtos', label:'Catálogo', ic:ICONS.produtos, href:'produtos.html'},
@@ -79,7 +83,9 @@ const STAFF_NAV = [
 
 const ATLETA_NAV = [
   {id:'inicio', label:'Início', ic:ICONS.inicio, href:'atleta-home.html'},
-  {id:'roteiros', label:'Meus Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html'},
+  {id:'roteiros', label:'Meus Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html', so:'equipe'},
+  {id:'blog', label:'Meus textos (blog)', ic:ICONS.blog, href:'parceiro-blog.html', so:'profissional'},
+  {id:'avisos', label:'Avisos', ic:ICONS.avisos, href:'atleta-avisos.html'},
   {id:'vendas', label:'Minhas Vendas', ic:ICONS.vendas, href:'atleta-vendas.html'},
   {id:'perfil', label:'Meu Perfil', ic:ICONS.perfil, href:'atleta-perfil.html'},
 ];
@@ -171,23 +177,41 @@ function sidebarShell(navHtml, footerHtml){
     </aside>`;
 }
 
+function navItemHtml(activeId, t){
+  return `<a class="nav-btn ${activeId===t.id?'active':''}" href="${t.href}" data-nav="${t.id}"><span class="ic" style="position:relative;">${t.ic}</span><span class="label">${t.label}</span></a>`;
+}
+
+/* ---------- Avisos: bolinha de "novo" no menu ----------
+   A última vez que a pessoa abriu a aba Avisos fica guardada neste navegador. */
+function avisosVistosEm(){ try{ return localStorage.getItem('avisosVistosEm') || ''; }catch(e){ return ''; } }
+function marcarAvisosComoVistos(){ try{ localStorage.setItem('avisosVistosEm', new Date().toISOString()); }catch(e){} }
+async function marcarAvisosNovosNoMenu(){
+  const visto = avisosVistosEm();
+  let q = sb.from('avisos').select('id', {count:'exact', head:true});
+  if(visto) q = q.gt('created_at', visto);
+  const { count, error } = await q;
+  if(error || !count) return;
+  const ic = document.querySelector('[data-nav="avisos"] .ic');
+  if(ic && !ic.querySelector('.nav-dot')) ic.insertAdjacentHTML('beforeend', `<span class="nav-dot" title="${count} aviso(s) novo(s)"></span>`);
+}
+
 function renderStaffSidebar(activeId, profile){
-  const nav = STAFF_NAV.map(t=>
-    `<a class="nav-btn ${activeId===t.id?'active':''}" href="${t.href}"><span class="ic">${t.ic}</span><span class="label">${t.label}</span></a>`
-  ).join('');
+  const nav = STAFF_NAV.map(navItemHtml.bind(null, activeId)).join('');
   const footer = `${profile?.nome || 'Usuário'} · ${profile?.role === 'chefia' ? 'Chefia' : 'Geral'}
     <button onclick="logout()" style="display:flex; align-items:center; gap:5px; margin-top:6px; background:none; border:none; color:rgba(255,255,255,0.7); font-size:11px; cursor:pointer; text-decoration:underline; padding:0;">${ICONS.sair} Sair</button>`;
   document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer);
+  if(activeId !== 'avisos') marcarAvisosNovosNoMenu();
 }
 
 function renderAthleteSidebar(activeId, athlete){
-  const tabs = ATLETA_NAV.filter(t=> t.id !== 'vendas' || temAcessoVendas(athlete));
-  const nav = tabs.map(t=>
-    `<a class="nav-btn ${activeId===t.id?'active':''}" href="${t.href}"><span class="ic">${t.ic}</span><span class="label">${t.label}</span></a>`
-  ).join('');
+  // Atletas veem "Meus roteiros"; profissionais parceiros veem "Meus textos (blog)"
+  const categoria = isProfissional(athlete) ? 'profissional' : 'equipe';
+  const tabs = ATLETA_NAV.filter(t=> (t.id !== 'vendas' || temAcessoVendas(athlete)) && (!t.so || t.so === categoria));
+  const nav = tabs.map(navItemHtml.bind(null, activeId)).join('');
   const footer = `${athlete ? escHtml(athlete.name) : 'Atleta'} · ${athlete ? escHtml(athlete.team) : ''}
     <button onclick="logout()" style="display:flex; align-items:center; gap:5px; margin-top:6px; background:none; border:none; color:rgba(255,255,255,0.7); font-size:11px; cursor:pointer; text-decoration:underline; padding:0;">${ICONS.sair} Sair</button>`;
   document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer);
+  if(activeId !== 'avisos') marcarAvisosNovosNoMenu();
 }
 
 /* ---------- Mapeamento de atleta (usado em várias páginas) ---------- */
@@ -298,6 +322,45 @@ function teamBadge(name){ return `<span class="badge" style="background:${teamSo
 function temAcessoVendas(a){ return !!(a && a.cupomYampi && (a.recebeComissao || a.verVendas)); }
 function recebeComissaoAtiva(a){ return !!(a && a.cupomYampi && a.recebeComissao); }
 function vendasSoVolume(a){ return temAcessoVendas(a) && !a.recebeComissao; }
+
+/* ---------- Blog dos profissionais parceiros ---------- */
+const BLOG_STATUS = {
+  pendente:{label:'Aguardando texto', cor:'var(--muted)', fundo:'var(--surface-2)'},
+  rascunho:{label:'Rascunho', cor:'#b5680a', fundo:'#fdeecb'},
+  enviado:{label:'Enviado pra revisão', cor:'#1d4ed8', fundo:'#e6f0ff'},
+  ajustes:{label:'Ajustes pedidos', cor:'var(--red)', fundo:'var(--red-soft)'},
+  aprovado:{label:'Aprovado', cor:'var(--green)', fundo:'var(--green-soft)'},
+  publicado:{label:'Publicado', cor:'var(--purple)', fundo:'var(--purple-soft)'},
+};
+function blogStatusHtml(st){ const s = BLOG_STATUS[st] || BLOG_STATUS.pendente; return `<span class="badge" style="background:${s.fundo}; color:${s.cor};">${s.label}</span>`; }
+function blogTema(p){ return (p.tema_especifico||'').trim() || (p.tema_mes||'').trim() || 'Tema livre'; }
+function contarPalavras(t){ return (String(t||'').trim().match(/\S+/g)||[]).length; }
+
+/* ---------- Avisos ---------- */
+const AVISO_PUBLICO = {
+  equipe:{label:'Só administração', cor:'var(--ink)', fundo:'#ece7e2'},
+  todos:{label:'Todos', cor:'#b5480a', fundo:'var(--orange-soft)'},
+  atletas:{label:'Atletas', cor:'#1d4ed8', fundo:'#e6f0ff'},
+  profissionais:{label:'Profissionais parceiros', cor:'var(--purple)', fundo:'var(--purple-soft)'},
+};
+// opts: {novo, acoes (html dos botões da equipe), mostrarPublico}
+function avisoCardHtml(av, opts){
+  opts = opts || {};
+  const pub = AVISO_PUBLICO[av.publico] || AVISO_PUBLICO.todos;
+  return `<div class="card" style="padding:20px; ${av.fixado?'border:1.5px solid #f6c77e; background:linear-gradient(180deg,#fffaf2,#fff);':''}">
+    <div class="row" style="justify-content:space-between; gap:8px;">
+      <div class="row" style="gap:6px;">
+        ${av.fixado?'<span class="badge" style="background:var(--grad-accent); color:#fff;">📌 Fixado</span>':''}
+        ${opts.novo?'<span class="badge" style="background:var(--yellow); color:var(--ink);">Novo</span>':''}
+        ${opts.mostrarPublico?`<span class="badge" style="background:${pub.fundo}; color:${pub.cor};">${av.publico==='equipe'?ICONS.lock.replace('width="18" height="18"','width="11" height="11"')+' ':''}${pub.label}</span>`:''}
+      </div>
+      <span style="font-size:11.5px; color:var(--muted);">${new Date(av.created_at).toLocaleDateString('pt-BR', {day:'2-digit', month:'short', year:'numeric'})}${av.autor?` · ${escHtml(av.autor)}`:''}</span>
+    </div>
+    ${av.titulo?`<div style="font-family:var(--font-title); font-size:17px; font-weight:700; margin-top:12px;">${escHtml(av.titulo)}</div>`:''}
+    <div style="font-size:13.5px; line-height:1.6; margin-top:6px; white-space:pre-wrap; color:var(--ink-2);">${escHtml(av.mensagem).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--orange); font-weight:600;">$1</a>')}</div>
+    ${opts.acoes?`<div class="row" style="gap:6px; margin-top:14px; border-top:1px solid #f3eee8; padding-top:12px;">${opts.acoes}</div>`:''}
+  </div>`;
+}
 
 /* ---------- Drawer lateral ---------- */
 function openDrawer(html){
