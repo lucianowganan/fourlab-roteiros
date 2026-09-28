@@ -1,5 +1,25 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Minhas Vendas — FourLab</title><link rel="stylesheet" href="shared.css"></head><body>
+<title>Minhas vendas · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
 <div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
@@ -9,7 +29,41 @@
 let athlete = null, vendasMensais = [], mesSel = monthKey(todayISO());
 const META_PAGAMENTO = 100;
 
+// Histórico salvo + mês selecionado e anterior buscados ao vivo na Yampi (quando já carregados)
+const aoVivo = {};
+function serieVolume(){
+  const rows = vendasMensais.filter(v=> !(v.ym in aoVivo)).map(v=>({ym:v.ym, numero_pedidos:v.numero_pedidos}));
+  Object.entries(aoVivo).forEach(([ym, n])=> rows.push({ym, numero_pedidos:n}));
+  return rows.sort((a,b)=> b.ym.localeCompare(a.ym));
+}
+function historicoVolumeHtml(){
+  const rows = serieVolume();
+  return rows.length ? `<table><tbody>${rows.slice(0,8).map(v=>`<tr><td><strong>${fmtMonthLabel(v.ym)}</strong></td><td style="text-align:right; font-weight:700;">${fmtNum(v.numero_pedidos)} pedido${Number(v.numero_pedidos)===1?'':'s'}</td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty-state" style="padding:24px;">Ainda sem histórico.</div>';
+}
+// Quem não recebe comissão vê só quantidades (pedidos) — nenhum valor em R$
+function viewVolume(){
+  return `
+  <div class="page-head">
+    <div><h1>Minhas vendas · ${escHtml(athlete.cupomYampi.toUpperCase())}</h1>
+      <div class="sub">Quantos pedidos saíram com o seu cupom na loja FourLab.</div></div>
+    <div class="row"><div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="athleteVendasMonth" value="${mesSel}" style="width:auto; background:#fff;"></div></div>
+  </div>
+  <div id="athleteVendasDashboard"></div>
+  <div class="bento">
+    <div class="card span-8">
+      <div class="card-head"><div class="card-title-ic"><span class="ic-bubble">${ICONS.acompanhamento}</span><div><h2>Pedidos por mês</h2><div class="desc">Últimos 6 meses · o mês selecionado fica em destaque</div></div></div></div>
+      <div id="barrasPedidos">${barrasMensaisHtml(serieVolume(), mesSel, 6, 'numero_pedidos')}</div>
+    </div>
+    <div class="card span-4">
+      <div class="card-head"><div><h2>Histórico</h2><div class="desc">Pedidos com seu cupom, mês a mês</div></div><span class="ic-bubble">${ICONS.cart}</span></div>
+      <div id="historicoPedidos">${historicoVolumeHtml()}</div>
+    </div>
+  </div>`;
+}
+
 function viewVendas(){
+  if(vendasSoVolume(athlete)) return viewVolume();
   const saldoAtual = vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0;
   const faltam = Math.max(0, META_PAGAMENTO - saldoAtual);
   const totalHistorico = vendasMensais.reduce((s,v)=> s + Number(v.comissao_mes||0), 0);
@@ -45,7 +99,18 @@ function viewVendas(){
 }
 function carregarMesSel(){
   // o "vs. mês anterior" é buscado ao vivo na Yampi dentro de carregarDashboardVendas
-  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard');
+  const soVolume = vendasSoVolume(athlete);
+  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard', {soVolume}).then(async ()=>{
+    if(!soVolume) return;
+    // mesmas chamadas do painel (já em cache) → completa o gráfico e o histórico de pedidos
+    for(const ym of [mesSel, addMonths(mesSel,-1)]){
+      try{ const d = await buscarVendasYampi(athlete.cupomYampi, ym, athlete.descontoCupomPct, athlete.comissaoPct); aoVivo[ym] = Number(d.numeroPedidos||0); }catch(err){ console.warn(err); }
+    }
+    const box = document.getElementById('barrasPedidos');
+    if(box) box.innerHTML = barrasMensaisHtml(serieVolume(), mesSel, 6, 'numero_pedidos');
+    const hist = document.getElementById('historicoPedidos');
+    if(hist) hist.innerHTML = historicoVolumeHtml();
+  });
 }
 function render(){
   document.getElementById('main').innerHTML = viewVendas();

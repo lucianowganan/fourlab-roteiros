@@ -1,5 +1,25 @@
 <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Atletas — FourLab Roteiros</title><link rel="stylesheet" href="shared.css"></head><body>
+<title>Atletas & parceiros · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
 <div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
@@ -31,7 +51,7 @@ async function saveOneAthlete(a){
   const payload = { name:a.name, team:a.team, format_pref:a.formatPref, notes:a.notes,
     dificuldade_gravacao:a.dificuldadeGravacao||'', estilo_fala:a.estiloFala||'', estilo_video:a.estiloVideo||'', videos_transcritos:a.videosTranscritos||'',
     cupom_yampi:a.cupomYampi||'', desconto_cupom_pct:a.descontoCupomPct!=null?a.descontoCupomPct:10, comissao_pct:a.comissaoPct!=null?a.comissaoPct:10,
-    recebe_comissao:!!a.recebeComissao, profissao:a.profissao||'' };
+    recebe_comissao:!!a.recebeComissao, ver_vendas:!!a.verVendas, profissao:a.profissao||'' };
   if(a.id){ const { error } = await sb.from('athletes').update(payload).eq('id', a.id); if(error) throw error; }
   else { const { data, error } = await sb.from('athletes').insert(payload).select().single(); if(error) throw error; if(data) a.id = data.id; }
 }
@@ -90,7 +110,7 @@ function viewAtletas(){
       ${isProfissional(a) ? '' : `<div class="row" style="justify-content:space-between; margin-top:12px;"><span class="pc-label" style="margin:0;">Últimos posts${taxa!=null?` · ${taxa}% postados`:''}</span>${postDotsHtml(a.id)}</div>`}
       <div class="row" style="margin-top:14px; gap:6px;">
         ${a.cupomYampi ? `<span class="chip static">${ICONS.vendas} ${escHtml(a.cupomYampi)}</span>` : ''}
-        ${a.recebeComissao ? `<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">${a.comissaoPct??10}% comissão</span>` : ''}
+        ${a.recebeComissao ? `<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">${a.comissaoPct??10}% comissão</span>` : a.verVendas ? '<span class="chip static">vê volume de vendas</span>' : ''}
         ${!isProfissional(a) ? (last ? `<span class="chip static">${escHtml(last.product)} · ${shortMonth(last.ym)}</span>` : '<span class="chip static" style="color:var(--muted);">nunca postou</span>') : ''}
         ${a.dificuldadeGravacao==='sim' && !isProfissional(a) ? '<span class="chip static" style="color:#b5680a;">trava na câmera</span>' : ''}
       </div>
@@ -224,7 +244,7 @@ function athleteDrawerHtml(a){
     <div class="section-title">Cupom e comissão</div>
     ${a.cupomYampi ? `<div class="coupon-card ${a.recebeComissao?'purple':''}" style="min-height:130px; ${a.recebeComissao?'':'background:linear-gradient(135deg,#6b6166,#3d3539); box-shadow:none;'}"><div class="cc-top"><span>Cupom Yampi</span><span>${a.descontoCupomPct??10}% OFF${a.recebeComissao?` · ${a.comissaoPct??10}% comissão`:''}</span></div>
       <div class="cc-value" style="font-family:monospace; letter-spacing:1px; font-size:26px;">${escHtml(a.cupomYampi.toUpperCase())}</div>
-      <div class="cc-bottom"><span>${a.recebeComissao ? `PIX: ${a.pixKey?escHtml(a.pixKey):'<em style="opacity:0.7;">não cadastrado</em>'}` : 'Sem comissão · não vê a área de Vendas'}</span></div></div>`
+      <div class="cc-bottom"><span>${a.recebeComissao ? `PIX: ${a.pixKey?escHtml(a.pixKey):'<em style="opacity:0.7;">não cadastrado</em>'}` : (a.verVendas ? 'Sem comissão · vê só o volume de vendas' : 'Sem comissão · não vê a área de Vendas')}</span></div></div>`
       : '<div style="font-size:12.5px; color:var(--muted);">Sem cupom cadastrado.</div>'}
 
     ${isProfissional(a) ? '' : `<div class="section-title">Perfil de conteúdo</div>
@@ -291,6 +311,7 @@ function athleteFormHtml(a){
       <div class="field"><label>Código do cupom Yampi</label><input id="fCupomYampi" value="${escHtml(a.cupomYampi||'')}" placeholder="ex: 30luiza"></div>
       <div class="field"><label>% desconto do cupom</label><input id="fDescontoCupom" type="number" value="${a.descontoCupomPct!=null?a.descontoCupomPct:10}"></div></div>
     ${toggleHtml('fRecebeComissao', a.recebeComissao, 'Recebe comissão — liberar acesso a Vendas', 'Com isso ligado, ele vê a área "Minhas vendas", o saldo e cadastra a chave PIX. Desligado, o cupom é só de desconto.')}
+    <div id="fVerVendasWrap">${toggleHtml('fVerVendas', a.verVendas, 'Mostrar volume de vendas (sem valores)', 'Sem comissão, mas quer acompanhar: ele vê só quantos pedidos saíram com o cupom — nenhum valor em R$, comissão ou saldo.')}</div>
     <div class="field" id="fComissaoWrap"><label>% de comissão</label><input id="fComissaoPct" type="number" value="${a.comissaoPct!=null?a.comissaoPct:10}" style="max-width:160px;"></div>
 
     ${!isNew ? `<div class="section-title">Acesso ao painel</div>
@@ -340,6 +361,7 @@ function wireAthleteModalHandlers(){
     document.getElementById('fFormatWrap').style.display = prof ? 'none' : '';
     document.getElementById('fConteudoWrap').style.display = prof ? 'none' : '';
     document.getElementById('fComissaoWrap').style.display = comissao.checked ? '' : 'none';
+    document.getElementById('fVerVendasWrap').style.display = comissao.checked ? 'none' : '';
   };
   teamSel.onchange = sync; comissao.onchange = sync; sync();
 
@@ -387,7 +409,7 @@ function wireAthleteModalHandlers(){
       estiloFala: document.getElementById('fEstiloFala').value.trim(), estiloVideo: document.getElementById('fEstiloVideo').value.trim(),
       videosTranscritos: document.getElementById('fVideosTranscritos').value.trim(), cupomYampi: document.getElementById('fCupomYampi').value.trim(),
       descontoCupomPct: Number(document.getElementById('fDescontoCupom').value) || 10, comissaoPct: Number(document.getElementById('fComissaoPct').value) || 10,
-      recebeComissao: comissao.checked };
+      recebeComissao: comissao.checked, verVendas: !comissao.checked && document.getElementById('fVerVendas').checked };
     const id = document.getElementById('fId').value;
     saveBtn.disabled = true; saveBtn.innerHTML = '<span class="loader"></span>';
     try{
