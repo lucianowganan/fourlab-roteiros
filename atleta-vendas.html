@@ -26,103 +26,92 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-let athlete = null, vendasMensais = [], mesSel = monthKey(todayISO());
-const META_PAGAMENTO = 100;
+/* Minhas vendas.
+   Parte de cima: pedidos do mês selecionado, ao vivo na Yampi (carregarDashboardVendas).
+   Parte de baixo: últimos meses, saldo acumulado até R$ 100 e extrato — também calculados ao vivo
+   (historicoComissao), sem depender da tabela vendas_mensais. */
+let athlete = null, mesSel = monthKey(todayISO()), hist = null, progresso = '';
 
-// Histórico salvo + mês selecionado e anterior buscados ao vivo na Yampi (quando já carregados)
-const aoVivo = {};
-function serieVolume(){
-  const rows = vendasMensais.filter(v=> !(v.ym in aoVivo)).map(v=>({ym:v.ym, numero_pedidos:v.numero_pedidos}));
-  Object.entries(aoVivo).forEach(([ym, n])=> rows.push({ym, numero_pedidos:n}));
-  return rows.sort((a,b)=> b.ym.localeCompare(a.ym));
+function carregandoHtml(texto){
+  return `<div class="panel"><div class="empty-state" style="padding:28px;"><span class="loader" style="border-top-color:var(--orange); border-color:rgba(0,0,0,0.1);"></span>
+    <div style="margin-top:10px;">${texto}${progresso ? ` <span style="color:var(--muted);">(${progresso})</span>` : ''}</div></div></div>`;
 }
-function historicoVolumeHtml(){
-  const rows = serieVolume();
-  return rows.length ? `<table><tbody>${rows.slice(0,8).map(v=>`<tr><td><strong>${fmtMonthLabel(v.ym)}</strong></td><td style="text-align:right; font-weight:700;">${fmtNum(v.numero_pedidos)} pedido${Number(v.numero_pedidos)===1?'':'s'}</td></tr>`).join('')}</tbody></table>`
-    : '<div class="empty-state" style="padding:24px;">Ainda sem histórico.</div>';
-}
-// Quem não recebe comissão vê só quantidades (pedidos) — nenhum valor em R$
-function viewVolume(){
+
+// ---------- quem NÃO recebe comissão: só quantidades ----------
+function blocoVolumeHtml(){
+  if(!hist) return carregandoHtml('Buscando seus últimos meses na Yampi...');
+  const comVenda = hist.linhas.filter(l=> l.numero_pedidos > 0);
   return `
-  <div class="page-head">
-    <div><h1>Minhas vendas · ${escHtml(athlete.cupomYampi.toUpperCase())}</h1>
-      <div class="sub">Quantos pedidos saíram com o seu cupom na loja FourLab.</div></div>
-    <div class="row"><div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="athleteVendasMonth" value="${mesSel}" style="width:auto; background:#fff;"></div></div>
-  </div>
-  <div id="athleteVendasDashboard"></div>
   <div class="bento">
     <div class="card span-8">
       <div class="card-head"><div class="card-title-ic"><span class="ic-bubble">${ICONS.acompanhamento}</span><div><h2>Pedidos por mês</h2><div class="desc">Últimos 6 meses · o mês selecionado fica em destaque</div></div></div></div>
-      <div id="barrasPedidos">${barrasMensaisHtml(serieVolume(), mesSel, 6, 'numero_pedidos')}</div>
+      ${barrasMensaisHtml(hist.linhas, mesSel, 6, 'numero_pedidos')}
     </div>
     <div class="card span-4">
       <div class="card-head"><div><h2>Histórico</h2><div class="desc">Pedidos com seu cupom, mês a mês</div></div><span class="ic-bubble">${ICONS.cart}</span></div>
-      <div id="historicoPedidos">${historicoVolumeHtml()}</div>
+      ${comVenda.length ? `<table><tbody>${comVenda.slice(0,8).map(v=>`<tr><td><strong>${fmtMonthLabel(v.ym)}</strong></td><td style="text-align:right; font-weight:700;">${fmtNum(v.numero_pedidos)} pedido${v.numero_pedidos===1?'':'s'}</td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty-state" style="padding:24px;">Ainda sem pedidos com o seu cupom.</div>'}
     </div>
   </div>`;
 }
 
-function viewVendas(){
-  if(vendasSoVolume(athlete)) return viewVolume();
-  const saldoAtual = vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0;
-  const faltam = Math.max(0, META_PAGAMENTO - saldoAtual);
-  const totalHistorico = vendasMensais.reduce((s,v)=> s + Number(v.comissao_mes||0), 0);
+// ---------- quem recebe comissão: valores, saldo até R$ 100 e extrato ----------
+function blocoComissaoHtml(){
+  if(!hist) return carregandoHtml('Calculando seu saldo e o extrato dos últimos meses...');
+  const saldo = hist.saldoAtual, faltam = Math.max(0, META_PAGAMENTO_COMISSAO - saldo);
+  const extrato = hist.linhas.filter(l=> l.valor_vendido > 0 || l.pago_valor > 0 || l.comissao_mes > 0);
   return `
-  <div class="page-head">
-    <div><h1>Minhas vendas · ${escHtml(athlete.cupomYampi.toUpperCase())}</h1>
-      <div class="sub">Tudo que foi vendido com o seu cupom na loja FourLab.</div></div>
-    <div class="row"><div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="athleteVendasMonth" value="${mesSel}" style="width:auto; background:#fff;"></div></div>
-  </div>
-  <div id="athleteVendasDashboard"></div>
-
   <div class="bento">
     <div class="card span-8">
       <div class="card-head"><div class="card-title-ic"><span class="ic-bubble">${ICONS.acompanhamento}</span><div><h2>Vendas por mês</h2><div class="desc">Últimos 6 meses · o mês selecionado fica em destaque</div></div></div></div>
-      ${barrasMensaisHtml(vendasMensais, mesSel, 6)}
+      ${barrasMensaisHtml(hist.linhas, mesSel, 6)}
     </div>
     <div class="card span-4" style="text-align:center;">
-      <div class="card-head" style="text-align:left;"><div><h2>Saldo pra receber</h2><div class="desc">Pagamento liberado a cada ${fmtBRL(META_PAGAMENTO)}</div></div>
+      <div class="card-head" style="text-align:left;"><div><h2>Saldo pra receber</h2><div class="desc">O pagamento é liberado quando o saldo chega a ${fmtBRL(META_PAGAMENTO_COMISSAO)}. Abaixo disso, soma com o mês seguinte.</div></div>
         <span class="ic-bubble">${ICONS.wallet}</span></div>
-      ${ringHtml(saldoAtual/META_PAGAMENTO, fmtBRL(saldoAtual).replace(',00',''), `de ${fmtBRL(META_PAGAMENTO).replace(',00','')}`)}
-      <div style="font-size:12.5px; color:var(--muted); margin-top:14px;">${faltam>0 ? `Faltam <strong style="color:var(--ink);">${fmtBRL(faltam)}</strong> pra liberar o pagamento` : '<span class="status-dot status-ok">Pagamento liberado!</span>'}</div>
-      <div style="border-top:1px solid #f3eee8; margin-top:16px; padding-top:12px; font-size:12px; color:var(--muted);">Comissão total já gerada: <strong style="color:var(--ink);">${fmtBRL(totalHistorico)}</strong></div>
+      ${ringHtml(saldo/META_PAGAMENTO_COMISSAO, fmtBRL(saldo).replace(',00',''), `de ${fmtBRL(META_PAGAMENTO_COMISSAO).replace(',00','')}`)}
+      <div style="font-size:12.5px; color:var(--muted); margin-top:14px;">${faltam>0 ? `Faltam <strong style="color:var(--ink);">${fmtBRL(faltam)}</strong> pra liberar o pagamento` : '<span class="status-dot status-ok">Pagamento liberado! A FourLab vai te pagar via PIX.</span>'}</div>
+      <div style="border-top:1px solid #f3eee8; margin-top:16px; padding-top:12px; font-size:12px; color:var(--muted);">Comissão gerada nos últimos ${MESES_HISTORICO} meses: <strong style="color:var(--ink);">${fmtBRL(hist.comissaoTotal)}</strong></div>
     </div>
   </div>
 
-  <div class="panel"><div class="card-head"><div><h2>Extrato mensal</h2><div class="desc">Comissão de cada mês e status do pagamento.</div></div></div>
-    <div style="overflow-x:auto;"><table><thead><tr><th>Mês</th><th>Vendido</th><th>Pedidos</th><th>Comissão do mês</th><th>Saldo acumulado</th><th>Status</th></tr></thead><tbody>
-      ${vendasMensais.map(v=>`<tr><td><strong>${fmtMonthLabel(v.ym)}</strong></td><td>${fmtBRL(v.valor_vendido)}</td><td>${v.numero_pedidos}</td>
-        <td style="font-weight:700; color:var(--orange);">${fmtBRL(v.comissao_mes)}</td><td>${fmtBRL(v.saldo_total)}</td>
-        <td>${v.pago ? `<span class="status-dot status-ok">Pago em ${fmtDateBR(v.data_pagamento)}</span>` : '<span class="status-dot status-wait">Acumulando</span>'}</td></tr>`).join('')}
-      ${!vendasMensais.length ? '<tr><td colspan="6" style="color:var(--muted);">Ainda sem vendas registradas.</td></tr>' : ''}
-    </tbody></table></div></div>`;
+  <div class="panel"><div class="card-head"><div><h2>Extrato mensal</h2><div class="desc">Comissão de cada mês, saldo acumulado e pagamentos.</div></div></div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Mês</th><th>Vendido</th><th>Pedidos</th><th>Comissão do mês</th><th>Saldo acumulado</th><th>Situação</th></tr></thead><tbody>
+      ${extrato.map(v=>`<tr><td><strong>${fmtMonthLabel(v.ym)}</strong></td><td>${fmtBRL(v.valor_vendido)}</td><td>${v.numero_pedidos}</td>
+        <td style="font-weight:700; color:var(--orange);">${fmtBRL(v.comissao_mes)}</td><td>${fmtBRL(v.saldo_total)}</td><td>${statusComissaoHtml(v)}</td></tr>`).join('')}
+      ${!extrato.length ? '<tr><td colspan="6" style="color:var(--muted);">Ainda sem vendas com o seu cupom nos últimos meses.</td></tr>' : ''}
+    </tbody></table></div>
+    ${hist.falhas ? `<div style="font-size:12px; color:#b5680a; margin-top:10px;">⚠ Não consegui buscar ${hist.falhas} mês(es) na Yampi — recarregue a página pra tentar de novo.</div>` : ''}
+  </div>`;
 }
-function carregarMesSel(){
-  // o "vs. mês anterior" é buscado ao vivo na Yampi dentro de carregarDashboardVendas
+
+function viewVendas(){
   const soVolume = vendasSoVolume(athlete);
-  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard', {soVolume}).then(async ()=>{
-    if(!soVolume) return;
-    // mesmas chamadas do painel (já em cache) → completa o gráfico e o histórico de pedidos
-    for(const ym of [mesSel, addMonths(mesSel,-1)]){
-      try{ const d = await buscarVendasYampi(athlete.cupomYampi, ym, athlete.descontoCupomPct, athlete.comissaoPct); aoVivo[ym] = Number(d.numeroPedidos||0); }catch(err){ console.warn(err); }
-    }
-    const box = document.getElementById('barrasPedidos');
-    if(box) box.innerHTML = barrasMensaisHtml(serieVolume(), mesSel, 6, 'numero_pedidos');
-    const hist = document.getElementById('historicoPedidos');
-    if(hist) hist.innerHTML = historicoVolumeHtml();
-  });
+  return `
+  <div class="page-head">
+    <div><h1>Minhas vendas · ${escHtml(athlete.cupomYampi.toUpperCase())}</h1>
+      <div class="sub">${soVolume ? 'Quantos pedidos saíram com o seu cupom na loja FourLab.' : 'Tudo que foi vendido com o seu cupom na loja FourLab.'}</div></div>
+    <div class="row"><div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="athleteVendasMonth" value="${mesSel}" style="width:auto; background:#fff;"></div></div>
+  </div>
+  <div id="athleteVendasDashboard"></div>
+  <div id="blocoHistorico">${soVolume ? blocoVolumeHtml() : blocoComissaoHtml()}</div>`;
+}
+function atualizarHistorico(){
+  const el = document.getElementById('blocoHistorico');
+  if(el) el.innerHTML = vendasSoVolume(athlete) ? blocoVolumeHtml() : blocoComissaoHtml();
 }
 function render(){
   document.getElementById('main').innerHTML = viewVendas();
-  carregarMesSel();
+  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard', {soVolume: vendasSoVolume(athlete)});
   document.getElementById('athleteVendasMonth').onchange = (e)=>{ if(!e.target.value) return; mesSel = e.target.value; render(); };
 }
 (async function start(){
   const auth = await guardAthlete('vendas'); if(!auth) return;
   athlete = auth.athlete;
   if(!temAcessoVendas(athlete)){ location.href = 'atleta-home.html'; return; }
-  const { data } = await sb.from('vendas_mensais').select('*').eq('athlete_id', athlete.id).order('ym', {ascending:false});
-  vendasMensais = data || [];
   render();
+  // histórico dos últimos meses (as chamadas à Yampi ficam em cache e são reaproveitadas pelo painel de cima)
+  hist = await historicoComissao(athlete, { onProgresso:(f,t)=>{ progresso = `${f}/${t} meses`; if(!hist) atualizarHistorico(); } });
+  atualizarHistorico();
 })();
 </script></body></html>

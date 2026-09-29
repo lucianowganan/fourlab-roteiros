@@ -26,7 +26,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-let athlete = null, pautasBlog = [], avisosTopo = [], entries = [], vendasMensais = [], vendaAoVivo = null, vendaMesAnterior = null, carregandoAoVivo = true;
+let athlete = null, pautasBlog = [], avisosTopo = [], entries = [], vendasMensais = [], vendaAoVivo = null, vendaMesAnterior = null, carregandoAoVivo = true, histComissao = null;
 const mesAtual = monthKey(todayISO());
 const META_PAGAMENTO = 100;
 
@@ -57,12 +57,14 @@ function heroVendasHtml(){
   const pedidos = vendaAoVivo ? vendaAoVivo.numeroPedidos : Number(rowMes?.numero_pedidos||0);
   // mês anterior: dado real da Yampi; se não vier, usa o histórico salvo
   const prev = vendaParaLinha(vendaMesAnterior) || vendasMensais.find(v=>v.ym===addMonths(mesAtual,-1));
-  const saldo = vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0;
+  // saldo acumulado e meses anteriores: histórico calculado ao vivo na Yampi (quando já carregado)
+  const saldo = histComissao ? histComissao.saldoAtual : (vendasMensais.length ? Number(vendasMensais[0].saldo_total) : 0);
+  const linhaMes = ym=> (histComissao && histComissao.linhas.find(l=>l.ym===ym)) || vendasMensais.find(v=>v.ym===ym);
   if(vendasSoVolume(athlete)){
     // Sem comissão: só quantidades, nenhum valor em R$
     const pedidosPrev = prev ? Number(prev.numero_pedidos||0) : 0;
     const dias = vendaAoVivo ? new Set((vendaAoVivo.pedidos||[]).map(p=> String(p.data).slice(0,10))).size : null;
-    const histQ = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = vendasMensais.find(v=>v.ym===ym);
+    const histQ = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = linhaMes(ym);
       const q = ym===mesAtual ? pedidos : (ym===addMonths(mesAtual,-1) && prev) ? pedidosPrev : Number(r?.numero_pedidos||0);
       histQ.push({label:shortMonth(ym), value:q, tip:`${fmtNum(q)} pedidos|${fmtMonthLabel(ym)}`}); }
     return `
@@ -85,7 +87,7 @@ function heroVendasHtml(){
     </div>
   </div>`;
   }
-  const hist = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = vendasMensais.find(v=>v.ym===ym);
+  const hist = []; for(let i=5;i>=0;i--){ const ym = addMonths(mesAtual,-i); const r = linhaMes(ym);
     const v = ym===mesAtual ? vendido : (ym===addMonths(mesAtual,-1) && prev) ? Number(prev.valor_vendido||0) : Number(r?.valor_vendido||0);
     hist.push({label:shortMonth(ym), value:v, tip:`${fmtBRL(v)}|${fmtMonthLabel(ym)}`}); }
   return `
@@ -227,6 +229,8 @@ function render(){
   if(temAcessoVendas(athlete)){
     const busca = m=> buscarVendasYampi(athlete.cupomYampi, m, athlete.descontoCupomPct, athlete.comissaoPct).catch(err=>{ console.error(err); return null; });
     [vendaAoVivo, vendaMesAnterior] = await Promise.all([busca(mesAtual), busca(addMonths(mesAtual,-1))]);
+    // saldo acumulado e gráfico dos 6 meses (só depois do mês atual, pra não atrasar a tela)
+    historicoComissao(athlete, {meses:MESES_HISTORICO}).then(h=>{ histComissao = h; const el = document.getElementById('heroVendas'); if(el) el.innerHTML = heroVendasHtml(); }).catch(console.warn);
     carregandoAoVivo = false;
     const el = document.getElementById('heroVendas');
     if(el) el.innerHTML = heroVendasHtml();

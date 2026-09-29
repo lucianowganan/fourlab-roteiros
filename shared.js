@@ -672,6 +672,59 @@ async function carregarDashboardVendas(cupomCode, ym, descontoCupomPct, comissao
   }
 }
 
+/* ---------- Histórico de comissão (saldo acumulado até R$ 100) ----------
+   Tudo calculado ao vivo com os dados da Yampi (não depende da tabela vendas_mensais):
+   - comissão de cada mês dos últimos MESES_HISTORICO meses
+   - menos os pagamentos registrados pela equipe (tabela comissao_pagamentos)
+   - o saldo vai acumulando mês a mês; quando passa de R$ 100 fica "liberado" pra pagamento */
+const META_PAGAMENTO_COMISSAO = 100;
+const MESES_HISTORICO = 12;
+
+// roda várias chamadas com no máximo `n` ao mesmo tempo
+async function emLotes(itens, n, fn){
+  const fila = itens.slice();
+  await Promise.all(Array.from({length:Math.min(n, fila.length)}, async ()=>{ while(fila.length){ await fn(fila.shift()); } }));
+}
+
+async function carregarPagamentosComissao(athleteId){
+  let q = sb.from('comissao_pagamentos').select('*').order('pago_em');
+  if(athleteId) q = q.eq('athlete_id', athleteId);
+  const { data, error } = await q;
+  return { pagamentos: data || [], tabelaOk: !error };
+}
+
+// a: atleta (mapAthleteFromDB). opts: {meses, pagamentos (já carregados), onProgresso(feitos, total)}
+async function historicoComissao(a, opts){
+  opts = opts || {};
+  const meses = opts.meses || MESES_HISTORICO, ate = monthKey(todayISO());
+  const yms = []; for(let i=meses-1; i>=0; i--) yms.push(addMonths(ate, -i));
+  const pag = opts.pagamentos ? {pagamentos: opts.pagamentos.filter(p=>p.athlete_id===a.id), tabelaOk:true} : await carregarPagamentosComissao(a.id);
+  const porMes = {}; let feitos = 0, falhas = 0;
+  await emLotes(yms, 3, async ym=>{
+    try{ porMes[ym] = await buscarVendasYampi(a.cupomYampi, ym, a.descontoCupomPct, a.comissaoPct); }
+    catch(err){ console.warn('Yampi', ym, err); falhas++; }
+    feitos++; if(opts.onProgresso) opts.onProgresso(feitos, yms.length);
+  });
+  let saldo = 0; const linhas = [];
+  yms.forEach(ym=>{
+    const d = porMes[ym] || {valorVendido:0, comissaoMes:0, numeroPedidos:0};
+    const comissao = a.recebeComissao ? Number(d.comissaoMes||0) : 0;
+    const pagosNoMes = pag.pagamentos.filter(p=> (p.ym || String(p.pago_em||'').slice(0,7)) === ym);
+    const pagoValor = pagosNoMes.reduce((t,p)=> t + Number(p.valor||0), 0);
+    saldo = Math.max(0, saldo + comissao - pagoValor);
+    linhas.push({ ym, valor_vendido:Number(d.valorVendido||0), numero_pedidos:Number(d.numeroPedidos||0), comissao_mes:comissao,
+      pago_valor:pagoValor, pago_em: pagosNoMes.length ? pagosNoMes[pagosNoMes.length-1].pago_em : null, saldo_total:saldo,
+      status: pagosNoMes.length ? 'pago' : saldo >= META_PAGAMENTO_COMISSAO ? 'liberado' : 'acumulando', semDados: !porMes[ym] });
+  });
+  return { linhas: linhas.reverse(), saldoAtual: saldo, pagamentos: pag.pagamentos, tabelaPagamentosOk: pag.tabelaOk, falhas,
+    comissaoTotal: linhas.reduce((t,l)=> t + l.comissao_mes, 0) };
+}
+function statusComissaoHtml(l){
+  if(l.status==='pago') return `<span class="status-dot status-ok">Pago${l.pago_em?` em ${fmtDateBR(l.pago_em)}`:''} · ${fmtBRL(l.pago_valor)}</span>`;
+  if(l.status==='liberado') return '<span class="status-dot" style="color:var(--orange);">Liberado pra pagamento</span>';
+  return '<span class="status-dot status-wait">Acumulando</span>';
+}
+
 // Barras mensais a partir da tabela vendas_mensais (últimos N meses até `ateYM`)
 function barrasMensaisHtml(rows, ateYM, n, campo){
   campo = campo || 'valor_vendido';
