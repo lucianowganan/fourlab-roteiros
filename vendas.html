@@ -103,7 +103,7 @@ function abrirPagamento(a){
     if(!(valor > 0) || !data){ toast('Preencha valor e data'); return; }
     ev.target.disabled = true;
     const { data: novo, error } = await sb.from('comissao_pagamentos').insert({ athlete_id:a.id, valor, pago_em:data, ym:monthKey(data), obs:document.getElementById('pgObs').value.trim() }).select().single();
-    if(error){ console.error(error); toast('Erro ao registrar — rodou a migração dos pagamentos?'); ev.target.disabled = false; return; }
+    if(error){ erroBanco(error, 'migrations/2026-09-29_pagamentos_comissao.sql'); ev.target.disabled = false; return; }
     pagamentos.push(novo); pagamentos.sort((x,y)=> String(x.pago_em).localeCompare(String(y.pago_em)));
     saldos[a.id] = await historicoComissao(a, {pagamentos});
     closeModal(); toast('Pagamento registrado'); atualizarBlocoComissoes();

@@ -205,7 +205,7 @@ function openPastaModal(nome){
       await carregarEquipes();
       State.categoria = tipo;
       closeModal(); toast('Pasta salva'); render();
-    }catch(err){ console.error(err); toast('Erro ao salvar pasta — rodou a migração no Supabase?'); ev.target.disabled = false; }
+    }catch(err){ erroBanco(err, 'migrations/2026-09-27_equipes_comissao.sql'); ev.target.disabled = false; }
   };
   const del = document.getElementById('btnDelPasta');
   if(del) del.onclick = async ()=>{
@@ -417,7 +417,7 @@ function wireAthleteModalHandlers(){
       if(id){ const idx = State.athletes.findIndex(x=>x.id===id); athleteObj = {...State.athletes[idx], name, ...fields}; await saveOneAthlete(athleteObj); State.athletes[idx] = athleteObj; }
       else{ athleteObj = {id:null, name, ...fields}; await saveOneAthlete(athleteObj); State.athletes.push(athleteObj); }
       closeModal(); toast('Salvo'); render();
-    }catch(err){ console.error(err); toast('Erro ao salvar — rodou a migração nova no Supabase?'); saveBtn.disabled = false; saveBtn.textContent = 'Salvar'; }
+    }catch(err){ erroBanco(err, 'migrations/2026-09-28_volume_vendas.sql'); saveBtn.disabled = false; saveBtn.textContent = 'Salvar'; }
   };
   const delBtn = document.getElementById('btnDeleteAthlete');
   if(delBtn){
