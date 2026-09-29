@@ -642,3 +642,15 @@
 
   /* bolinha de "aviso novo" no menu */
   .nav-dot{ position:absolute; top:-3px; right:-4px; width:9px; height:9px; border-radius:50%; background:var(--yellow); box-shadow:0 0 0 2px #8a1668; }
+
+  /* ---------- PERFIL NO CELULAR (fica no fim pra valer por cima das regras normais) ---------- */
+  @media (max-width:900px){
+    /* no celular o cartão fica em cima do formulário: não pode "grudar" na tela */
+    .profile-side{ position:static !important; padding:16px !important; }
+    .profile-side .avatar.xl{ width:72px; height:72px; font-size:24px; border-width:3px; }
+    .profile-side .pname{ margin-top:8px; }
+    .side-nav{ flex-direction:row; flex-wrap:wrap; justify-content:center; gap:6px; margin-top:14px; }
+    .side-nav a{ padding:8px 12px; font-size:12px; border:1px solid var(--line); border-radius:999px; }
+    .side-nav a svg{ width:15px; height:15px; }
+    .profile-layout .form-section{ scroll-margin-top:84px; }   /* pula pra seção sem ficar atrás da barra do topo */
+  }
