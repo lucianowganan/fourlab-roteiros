@@ -62,6 +62,7 @@ const ICONS = {
   like: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"/><path d="M7 10l4-6.5a1.8 1.8 0 0 1 3.3 1.2L13.5 9h5.2a2 2 0 0 1 2 2.3l-1.2 7a2 2 0 0 1-2 1.7H7"/></svg>`,
   blog: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z"/><path d="M14 3.5v5h5M8.5 12.5h7M8.5 16h5"/></svg>`,
   avisos: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>`,
+  menu: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>`,
   sair: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l4-5-4-5M20 12H9"/></svg>`,
 };
 
@@ -82,12 +83,12 @@ const STAFF_NAV = [
 ];
 
 const ATLETA_NAV = [
-  {id:'inicio', label:'Início', ic:ICONS.inicio, href:'atleta-home.html'},
-  {id:'roteiros', label:'Meus Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html', so:'equipe'},
-  {id:'blog', label:'Meus textos (blog)', ic:ICONS.blog, href:'parceiro-blog.html', so:'profissional'},
-  {id:'avisos', label:'Avisos', ic:ICONS.avisos, href:'atleta-avisos.html'},
-  {id:'vendas', label:'Minhas Vendas', ic:ICONS.vendas, href:'atleta-vendas.html'},
-  {id:'perfil', label:'Meu Perfil', ic:ICONS.perfil, href:'atleta-perfil.html'},
+  {id:'inicio', label:'Início', curto:'Início', ic:ICONS.inicio, href:'atleta-home.html'},
+  {id:'roteiros', label:'Meus Roteiros', curto:'Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html', so:'equipe'},
+  {id:'blog', label:'Meus textos (blog)', curto:'Textos', ic:ICONS.blog, href:'parceiro-blog.html', so:'profissional'},
+  {id:'avisos', label:'Avisos', curto:'Avisos', ic:ICONS.avisos, href:'atleta-avisos.html'},
+  {id:'vendas', label:'Minhas Vendas', curto:'Vendas', ic:ICONS.vendas, href:'atleta-vendas.html'},
+  {id:'perfil', label:'Meu Perfil', curto:'Perfil', ic:ICONS.perfil, href:'atleta-perfil.html'},
 ];
 
 /* ---------- Utilitários ---------- */
@@ -168,14 +169,25 @@ async function logout(){
 }
 
 /* ---------- Sidebar (mesmo HTML/CSS pros dois tipos de usuário) ---------- */
-function sidebarShell(navHtml, footerHtml){
+function sidebarShell(navHtml, footerHtml, extra){
+  extra = extra || {};
   return `
+    <div class="mobile-top">
+      <button class="mt-btn" onclick="abrirMenu()" aria-label="Abrir menu">${ICONS.menu}</button>
+      <img class="mt-logo" src="${LOGO_SIMBOLO_BRANCO}" alt="FourLab">
+      <span class="mt-title">${escHtml(extra.titulo || '')}</span>
+    </div>
+    <div class="menu-backdrop" onclick="fecharMenu()"></div>
     <aside class="sidebar">
       <div class="sidebar-logo"><img src="${LOGO_SIMBOLO_BRANCO}" alt="FourLab"></div>
       <nav class="sidebar-nav">${navHtml}</nav>
       <div class="sidebar-footer">${footerHtml}</div>
-    </aside>`;
+    </aside>
+    ${extra.bottomNav ? `<nav class="bottom-nav">${extra.bottomNav}</nav>` : ''}`;
 }
+// Menu lateral no celular
+function abrirMenu(){ document.body.classList.add('menu-aberto'); }
+function fecharMenu(){ document.body.classList.remove('menu-aberto'); }
 
 function navItemHtml(activeId, t){
   return `<a class="nav-btn ${activeId===t.id?'active':''}" href="${t.href}" data-nav="${t.id}"><span class="ic" style="position:relative;">${t.ic}</span><span class="label">${t.label}</span></a>`;
@@ -191,15 +203,17 @@ async function marcarAvisosNovosNoMenu(){
   if(visto) q = q.gt('created_at', visto);
   const { count, error } = await q;
   if(error || !count) return;
-  const ic = document.querySelector('[data-nav="avisos"] .ic');
-  if(ic && !ic.querySelector('.nav-dot')) ic.insertAdjacentHTML('beforeend', `<span class="nav-dot" title="${count} aviso(s) novo(s)"></span>`);
+  document.querySelectorAll('[data-nav="avisos"] .ic').forEach(ic=>{
+    if(!ic.querySelector('.nav-dot')) ic.insertAdjacentHTML('beforeend', `<span class="nav-dot" title="${count} aviso(s) novo(s)"></span>`);
+  });
 }
 
 function renderStaffSidebar(activeId, profile){
   const nav = STAFF_NAV.map(navItemHtml.bind(null, activeId)).join('');
+  const titulo = (STAFF_NAV.find(t=>t.id===activeId)||{}).label || 'FourLab';
   const footer = `${profile?.nome || 'Usuário'} · ${profile?.role === 'chefia' ? 'Chefia' : 'Geral'}
     <button onclick="logout()" style="display:flex; align-items:center; gap:5px; margin-top:6px; background:none; border:none; color:rgba(255,255,255,0.7); font-size:11px; cursor:pointer; text-decoration:underline; padding:0;">${ICONS.sair} Sair</button>`;
-  document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer);
+  document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer, {titulo});
   if(activeId !== 'avisos') marcarAvisosNovosNoMenu();
 }
 
@@ -208,9 +222,13 @@ function renderAthleteSidebar(activeId, athlete){
   const categoria = isProfissional(athlete) ? 'profissional' : 'equipe';
   const tabs = ATLETA_NAV.filter(t=> (t.id !== 'vendas' || temAcessoVendas(athlete)) && (!t.so || t.so === categoria));
   const nav = tabs.map(navItemHtml.bind(null, activeId)).join('');
+  const titulo = (ATLETA_NAV.find(t=>t.id===activeId)||{}).label || 'FourLab';
+  // celular: barra de ícones embaixo, como num app
+  const bottomNav = tabs.map(t=> `<a class="${activeId===t.id?'active':''}" href="${t.href}" data-nav="${t.id}"><span class="ic">${t.ic}</span>${t.curto||t.label}</a>`).join('');
+  document.body.classList.add('tem-bottom-nav');
   const footer = `${athlete ? escHtml(athlete.name) : 'Atleta'} · ${athlete ? escHtml(athlete.team) : ''}
     <button onclick="logout()" style="display:flex; align-items:center; gap:5px; margin-top:6px; background:none; border:none; color:rgba(255,255,255,0.7); font-size:11px; cursor:pointer; text-decoration:underline; padding:0;">${ICONS.sair} Sair</button>`;
-  document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer);
+  document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer, {titulo, bottomNav});
   if(activeId !== 'avisos') marcarAvisosNovosNoMenu();
 }
 
