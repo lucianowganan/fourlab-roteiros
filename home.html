@@ -160,7 +160,10 @@ function viewHome(){
   const teamData = Object.keys(stats.byTeam).map(t=>({label:t, value:stats.byTeam[t], color:teamColor(t)}));
   const taxaPostagem = stats.total ? Math.round((stats.postouSim/stats.total)*100) : 0;
 
-  const nome = (State.profile?.nome || '').split(' ')[0];
+  // se o nome do perfil for um e-mail, usa só a parte antes do @ (ex.: "Marketing")
+  const bruto = (State.profile?.nome || '').trim();
+  const base = bruto.includes('@') ? bruto.split('@')[0].replace(/[._-]+/g,' ') : bruto;
+  const nome = base.split(' ')[0].replace(/^./, c=>c.toUpperCase());
   return `
   <div class="page-head">
     <div><h1>Bem-vindo de volta${nome?`, <span class="soft">${escHtml(nome)}</span>`:''}</h1><div class="sub">${stats.total} posts em ${fmtMonthLabel(ym)}.</div></div>

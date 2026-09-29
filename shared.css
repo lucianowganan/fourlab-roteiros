@@ -107,23 +107,61 @@
     transition:opacity .16s ease .04s;
   }
   .sidebar:hover .sidebar-footer{ opacity:0.7; max-width:none; }
+  /* ---------- CELULAR: barra no topo + menu lateral por cima + barra de ícones embaixo (atletas) ---------- */
+  .mobile-top, .bottom-nav, .menu-backdrop{ display:none; }
   @media (max-width:860px){
     .shell{grid-template-columns:minmax(0,1fr);}
     #sidebarMount{min-width:0;}
+    main{grid-column:1 !important; padding:78px 16px 28px !important;}
+    body.tem-bottom-nav main{ padding-bottom:calc(96px + env(safe-area-inset-bottom)) !important; }
+    .page-head{ margin-top:0; }
     .page-head h1{font-size:24px;}
     .kanban{grid-template-columns:repeat(4, 82vw);}
-    .sidebar{position:relative !important; top:0; left:0; bottom:auto; margin:12px 16px 0; width:auto !important; flex-direction:row; align-items:center; overflow-x:auto; overflow-y:visible; height:auto; padding:10px 14px; border-radius:20px;}
-    .sidebar-footer{display:none;}
-    .sidebar-logo{margin:0 8px 0 0; width:auto;}
-    .sidebar .nav-btn .label{opacity:1 !important;}
-    .sidebar-nav{flex-direction:row; gap:6px;}
-    .sidebar:hover{width:auto !important;}
-    main{grid-column:1 !important; padding:18px 16px !important;}
+
+    .mobile-top{
+      display:flex; align-items:center; gap:12px; position:fixed; top:0; left:0; right:0; z-index:250;
+      height:62px; padding:0 14px; padding-top:env(safe-area-inset-top);
+      background:linear-gradient(100deg, var(--purple), #8a1668 70%, var(--pink)); color:#fff;
+      box-shadow:0 4px 18px rgba(115,27,88,0.25);
+    }
+    .mt-btn{ width:40px; height:40px; border-radius:12px; border:none; background:rgba(255,255,255,0.14); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+    .mt-logo{ height:24px; width:auto; }
+    .mt-title{ font-family:var(--font-title); font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* menu lateral: sai da tela e entra por cima quando abre */
+    .sidebar{ top:0 !important; left:0 !important; bottom:0 !important; width:282px !important; border-radius:0 26px 26px 0;
+      transform:translateX(-110%); transition:transform .26s cubic-bezier(.4,0,.2,1); overflow-y:auto; z-index:320; padding-top:calc(22px + env(safe-area-inset-top)); }
+    .sidebar:hover{ width:282px !important; }
+    .sidebar .nav-btn .label, .sidebar-footer{ opacity:1 !important; max-width:none !important; }
+    .sidebar-footer{ opacity:0.75 !important; }
+    body.menu-aberto .sidebar{ transform:none; }
+    .menu-backdrop{ display:block; position:fixed; inset:0; background:rgba(26,19,21,0.45); z-index:310; opacity:0; pointer-events:none; transition:opacity .2s ease; }
+    body.menu-aberto .menu-backdrop{ opacity:1; pointer-events:auto; }
+    body.menu-aberto{ overflow:hidden; }
+
+    /* barra de ícones embaixo (atletas e parceiros) */
+    .bottom-nav{
+      display:flex; position:fixed; left:10px; right:10px; bottom:calc(10px + env(safe-area-inset-bottom)); z-index:240;
+      background:rgba(26,19,21,0.94); backdrop-filter:blur(10px); border-radius:22px; padding:6px; box-shadow:0 10px 30px rgba(0,0,0,0.25);
+    }
+    .bottom-nav a{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 2px; border-radius:16px;
+      color:rgba(255,255,255,0.65); text-decoration:none; font-size:10.5px; font-weight:700; position:relative; }
+    .bottom-nav a .ic{ display:flex; position:relative; }
+    .bottom-nav a.active{ color:#fff; background:var(--grad-accent); }
+    body.tem-bottom-nav .toast{ bottom:calc(96px + env(safe-area-inset-bottom)); }
+
+    /* campos com 16px: o iPhone não dá zoom sozinho ao tocar */
+    input, select, textarea{ font-size:16px !important; }
+    .modal-bg{ padding:10px; align-items:flex-end; }
+    .modal, .modal-box{ max-height:90vh; padding:20px; border-radius:24px; }
+    .card, .panel{ padding:18px; }
+    .grid-4 .kpi .ic-bubble{ display:none; }   /* números mais compactos no celular */
+    .seg{ flex-wrap:wrap; border-radius:18px; }
   }
 
   main{
     grid-column:2;
-    max-width:1240px;
+    max-width:1760px;
     padding:28px 32px;
     width:100%;
   }
