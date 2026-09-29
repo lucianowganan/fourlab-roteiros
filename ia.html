@@ -141,9 +141,13 @@ function viewPrevia(){
   <div class="panel">
     <div class="row" style="justify-content:space-between;">
       <div><h2>O que a IA recebe</h2><div class="desc" style="margin-bottom:0;">Monta exatamente a parte fixa enviada antes de cada roteiro (contexto + exemplos + biblioteca). Não gera roteiro e não gasta créditos.</div></div>
-      <button class="btn btn-primary btn-sm" id="btnPrevia" ${State.carregandoPrevia?'disabled':''}>${State.carregandoPrevia?'<span class="loader"></span> Montando...':'Montar prévia'}</button>
+      <div class="row">
+        <button class="btn btn-ghost btn-sm" id="btnTestarIA" ${State.testandoIA?'disabled':''}>${State.testandoIA?'<span class="loader"></span> Testando...':'Testar IA'}</button>
+        <button class="btn btn-primary btn-sm" id="btnPrevia" ${State.carregandoPrevia?'disabled':''}>${State.carregandoPrevia?'<span class="loader"></span> Montando...':'Montar prévia'}</button>
+      </div>
     </div>
     ${alterado() ? '<div style="font-size:12px; color:#b5680a; margin-top:10px;">⚠ Há alterações não salvas no contexto — a prévia usa a versão salva.</div>' : ''}
+    ${State.testeIA ? `<div style="margin-top:12px; border-radius:12px; padding:10px 12px; font-size:13px; ${State.testeIA.ok ? 'background:var(--green-soft); color:var(--green);' : 'background:var(--red-soft); color:var(--red);'}">${State.testeIA.html}</div>` : ''}
   </div>
   ${p && p.erro ? `<div class="panel" style="background:var(--red-soft); color:var(--red); font-size:13px;">${p.erro}</div>` : ''}
   ${p && !p.erro ? `
@@ -215,6 +219,23 @@ function abrirNovoExemplo(){
     State.exemplos.unshift(data); closeModal(); toast('Exemplo adicionado'); render();
   };
 }
+// Teste rápido da IA: a função faz uma chamada mínima ao Claude (custo quase zero)
+async function testarIA(){
+  State.testandoIA = true; State.testeIA = null; render();
+  try{
+    const { data, error } = await sb.functions.invoke('gerar-roteiro', { body: { teste: true } });
+    if(error) throw error;
+    if(data?.ok) State.testeIA = {ok:true, html:`✔ IA funcionando — modelo <strong>${escHtml(data.modelo)}</strong> respondeu.`};
+    else if(data?.error) State.testeIA = {ok:false, html:`✖ ${escHtml(data.error)}`};
+    else State.testeIA = {ok:false, html:'✖ A função publicada ainda é a versão antiga (sem teste). Publique a nova <code>gerar-roteiro</code> no Supabase.'};
+  }catch(err){
+    console.error(err);
+    const m = String(err?.message||err);
+    State.testeIA = {ok:false, html: /Failed to send a request/i.test(m) ? '✖ A função <code>gerar-roteiro</code> não respondeu — confira se está publicada.'
+      : /non-2xx/i.test(m) ? '✖ A função <code>gerar-roteiro</code> falhou ao iniciar (erro 546/500 no Supabase). Publique a versão nova do arquivo.' : `✖ ${escHtml(m)}`};
+  }
+  State.testandoIA = false; render();
+}
 async function montarPrevia(){
   State.carregandoPrevia = true; render();
   try{
@@ -267,6 +288,7 @@ function render(){
   }
   if(State.aba==='previa'){
     document.getElementById('btnPrevia').onclick = montarPrevia;
+    document.getElementById('btnTestarIA').onclick = testarIA;
     const c = document.getElementById('btnCopiarPrevia'); if(c) c.onclick = ()=> navigator.clipboard.writeText(State.previa.system).then(()=> toast('Copiado'));
   }
 }

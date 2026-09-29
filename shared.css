@@ -376,6 +376,8 @@
   .btn-danger{background:#fff; color:var(--red); border:1.5px solid #eec8c2 !important;}
   .btn-sm{padding:7px 13px; font-size:11.5px;}
   button:disabled{opacity:0.45; cursor:not-allowed;}
+  /* botão carregando (com o círculo): continua bem visível, só com cursor de "aguarde" */
+  button:disabled:has(.loader){ opacity:1; cursor:progress; }
 
   .badge{
     display:inline-flex;
@@ -513,11 +515,12 @@
   }
   .toast.show{opacity:1;}
 
+  /* círculo de carregamento: usa a cor do texto do botão, então aparece em qualquer botão */
   .loader{
-    display:inline-block;
-    width:13px; height:13px;
-    border:2px solid rgba(255,255,255,0.4);
-    border-top-color:#fff;
+    display:inline-block; vertical-align:-2px;
+    width:14px; height:14px; flex-shrink:0;
+    border:2px solid currentColor;
+    border-right-color:transparent;
     border-radius:50%;
     animation:spin .7s linear infinite;
   }
