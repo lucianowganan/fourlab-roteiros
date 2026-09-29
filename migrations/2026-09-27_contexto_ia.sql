@@ -52,12 +52,12 @@ on conflict (id) do nothing;
 alter table public.ia_contexto enable row level security;
 drop policy if exists "equipe le e edita contexto ia" on public.ia_contexto;
 create policy "equipe le e edita contexto ia" on public.ia_contexto for all to authenticated
-  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta'))
-  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta'));
+  using ((auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid())))
+  with check ((auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid())));
 
 -- A equipe precisa conseguir mover (👍↔👎), editar o motivo e excluir exemplos na nova aba.
 -- (Política adicional — não remove nenhuma que já exista.)
 drop policy if exists "equipe gerencia exemplos" on public.roteiro_exemplos;
 create policy "equipe gerencia exemplos" on public.roteiro_exemplos for all to authenticated
-  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta'))
-  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta'));
+  using ((auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid())))
+  with check ((auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid())));

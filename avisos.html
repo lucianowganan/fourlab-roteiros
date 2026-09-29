@@ -79,11 +79,11 @@ function render(){
     ev.target.disabled = true;
     if(State.editando){
       const { error } = await sb.from('avisos').update(row).eq('id', State.editando.id);
-      if(error){ console.error(error); toast('Erro ao salvar'); ev.target.disabled = false; return; }
+      if(error){ erroBanco(error, 'migrations/2026-09-28_blog_avisos.sql'); ev.target.disabled = false; return; }
       Object.assign(State.avisos.find(a=>a.id===State.editando.id), row); State.editando = null; toast('Aviso atualizado');
     }else{
       const { data, error } = await sb.from('avisos').insert({...row, autor: State.profile?.nome || ''}).select().single();
-      if(error){ console.error(error); toast('Erro ao publicar'); ev.target.disabled = false; return; }
+      if(error){ erroBanco(error, 'migrations/2026-09-28_blog_avisos.sql'); ev.target.disabled = false; return; }
       State.avisos.unshift(data); toast(publico==='equipe' ? 'Aviso interno publicado' : 'Aviso publicado'); marcarAvisosComoVistos();
     }
     State.avisos.sort((a,b)=> (b.fixado-a.fixado) || b.created_at.localeCompare(a.created_at)); render();
@@ -96,7 +96,7 @@ function render(){
   document.querySelectorAll('[data-editar]').forEach(b=> b.onclick = ()=>{ State.editando = {...State.avisos.find(a=>a.id===b.dataset.editar)}; render(); window.scrollTo({top:0, behavior:'smooth'}); });
   document.querySelectorAll('[data-excluir]').forEach(b=> b.onclick = async ()=>{
     if(!confirm('Excluir este aviso?')) return;
-    const { error } = await sb.from('avisos').delete().eq('id', b.dataset.excluir); if(error){ toast('Erro ao excluir'); return; }
+    const { error } = await sb.from('avisos').delete().eq('id', b.dataset.excluir); if(error){ erroBanco(error, 'migrations/2026-09-28_blog_avisos.sql'); return; }
     State.avisos = State.avisos.filter(a=>a.id!==b.dataset.excluir); toast('Aviso excluído'); render();
   });
 }

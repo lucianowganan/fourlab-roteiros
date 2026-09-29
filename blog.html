@@ -137,7 +137,7 @@ function abrirPauta(id){
   openDrawer(pautaDrawerHtml(p));
   const salvar = async (campos, msg)=>{
     const { error } = await sb.from('blog_textos').update({...campos, updated_at:new Date().toISOString()}).eq('id', p.id);
-    if(error){ console.error(error); toast('Erro ao salvar'); return false; }
+    if(error){ erroBanco(error, 'migrations/2026-09-28_blog_avisos.sql'); return false; }
     Object.assign(p, campos); toast(msg); render(); abrirPauta(p.id); return true;
   };
   document.getElementById('btnSalvarPauta').onclick = ()=> salvar({ tema_especifico:document.getElementById('pTemaEsp').value.trim(),
@@ -151,7 +151,7 @@ function abrirPauta(id){
   document.getElementById('btnExcluirPauta').onclick = async ()=>{
     if(!confirm('Excluir esta pauta (e o texto, se houver)?')) return;
     const { error } = await sb.from('blog_textos').delete().eq('id', p.id);
-    if(error){ toast('Erro ao excluir'); return; }
+    if(error){ erroBanco(error, 'migrations/2026-09-28_blog_avisos.sql'); return; }
     State.pautas = State.pautas.filter(x=>x.id!==p.id); closeDrawer(); toast('Pauta excluída'); render();
   };
 }
@@ -168,7 +168,7 @@ function render(){
       .map(a=>({ athlete_id:a.id, ym:State.ym, tema_mes:State.temaMes, prazo:ultimoDiaDoMes(State.ym) }));
     criar.disabled = true;
     const { data, error } = await sb.from('blog_textos').insert(rows).select();
-    if(error){ console.error(error); toast('Erro ao criar pautas'); criar.disabled = false; return; }
+    if(error){ erroBanco(error, 'migrations/2026-09-28_blog_avisos.sql'); criar.disabled = false; return; }
     State.pautas.push(...(data||[])); toast(`${rows.length} pauta(s) criada(s)`); render();
   };
   const sync = document.getElementById('btnSyncTema');

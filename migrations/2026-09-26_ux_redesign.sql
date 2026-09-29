@@ -77,5 +77,5 @@ alter table public.crm_cards enable row level security;
 drop policy if exists "equipe gerencia crm" on public.crm_cards;
 create policy "equipe gerencia crm" on public.crm_cards
   for all to authenticated
-  using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta'))
-  with check (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta'));
+  using ((auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid())))
+  with check ((auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid())));

@@ -380,6 +380,31 @@ function avisoCardHtml(av, opts){
   </div>`;
 }
 
+/* ---------- Erro do banco explicado (em vez de um "deu erro" genérico) ----------
+   Mostra uma faixa na tela com a causa real e o que fazer. `migracao` = arquivo que cria a tabela. */
+function explicarErroBanco(error, migracao){
+  const msg = String(error?.message || error || ''), code = String(error?.code || '');
+  if(code === '42501' || /row-level security|permission denied|violates row-level/i.test(msg))
+    return {titulo:'O banco bloqueou por permissão.', acao:'Rode <code>migrations/2026-09-29_corrige_permissoes_equipe.sql</code> no SQL Editor do Supabase e tente de novo.', msg};
+  if(code === '42P01' || code === 'PGRST205' || /does not exist|could not find the table/i.test(msg))
+    return {titulo:'A tabela ainda não existe no banco.', acao: migracao ? `Rode <code>${migracao}</code> no SQL Editor do Supabase e recarregue a página.` : 'Falta rodar uma migração no Supabase.', msg};
+  if(code === 'PGRST204' || /column .* (does not exist|of .* not found)|could not find the .* column/i.test(msg))
+    return {titulo:'Falta uma coluna no banco.', acao: migracao ? `Rode <code>${migracao}</code> no SQL Editor do Supabase e recarregue a página.` : 'Falta rodar uma migração no Supabase.', msg};
+  if(/jwt|session|not authenticated/i.test(msg))
+    return {titulo:'Sua sessão expirou.', acao:'Saia e entre de novo no painel.', msg};
+  return {titulo:'Não foi possível salvar.', acao:'Tente de novo. Se continuar, mande um print desta mensagem.', msg};
+}
+function erroBanco(error, migracao){
+  console.error(error);
+  const e = explicarErroBanco(error, migracao);
+  let el = document.getElementById('erroBanco');
+  if(!el){ el = document.createElement('div'); el.id = 'erroBanco'; document.body.appendChild(el); }
+  el.style.cssText = 'position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:500; width:min(560px, calc(100vw - 24px)); background:#fff; border:1.5px solid #eec8c2; border-left:5px solid var(--red); border-radius:16px; padding:14px 16px; box-shadow:0 16px 40px rgba(0,0,0,0.2); font-size:13px; line-height:1.5;';
+  el.innerHTML = `<button onclick="this.parentNode.remove()" style="float:right; border:none; background:none; font-size:18px; cursor:pointer; color:var(--muted);">&times;</button>
+    <strong style="color:var(--red);">${e.titulo}</strong><br>${e.acao}
+    ${e.msg ? `<div style="font-size:11px; color:var(--muted); margin-top:6px; word-break:break-word;">Detalhe técnico: ${escHtml(e.msg)}${error?.code?` (${escHtml(error.code)})`:''}</div>` : ''}`;
+}
+
 /* ---------- Drawer lateral ---------- */
 function openDrawer(html){
   let bg = document.getElementById('drawerBg'), dr = document.getElementById('drawer');

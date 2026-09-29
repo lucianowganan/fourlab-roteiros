@@ -197,7 +197,7 @@ function openCardModal(c){
       else{ const { data, error } = await sb.from('crm_cards').insert(cardPayload(c)).select().single(); if(error) throw error; State.cards.push(mapCard(data)); }
       if(antes !== c.stage) await sincronizarPost(c);
       closeModal(); toast('Tarefa salva'); render();
-    }catch(err){ console.error(err); toast('Erro ao salvar — veja o console (F12)'); ev.target.disabled = false; }
+    }catch(err){ erroBanco(err, 'migrations/2026-09-26_ux_redesign.sql'); ev.target.disabled = false; }
   };
   const del = document.getElementById('btnDelCard');
   if(del) del.onclick = async ()=>{

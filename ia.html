@@ -177,7 +177,7 @@ function view(){
 /* ---------- Ações ---------- */
 async function atualizarExemplo(id, campos, msg){
   const { error } = await sb.from('roteiro_exemplos').update(campos).eq('id', id);
-  if(error){ console.error(error); toast('Não foi possível salvar — rodou a migração do contexto da IA?'); return false; }
+  if(error){ erroBanco(error, 'migrations/2026-09-27_contexto_ia.sql'); return false; }
   Object.assign(State.exemplos.find(x=>x.id===id), campos); toast(msg); render(); return true;
 }
 function abrirMotivo(e){
@@ -242,7 +242,7 @@ function render(){
       const payload = { id:1, updated_at:new Date().toISOString(), updated_by: State.profile?.nome || '' };
       CAMPOS.forEach(c=> payload[c.key] = State.ctx[c.key] || '');
       const { error } = await sb.from('ia_contexto').upsert(payload);
-      if(error){ console.error(error); toast('Erro ao salvar — rodou a migração do contexto da IA?'); ev.target.disabled = false; return; }
+      if(error){ erroBanco(error, 'migrations/2026-09-27_contexto_ia.sql'); ev.target.disabled = false; return; }
       Object.assign(State.ctx, payload); State.ctxOriginal = {...State.ctx}; State.previa = null;
       toast('Contexto da IA salvo — vale pro próximo roteiro gerado'); render();
     };
@@ -261,7 +261,7 @@ function render(){
     document.querySelectorAll('[data-excluir]').forEach(b=> b.onclick = async ()=>{
       if(!confirm('Excluir este exemplo? A IA deixa de usá-lo.')) return;
       const { error } = await sb.from('roteiro_exemplos').delete().eq('id', b.dataset.excluir);
-      if(error){ console.error(error); toast('Não foi possível excluir — rodou a migração do contexto da IA?'); return; }
+      if(error){ erroBanco(error, 'migrations/2026-09-27_contexto_ia.sql'); return; }
       State.exemplos = State.exemplos.filter(x=>x.id!==b.dataset.excluir); toast('Exemplo excluído'); render();
     });
   }

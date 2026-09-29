@@ -6,7 +6,7 @@
 -- Quem é da equipe FourLab (qualquer perfil que não seja atleta/parceiro)
 create or replace function public.eh_equipe()
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.profiles p where p.id = auth.uid() and p.role <> 'atleta');
+  select (auth.uid() is not null and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'atleta') and not exists (select 1 from public.athletes a where a.auth_user_id = auth.uid()));
 $$;
 
 -- Cadastro (atleta ou profissional) ligado ao login atual
