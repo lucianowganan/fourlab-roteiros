@@ -29,26 +29,85 @@
 let athletes = [], vendasMensais = [], ym = monthKey(todayISO()), atletaSel = '';
 // vendas ao vivo da Yampi: aoVivo[ym][athleteId] = {valorVendido, comissaoMes, numeroPedidos}
 const aoVivo = {}; let carregandoEquipe = false;
-const META_PAGAMENTO = 100;
 
 function atletaById(id){ return athletes.find(a=>a.id===id); }
 function comCupom(){ return athletes.filter(a=>a.cupomYampi); }
 
-// roda várias chamadas à Yampi com no máximo `n` ao mesmo tempo
-async function emLotes(itens, n, fn){
-  const fila = itens.slice(); const workers = Array.from({length:Math.min(n, fila.length)}, async ()=>{ while(fila.length){ const it = fila.shift(); await fn(it); } });
-  await Promise.all(workers);
-}
-async function carregarEquipeAoVivo(){
-  const meses = [ym, addMonths(ym,-1)].filter(m=> !aoVivo[m]);
-  if(!meses.length) return;
-  carregandoEquipe = true; render();
+// Busca na Yampi: primeiro o mês escolhido e o anterior (números do topo), depois os outros 4 meses do gráfico
+async function buscarMeses(meses){
   const tarefas = []; meses.forEach(m=>{ aoVivo[m] = {}; comCupom().forEach(a=> tarefas.push([m, a])); });
   await emLotes(tarefas, 4, async ([m, a])=>{
     try{ aoVivo[m][a.id] = await buscarVendasYampi(a.cupomYampi, m, a.descontoCupomPct, a.comissaoPct); }
     catch(err){ console.warn('Yampi', a.name, m, err); }
   });
-  carregandoEquipe = false; render();
+}
+async function carregarEquipeAoVivo(){
+  const principais = [ym, addMonths(ym,-1)].filter(m=> !aoVivo[m]);
+  if(principais.length){ carregandoEquipe = true; render(); await buscarMeses(principais); carregandoEquipe = false; render(); }
+  const resto = [2,3,4,5].map(i=> addMonths(ym,-i)).filter(m=> !aoVivo[m]);
+  if(resto.length){ await buscarMeses(resto); render(); }
+}
+
+/* ---------- Comissões: saldo acumulado (até R$ 100) e pagamentos ---------- */
+const saldos = {}; let pagamentos = [], tabelaPagamentosOk = true, calculandoSaldos = false;
+async function calcularSaldos(){
+  const comissionados = athletes.filter(a=> a.recebeComissao && a.cupomYampi);
+  if(!comissionados.length) return;
+  calculandoSaldos = true;
+  const pag = await carregarPagamentosComissao();
+  pagamentos = pag.pagamentos; tabelaPagamentosOk = pag.tabelaOk;
+  atualizarBlocoComissoes();
+  for(const a of comissionados){
+    saldos[a.id] = await historicoComissao(a, {pagamentos});
+    atualizarBlocoComissoes();
+  }
+  calculandoSaldos = false; atualizarBlocoComissoes();
+}
+function blocoComissoesHtml(){
+  const comissionados = athletes.filter(a=> a.recebeComissao && a.cupomYampi);
+  if(!comissionados.length) return '';
+  const linhas = comissionados.map(a=>({a, h:saldos[a.id]})).sort((x,y)=> (y.h?.saldoAtual||0) - (x.h?.saldoAtual||0));
+  const liberados = linhas.filter(l=> l.h && l.h.saldoAtual >= META_PAGAMENTO_COMISSAO).length;
+  return `<div class="panel"><div class="card-head"><div><h2>Comissões e pagamentos</h2>
+      <div class="desc">Saldo acumulado de quem recebe comissão (últimos ${MESES_HISTORICO} meses). O pagamento libera a partir de ${fmtBRL(META_PAGAMENTO_COMISSAO)}; abaixo disso, soma com o mês seguinte.
+      ${liberados ? ` <strong style="color:var(--orange);">${liberados} liberado(s) pra pagar.</strong>` : ''}</div></div><span class="ic-bubble">${ICONS.pix}</span></div>
+    ${!tabelaPagamentosOk ? '<div style="font-size:12.5px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Pra registrar pagamentos, rode <code>migrations/2026-09-29_pagamentos_comissao.sql</code> no Supabase.</div>' : ''}
+    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Chave PIX</th><th>Último pagamento</th><th>Situação</th><th style="text-align:right;">Saldo</th><th></th></tr></thead><tbody>
+    ${linhas.map(({a,h})=>{ const ult = pagamentos.filter(p=>p.athlete_id===a.id).slice(-1)[0];
+      return `<tr><td><div class="cell-person">${avatarHtml(a.name,'sm')}<div><strong>${escHtml(a.name)}</strong><div class="sub">${escHtml(a.team||'')} · ${a.comissaoPct??10}%</div></div></div></td>
+      <td>${a.pixKey ? `<span class="chip static">${ICONS.pix} ${escHtml(a.pixKey)}</span>` : '<span class="status-dot status-bad">sem chave</span>'}</td>
+      <td style="color:var(--muted);">${ult ? `${fmtDateBR(ult.pago_em)} · ${fmtBRL(ult.valor)}` : '—'}</td>
+      <td>${!h ? '<span class="loader" style="width:12px;height:12px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : h.saldoAtual >= META_PAGAMENTO_COMISSAO ? '<span class="status-dot" style="color:var(--orange);">Liberado pra pagar</span>' : `<span class="status-dot status-wait">Acumulando · faltam ${fmtBRL(META_PAGAMENTO_COMISSAO - h.saldoAtual)}</span>`}</td>
+      <td style="text-align:right; font-weight:800; color:${h && h.saldoAtual >= META_PAGAMENTO_COMISSAO ? 'var(--orange)' : 'var(--ink)'};">${h ? fmtBRL(h.saldoAtual) : '…'}</td>
+      <td style="text-align:right;">${h && h.saldoAtual > 0 && tabelaPagamentosOk ? `<button class="btn btn-sm ${h.saldoAtual >= META_PAGAMENTO_COMISSAO ? 'btn-primary' : 'btn-ghost'}" data-pagar="${a.id}">Registrar pagamento</button>` : ''}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+}
+function atualizarBlocoComissoes(){
+  const el = document.getElementById('blocoComissoes'); if(!el) return;
+  el.innerHTML = blocoComissoesHtml();
+  el.querySelectorAll('[data-pagar]').forEach(b=> b.onclick = ()=> abrirPagamento(atletaById(b.dataset.pagar)));
+}
+function abrirPagamento(a){
+  const h = saldos[a.id];
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Registrar pagamento — ${escHtml(a.name)}</h3>
+    <div style="font-size:13px; color:var(--ink-2); margin-bottom:14px;">Saldo atual: <strong>${fmtBRL(h.saldoAtual)}</strong>${a.pixKey?` · PIX: <strong>${escHtml(a.pixKey)}</strong>`:' · <span style="color:var(--red);">sem chave PIX cadastrada</span>'}</div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Valor pago (R$)</label><input id="pgValor" type="number" step="0.01" min="0" value="${h.saldoAtual.toFixed(2)}"></div>
+      <div class="field"><label>Data do pagamento</label><input id="pgData" type="date" value="${todayISO()}"></div></div>
+    <div class="field"><label>Observação (opcional)</label><input id="pgObs" placeholder="Ex: PIX enviado, comprovante no drive"></div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">O valor é descontado do saldo do atleta, e o mês aparece como "Pago" no extrato dele.</div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnSalvarPg">Registrar pagamento</button></div>`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('btnSalvarPg').onclick = async (ev)=>{
+    const valor = Number(document.getElementById('pgValor').value), data = document.getElementById('pgData').value;
+    if(!(valor > 0) || !data){ toast('Preencha valor e data'); return; }
+    ev.target.disabled = true;
+    const { data: novo, error } = await sb.from('comissao_pagamentos').insert({ athlete_id:a.id, valor, pago_em:data, ym:monthKey(data), obs:document.getElementById('pgObs').value.trim() }).select().single();
+    if(error){ console.error(error); toast('Erro ao registrar — rodou a migração dos pagamentos?'); ev.target.disabled = false; return; }
+    pagamentos.push(novo); pagamentos.sort((x,y)=> String(x.pago_em).localeCompare(String(y.pago_em)));
+    saldos[a.id] = await historicoComissao(a, {pagamentos});
+    closeModal(); toast('Pagamento registrado'); atualizarBlocoComissoes();
+  };
 }
 // total do mês: usa dados ao vivo quando já carregados, senão o histórico salvo (vendas_mensais)
 function totalMes(mes, campo){
@@ -73,9 +132,6 @@ function viewVendas(){
   // histórico pro gráfico: vendas_mensais + meses carregados ao vivo
   const serie = vendasMensais.filter(v=> !(aoVivo[v.ym] && Object.keys(aoVivo[v.ym]).length));
   Object.keys(aoVivo).forEach(m=> serie.push({ym:m, valor_vendido: totalMes(m,'valor_vendido')}));
-  // último registro de cada atleta → quem já bateu a meta e ainda não foi pago (só quem recebe comissão)
-  const ultimo = {}; vendasMensais.forEach(v=>{ if(!ultimo[v.athlete_id] || v.ym > ultimo[v.athlete_id].ym) ultimo[v.athlete_id] = v; });
-  const aPagar = Object.values(ultimo).filter(v=> !v.pago && Number(v.saldo_total) >= META_PAGAMENTO && atletaById(v.athlete_id)?.recebeComissao).sort((a,b)=> b.saldo_total - a.saldo_total);
   const loader = carregandoEquipe ? ' <span class="loader" style="width:10px;height:10px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : '';
   const kpi = (label, cur, prev, fmt, color)=> `<div class="card kpi"><div class="kpi-label">${label}${loader}</div><div class="kpi-value" ${color?`style="color:${color};"`:''}>${fmt(cur)}</div>
       <div class="kpi-foot">${deltaHtml(cur, prev)}<span>vs. mês anterior</span></div></div>`;
@@ -110,12 +166,7 @@ function viewVendas(){
     </div>
   </div>
 
-  ${aPagar.length ? `<div class="panel"><div class="card-head"><div><h2>Comissões pra pagar</h2><div class="desc">Quem recebe comissão, já passou de ${fmtBRL(META_PAGAMENTO)} de saldo e ainda não recebeu.</div></div><span class="ic-bubble">${ICONS.pix}</span></div>
-    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Último mês</th><th>Chave PIX</th><th style="text-align:right;">Saldo</th></tr></thead><tbody>
-    ${aPagar.map(v=>{ const a = atletaById(v.athlete_id)||{name:'(removido)'}; return `<tr><td><div class="cell-person">${avatarHtml(a.name,'sm')}<div><strong>${escHtml(a.name)}</strong><div class="sub">${escHtml(a.team||'')}</div></div></div></td>
-      <td>${fmtMonthLabel(v.ym)}</td><td>${a.pixKey ? `<span class="chip static">${ICONS.pix} ${escHtml(a.pixKey)}</span>` : '<span class="status-dot status-bad">sem chave cadastrada</span>'}</td>
-      <td style="text-align:right; font-weight:800; color:var(--orange);">${fmtBRL(v.saldo_total)}</td></tr>`; }).join('')}
-    </tbody></table></div></div>` : ''}
+  <div id="blocoComissoes">${blocoComissoesHtml()}</div>
 
   <div class="panel">
     <div class="row" style="justify-content:space-between;">
@@ -144,6 +195,7 @@ function render(){
     document.getElementById('vendasEquipeDashboard').scrollIntoView({behavior:'smooth'});
   });
   if(atletaSel) disparar();
+  atualizarBlocoComissoes();
 }
 (async function start(){
   const auth = await guardStaff('vendas'); if(!auth) return;
@@ -154,6 +206,6 @@ function render(){
   athletes = (data||[]).map(mapAthleteFromDB);
   vendasMensais = vm || [];
   render();
-  carregarEquipeAoVivo();
+  carregarEquipeAoVivo().then(calcularSaldos);
 })();
 </script></body></html>
