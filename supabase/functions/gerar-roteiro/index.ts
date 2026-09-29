@@ -13,10 +13,13 @@
 // Publicar: Supabase → Edge Functions → gerar-roteiro → colar este arquivo → Deploy.
 // Precisa do secret ANTHROPIC_API_KEY (Edge Functions → Secrets).
 
-import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
+// A API do Claude é chamada direto via HTTP (fetch). A biblioteca npm:@anthropic-ai/sdk
+// fazia a função falhar ao iniciar no Supabase (erro 546 até no OPTIONS), então não é usada.
 
-const MODELO = "claude-opus-5";
+const MODELO = Deno.env.get("CLAUDE_MODEL") || "claude-opus-5";   // dá pra trocar pelo secret CLAUDE_MODEL
+const API_URL = (Deno.env.get("ANTHROPIC_BASE_URL") || "https://api.anthropic.com") + "/v1/messages";
+const TEMPO_LIMITE_MS = 120_000; // o Supabase corta a função por volta de 150s; paramos antes pra dar um erro claro
 // Limite de texto de exemplos por grupo (~100 mil tokens cada). Se passar, entram os mais recentes e a prévia avisa.
 const LIMITE_CARACTERES_POR_GRUPO = 400_000;
 
@@ -99,6 +102,47 @@ function montarPedido(body: Record<string, any>) {
   ].filter(Boolean).join("\n\n");
 }
 
+// deno-lint-ignore no-explicit-any
+type Json = any;
+function textoDe(msg: Json): string {
+  return (msg?.content || []).filter((b: Json) => b.type === "text").map((b: Json) => b.text || "").join("\n").trim();
+}
+
+// Chama POST /v1/messages. comFallback: tenta primeiro com o fallback automático em caso de recusa
+// (beta server-side-fallback); se a conta não aceitar esse recurso, repete sem ele.
+async function chamarClaude(apiKey: string, params: Json, comFallback: boolean): Promise<{ dados?: Json; erro?: string }> {
+  const tentar = async (fallback: boolean) => {
+    const headers: Record<string, string> = { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+    const corpo = { ...params };
+    if (fallback) { headers["anthropic-beta"] = "server-side-fallback-2026-07-01"; corpo.fallbacks = "default"; }
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), TEMPO_LIMITE_MS);
+    try {
+      const resp = await fetch(API_URL, { method: "POST", headers, body: JSON.stringify(corpo), signal: ctrl.signal });
+      const dados = await resp.json().catch(() => ({}));
+      return { status: resp.status, dados };
+    } finally { clearTimeout(timer); }
+  };
+  let r;
+  try {
+    r = await tentar(comFallback);
+    const msg = String(r.dados?.error?.message || "");
+    if (comFallback && r.status === 400 && /fallback|beta/i.test(msg)) r = await tentar(false);
+  } catch (e) {
+    if ((e as Error)?.name === "AbortError") return { erro: "A IA demorou demais pra responder. Tente de novo (ou gere um roteiro por vez)." };
+    return { erro: `Não consegui falar com a API do Claude: ${(e as Error)?.message || e}` };
+  }
+  if (r.status >= 200 && r.status < 300) return { dados: r.dados };
+  const tipo = String(r.dados?.error?.type || ""), msg = String(r.dados?.error?.message || "");
+  console.error("API Claude", r.status, tipo, msg);
+  if (r.status === 401 || tipo === "authentication_error") return { erro: "Chave da API do Claude inválida — confira o secret ANTHROPIC_API_KEY no Supabase." };
+  if (r.status === 403 || tipo === "permission_error") return { erro: `A chave da API não tem permissão pra usar o modelo ${params.model}.` };
+  if (r.status === 404 || tipo === "not_found_error") return { erro: `Modelo ${params.model} não encontrado pra esta conta. Dá pra trocar criando o secret CLAUDE_MODEL no Supabase.` };
+  if (/credit balance|billing/i.test(msg)) return { erro: "A conta da API do Claude está sem créditos. Adicione créditos no console da Anthropic (Billing)." };
+  if (r.status === 429 || tipo === "rate_limit_error") return { erro: "Muitas gerações ao mesmo tempo — espere um minuto e tente de novo." };
+  if (r.status === 529 || tipo === "overloaded_error") return { erro: "A IA está sobrecarregada agora. Tente de novo em alguns instantes." };
+  return { erro: `Erro da API do Claude (${r.status}): ${msg || "sem detalhe"}` };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
@@ -144,38 +188,38 @@ Deno.serve(async (req) => {
 
     if (body.preview) return responder({ system, contagem, avisos, modelo: MODELO });
 
-    if (!Deno.env.get("ANTHROPIC_API_KEY")) return responder({ error: "Falta o secret ANTHROPIC_API_KEY nas Edge Functions do Supabase." });
-    const client = new Anthropic();
+    const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!apiKey) return responder({ error: "Falta o secret ANTHROPIC_API_KEY nas Edge Functions do Supabase." });
+
+    // Modo teste (botão "Testar IA" na aba Contexto da IA): chamada mínima, custo quase zero
+    if (body.teste) {
+      const r = await chamarClaude(apiKey, { model: MODELO, max_tokens: 20, messages: [{ role: "user", content: "Responda só: OK" }] }, false);
+      if (r.erro) return responder({ error: r.erro });
+      return responder({ ok: true, modelo: r.dados.model, resposta: textoDe(r.dados) });
+    }
 
     // O system (contexto + exemplos) é igual pra todos os posts do mês → fica em cache e sai mais barato
     // a partir do 2º roteiro. O pedido específico (atleta/post) vai na mensagem do usuário.
     const params = {
       model: MODELO,
       max_tokens: 16000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default", // se o modelo recusar por política, o próprio servidor tenta o modelo recomendado
       thinking: { type: "adaptive" },
-      output_config: { effort: "high" },
+      output_config: { effort: "medium" }, // médio: bom pra roteiros curtos e mais rápido (evita o tempo limite)
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: montarPedido(body) }],
     };
-    // deno-lint-ignore no-explicit-any
-    const resposta = await client.beta.messages.create(params as any);
+    const r = await chamarClaude(apiKey, params, true);
+    if (r.erro) return responder({ error: r.erro });
+    const resposta = r.dados;
 
     if (resposta.stop_reason === "refusal") return responder({ error: "A IA recusou gerar este roteiro. Tente ajustar o tema ou o briefing." });
-    const roteiro = resposta.content
-      .filter((b: { type: string }) => b.type === "text")
-      .map((b: { type: string; text?: string }) => b.text || "")
-      .join("\n").trim();
+    const roteiro = textoDe(resposta);
     if (!roteiro) return responder({ error: "A IA não devolveu texto." });
     if (resposta.stop_reason === "max_tokens") avisos.push("O roteiro foi cortado por tamanho.");
 
     return responder({ roteiro, avisos, uso: resposta.usage });
   } catch (err) {
     console.error(err);
-    if (err instanceof Anthropic.AuthenticationError) return responder({ error: "Chave da API do Claude inválida (secret ANTHROPIC_API_KEY)." });
-    if (err instanceof Anthropic.RateLimitError) return responder({ error: "Muitas gerações ao mesmo tempo — espere um pouco e tente de novo." });
-    if (err instanceof Anthropic.APIError) return responder({ error: `Erro da API do Claude (${err.status}): ${err.message}` });
     return responder({ error: `Erro inesperado: ${(err as Error)?.message || err}` });
   }
 });

@@ -179,6 +179,19 @@ async function gerarRoteiroAtleta(entry, athlete, produto, temaGeral, trendsNote
   if(!data?.roteiro) throw new Error('A IA não devolveu roteiro');
   return data.roteiro;
 }
+// Mostra o motivo real quando a geração falha (faixa na tela, não some sozinha)
+function avisoErroIA(err, nome){
+  console.error(err);
+  const msg = String(err?.message || err || '');
+  let texto = msg;
+  if(err?.name === 'FunctionsFetchError' || /Failed to send a request/i.test(msg))
+    texto = 'A função <code>gerar-roteiro</code> não respondeu. Confira se a versão nova está publicada no Supabase (Edge Functions).';
+  else if(err?.name === 'FunctionsHttpError' || /non-2xx/i.test(msg))
+    texto = 'A função <code>gerar-roteiro</code> falhou ao rodar (no Supabase aparece como erro 546/500). Publique a versão nova do arquivo <code>supabase/functions/gerar-roteiro/index.ts</code>.';
+  else texto = escHtml(msg);
+  mostrarFaixaErro(`Não deu pra gerar o roteiro${nome?` de ${escHtml(nome)}`:''}.`, texto + '<br><span style="font-size:12px; color:var(--muted);">Dica: na aba <strong>Contexto da IA → Prévia</strong> tem o botão <strong>Testar IA</strong>, que diz na hora se a chave e o modelo estão ok.</span>');
+}
+
 async function salvarExemplo(entry, athlete, tipo, motivo){
   try{
     await sb.from('roteiro_exemplos').insert({ athlete_id: athlete?.id || null, team: entry.team, produto: entry.product,
@@ -210,7 +223,7 @@ async function gerarUmRoteiro(cycle, entryId, motivoRegeracao){
     const exemplosRuins = await buscarExemplosRuinsComMotivo(8);
     const bibliotecaRefs = await buscarReferenciasBiblioteca(2);
     e.roteiro = await gerarRoteiroAtleta(e, a, produto, cycle.themeGeral, cycle.trendsNotes, cycle.briefingText, exemplosBons, exemplosRuins, bibliotecaRefs);
-  }catch(err){ console.error(err); toast(`Erro ao gerar roteiro de ${a.name}: ${err.message||err}`); }
+  }catch(err){ avisoErroIA(err, a.name); }
   await persistOneEntry(cycle.ym, e);
 }
 
@@ -327,7 +340,7 @@ async function apagarTudoDoMes(cycle){
 function renderEntriesList(cycle){
   return cycle.entries.map(e=>{
     const a = State.athletes.find(x=>x.id===e.athleteId);
-    return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;">
+    return `<div data-entry-card="${e.id}" style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;">
       <div class="row" style="justify-content:space-between;">
         <div class="row" style="gap:8px;">
           <span class="badge team-${(e.team||'').replace(/\s/g,'')}">${e.team}</span>
@@ -412,7 +425,10 @@ function wireEntriesList(){
   document.querySelectorAll('[data-gen-one]').forEach(btn=>{
     btn.onclick = async ()=>{
       const cycle = getOrCreateCycle(State.currentCycleYM);
-      btn.disabled = true; btn.innerHTML = '<span class="loader"></span>';
+      btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Gerando…';
+      // aviso no próprio card enquanto a IA escreve (pode levar até ~1 min)
+      const card = btn.closest('[data-entry-card]') || btn.parentElement;
+      if(card && !card.querySelector('.gerando-aviso')) card.insertAdjacentHTML('beforeend', '<div class="gerando-aviso" style="font-size:12px; color:var(--muted); margin-top:8px; width:100%;">A IA está escrevendo o roteiro… pode levar até 1 minuto.</div>');
       await gerarUmRoteiro(cycle, btn.dataset.genOne);
       render();
     };
