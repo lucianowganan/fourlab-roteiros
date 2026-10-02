@@ -669,14 +669,25 @@ function dashboardVendasHtml(data, opts){
   </div>`;
 }
 
+// Chama uma Edge Function mandando o login atual de forma explícita (Authorization: Bearer <token do usuário>).
+// Renova o token antes se estiver perto de vencer, pra função nunca receber um login vencido.
+async function invocarFuncao(nome, body){
+  let { data: { session } } = await sb.auth.getSession();
+  if(session && session.expires_at && session.expires_at*1000 < Date.now() + 60_000){
+    const r = await sb.auth.refreshSession(); session = r.data.session || session;
+  }
+  if(!session) return { data:null, error:new Error('Você não está logado — saia e entre de novo no painel.') };
+  return sb.functions.invoke(nome, { body, headers:{ Authorization:`Bearer ${session.access_token}` } });
+}
+
 // Chama a Edge Function da Yampi para um cupom/mês. Cache em memória pra não repetir chamadas.
 const _yampiCache = {};
 function buscarVendasYampi(cupomCode, ym, descontoCupomPct, comissaoPct){
   const key = [cupomCode, ym, descontoCupomPct, comissaoPct].join('|');
   if(!_yampiCache[key]){
-    _yampiCache[key] = sb.functions.invoke('yampi-sync-atleta', {
-      body: { alias: YAMPI_ALIAS, cupomCode, ym, descontoCupomPct: descontoCupomPct||10, comissaoPct: comissaoPct||10 }
-    }).then(({ data, error })=>{
+    _yampiCache[key] = invocarFuncao('yampi-sync-atleta',
+      { alias: YAMPI_ALIAS, cupomCode, ym, descontoCupomPct: descontoCupomPct||10, comissaoPct: comissaoPct||10 }
+    ).then(({ data, error })=>{
       if(error) throw error;
       if(data && data.error) throw new Error(data.error);
       return data;

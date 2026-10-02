@@ -223,7 +223,7 @@ function abrirNovoExemplo(){
 async function testarIA(){
   State.testandoIA = true; State.testeIA = null; render();
   try{
-    const { data, error } = await sb.functions.invoke('gerar-roteiro', { body: { teste: true } });
+    const { data, error } = await invocarFuncao('gerar-roteiro', { teste: true });
     if(error) throw error;
     if(data?.ok) State.testeIA = {ok:true, html:`✔ IA funcionando — modelo <strong>${escHtml(data.modelo)}</strong> respondeu.`};
     else if(data?.error) State.testeIA = {ok:false, html:`✖ ${escHtml(data.error)}`};
@@ -239,7 +239,7 @@ async function testarIA(){
 async function montarPrevia(){
   State.carregandoPrevia = true; render();
   try{
-    const { data, error } = await sb.functions.invoke('gerar-roteiro', { body: { preview: true } });
+    const { data, error } = await invocarFuncao('gerar-roteiro', { preview: true });
     if(error) throw error;
     if(data?.error) State.previa = {erro: escHtml(data.error)};
     else if(!data?.system) State.previa = {erro: 'A função <code>gerar-roteiro</code> publicada no Supabase ainda é a versão antiga (não tem prévia). Publique a nova versão: <code>supabase/functions/gerar-roteiro/index.ts</code>.'};

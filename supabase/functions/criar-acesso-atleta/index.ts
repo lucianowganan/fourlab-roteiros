@@ -8,7 +8,7 @@
 // Publicar: Supabase → Edge Functions → Deploy a new function → nome "criar-acesso-atleta"
 // → colar este arquivo → Deploy. (SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY já vêm prontas.)
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +23,52 @@ function responder(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
 }
 
+// Descobre quem está chamando a partir do login enviado pelo painel (Authorization: Bearer <token>).
+// Se não der, devolve o motivo real pra aparecer na tela (em vez de um "sessão expirada" genérico).
+async function identificar(req: Request, admin: SupabaseClient): Promise<{ id: string } | { erro: string }> {
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return { erro: "O login não chegou na função. Saia e entre de novo no painel." };
+  if (token.startsWith("sb_") || !token.startsWith("ey")) {
+    return { erro: "Chegou a chave pública do site, não o seu login (você está deslogado neste navegador). Saia e entre de novo no painel." };
+  }
+  const motivos: string[] = [];
+  // 1) Jeito padrão: pergunta ao Auth do Supabase
+  const r1 = await admin.auth.getUser(token).catch((e) => ({ data: { user: null }, error: e }));
+  if (r1.data?.user) return { id: r1.data.user.id };
+  if (r1.error) motivos.push(r1.error.message || String(r1.error));
+  // 2) Projetos com as novas chaves de assinatura (JWT signing keys): valida o token pelas chaves públicas
+  const getClaims = (admin.auth as unknown as { getClaims?: (t: string) => Promise<{ data: { claims?: { sub?: string } } | null; error: { message: string } | null }> }).getClaims;
+  if (getClaims) {
+    const r2 = await getClaims.call(admin.auth, token).catch((e) => ({ data: null, error: e }));
+    if (r2.data?.claims?.sub) return { id: r2.data.claims.sub };
+    if (r2.error) motivos.push(r2.error.message || String(r2.error));
+  }
+  // 3) Último recurso: cliente com a chave pública + o login do usuário
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (anon) {
+    const user = createClient(Deno.env.get("SUPABASE_URL")!, anon, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const r3 = await user.auth.getUser().catch((e) => ({ data: { user: null }, error: e }));
+    if (r3.data?.user) return { id: r3.data.user.id };
+    if (r3.error) motivos.push(r3.error.message || String(r3.error));
+  }
+  console.error("identificar falhou:", motivos);
+  const detalhe = [...new Set(motivos)].join(" / ") || "sem detalhe";
+  if (/expired/i.test(detalhe)) return { erro: "Sua sessão expirou — saia e entre de novo no painel." };
+  return { erro: `Não consegui confirmar seu login (${detalhe}). Saia e entre de novo no painel; se continuar, me mande esta mensagem.` };
+}
+
+// Equipe = logado, sem perfil de atleta e sem cadastro de atleta ligado ao login (mesma regra do eh_equipe() do banco)
+async function ehEquipe(admin: SupabaseClient, id: string) {
+  const [{ data: perfil }, { data: atleta }] = await Promise.all([
+    admin.from("profiles").select("role").eq("id", id).maybeSingle(),
+    admin.from("athletes").select("id").eq("auth_user_id", id).limit(1).maybeSingle(),
+  ]);
+  return perfil?.role !== "atleta" && !atleta;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -32,11 +78,9 @@ Deno.serve(async (req) => {
     });
 
     // 1) Quem está chamando precisa estar logado e ser da equipe (não atleta)
-    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    const { data: quem, error: erroSessao } = await admin.auth.getUser(token);
-    if (erroSessao || !quem?.user) return responder({ error: "Sessão expirada — saia e entre de novo no painel." });
-    const { data: perfilQuem } = await admin.from("profiles").select("role").eq("id", quem.user.id).maybeSingle();
-    if (!perfilQuem || perfilQuem.role === "atleta") return responder({ error: "Só a equipe FourLab pode criar acessos." });
+    const quem = await identificar(req, admin);
+    if ("erro" in quem) return responder({ error: quem.erro });
+    if (!(await ehEquipe(admin, quem.id))) return responder({ error: "Só a equipe FourLab pode criar acessos." });
 
     // 2) Validação dos dados
     const { athleteId, athleteName, username: usuarioDigitado, password } = await req.json();

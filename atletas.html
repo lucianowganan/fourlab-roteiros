@@ -375,7 +375,7 @@ function wireAthleteModalHandlers(){
       if(password.length < 6){ resBox.innerHTML = '<span style="color:var(--red);">A senha precisa ter pelo menos 6 caracteres</span>'; return; }
       btnCriarAcesso.disabled = true; btnCriarAcesso.innerHTML = '<span class="loader" style="border-top-color:var(--orange); border-color:rgba(0,0,0,0.1);"></span>'; resBox.innerHTML = '';
       try{
-        const { data, error } = await sb.functions.invoke('criar-acesso-atleta', { body: { athleteId, athleteName, username, password } });
+        const { data, error } = await invocarFuncao('criar-acesso-atleta', { athleteId, athleteName, username, password });
         if(error) throw error;
         if(data.error){ resBox.innerHTML = `<span style="color:var(--red);">${escHtml(data.error)}</span>`; }
         else{

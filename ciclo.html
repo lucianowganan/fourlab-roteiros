@@ -171,9 +171,9 @@ function autoScheduleCycle(ym, activeSelections){
 /* ---------- IA (Edge Functions) ---------- */
 async function gerarRoteiroAtleta(entry, athlete, produto, temaGeral, trendsNotes, briefingText, exemplosBons, exemplosRuins, bibliotecaRefs){
   const histAnterior = lastEntryFor(athlete.id, entry.__ym);
-  const { data, error } = await sb.functions.invoke('gerar-roteiro', {
-    body: { athlete, produto, entry, temaGeral, trendsNotes, briefingText, histAnterior, exemplosBons, exemplosRuins, bibliotecaRefs }
-  });
+  const { data, error } = await invocarFuncao('gerar-roteiro',
+    { athlete, produto, entry, temaGeral, trendsNotes, briefingText, histAnterior, exemplosBons, exemplosRuins, bibliotecaRefs }
+  );
   if(error) throw error;
   if(data?.error) throw new Error(data.error);
   if(!data?.roteiro) throw new Error('A IA não devolveu roteiro');
