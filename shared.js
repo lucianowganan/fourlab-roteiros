@@ -8,6 +8,12 @@ const SUPABASE_URL = "https://wkcfvaivdhdoppzbmqpr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_bliXJav1-wfDzO8_qS6b5g_Sos3fOW-";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Endereços limpos: atleta.fourlabnutrition.com.br/home em vez de /home.html.
+// Links antigos com .html continuam abrindo e a barra de endereço é corrigida sem recarregar.
+if(/\.html$/.test(location.pathname)){
+  try{ history.replaceState(null, '', location.pathname.replace(/(index)?\.html$/, '') + location.search + location.hash); }catch(e){}
+}
+
 const YAMPI_ALIAS = "fourlab";
 /* ---------- Equipes / pastas (tabela `teams`; estes são os valores padrão se a tabela não existir) ----------
    tipo: 'equipe' (atletas) ou 'profissional' (profissionais parceiros: médicos, nutricionistas...) */
@@ -70,29 +76,29 @@ const ICONS = {
 
 /* ---------- Navegação (cada item vira link real pra outra página) ---------- */
 const STAFF_NAV = [
-  {id:'home', label:'Home', ic:ICONS.home, href:'home.html'},
-  {id:'briefing', label:'Briefing', ic:ICONS.briefing, href:'briefing.html'},
-  {id:'ciclo', label:'Mês / Roteiros', ic:ICONS.roteiro, href:'ciclo.html'},
-  {id:'sugestoes', label:'Sugestões de conteúdo', ic:ICONS.ideia, href:'sugestoes.html'},
-  {id:'acompanhamento', label:'Acompanhamento', ic:ICONS.acompanhamento, href:'acompanhamento.html'},
-  {id:'crm', label:'Pipeline / CRM', ic:ICONS.kanban, href:'crm.html'},
-  {id:'blog', label:'Blog (parceiros)', ic:ICONS.blog, href:'blog.html'},
-  {id:'avisos', label:'Avisos', ic:ICONS.avisos, href:'avisos.html'},
-  {id:'vendas', label:'Vendas', ic:ICONS.vendas, href:'vendas.html'},
-  {id:'atletas', label:'Atletas & parceiros', ic:ICONS.atletas, href:'atletas.html'},
-  {id:'produtos', label:'Catálogo', ic:ICONS.produtos, href:'produtos.html'},
-  {id:'biblioteca', label:'Biblioteca', ic:ICONS.biblioteca, href:'biblioteca.html'},
-  {id:'ia', label:'Contexto da IA', ic:ICONS.ia, href:'ia.html'},
+  {id:'home', label:'Home', ic:ICONS.home, href:'home'},
+  {id:'briefing', label:'Briefing', ic:ICONS.briefing, href:'briefing'},
+  {id:'ciclo', label:'Mês / Roteiros', ic:ICONS.roteiro, href:'ciclo'},
+  {id:'sugestoes', label:'Sugestões de conteúdo', ic:ICONS.ideia, href:'sugestoes'},
+  {id:'acompanhamento', label:'Acompanhamento', ic:ICONS.acompanhamento, href:'acompanhamento'},
+  {id:'crm', label:'Pipeline / CRM', ic:ICONS.kanban, href:'crm'},
+  {id:'blog', label:'Blog (parceiros)', ic:ICONS.blog, href:'blog'},
+  {id:'avisos', label:'Avisos', ic:ICONS.avisos, href:'avisos'},
+  {id:'vendas', label:'Vendas', ic:ICONS.vendas, href:'vendas'},
+  {id:'atletas', label:'Atletas & parceiros', ic:ICONS.atletas, href:'atletas'},
+  {id:'produtos', label:'Catálogo', ic:ICONS.produtos, href:'produtos'},
+  {id:'biblioteca', label:'Biblioteca', ic:ICONS.biblioteca, href:'biblioteca'},
+  {id:'ia', label:'Contexto da IA', ic:ICONS.ia, href:'ia'},
 ];
 
 const ATLETA_NAV = [
-  {id:'inicio', label:'Início', curto:'Início', ic:ICONS.inicio, href:'atleta-home.html'},
-  {id:'roteiros', label:'Meus Roteiros', curto:'Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html', so:'equipe'},
-  {id:'blog', label:'Meus textos (blog)', curto:'Textos', ic:ICONS.blog, href:'parceiro-blog.html', so:'profissional'},
-  {id:'ideias', label:'Ideias pra gravar', curto:'Ideias', ic:ICONS.ideia, href:'atleta-ideias.html'},
-  {id:'avisos', label:'Avisos', curto:'Avisos', ic:ICONS.avisos, href:'atleta-avisos.html'},
-  {id:'vendas', label:'Minhas Vendas', curto:'Vendas', ic:ICONS.vendas, href:'atleta-vendas.html'},
-  {id:'perfil', label:'Meu Perfil', curto:'Perfil', ic:ICONS.perfil, href:'atleta-perfil.html'},
+  {id:'inicio', label:'Início', curto:'Início', ic:ICONS.inicio, href:'atleta-home'},
+  {id:'roteiros', label:'Meus Roteiros', curto:'Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros', so:'equipe'},
+  {id:'blog', label:'Meus textos (blog)', curto:'Textos', ic:ICONS.blog, href:'parceiro-blog', so:'profissional'},
+  {id:'ideias', label:'Ideias pra gravar', curto:'Ideias', ic:ICONS.ideia, href:'atleta-ideias'},
+  {id:'avisos', label:'Avisos', curto:'Avisos', ic:ICONS.avisos, href:'atleta-avisos'},
+  {id:'vendas', label:'Minhas Vendas', curto:'Vendas', ic:ICONS.vendas, href:'atleta-vendas'},
+  {id:'perfil', label:'Meu Perfil', curto:'Perfil', ic:ICONS.perfil, href:'atleta-perfil'},
 ];
 
 /* ---------- Utilitários ---------- */
@@ -149,9 +155,9 @@ async function loadProfile(userId){
 // sessão, ou pro portal do atleta se quem logou for um atleta.
 async function guardStaff(activeId){
   const user = await getSessionUser();
-  if(!user){ location.href = 'login.html'; return null; }
+  if(!user){ location.href = 'login'; return null; }
   const profile = await loadProfile(user.id);
-  if(profile.role === 'atleta'){ location.href = 'atleta-home.html'; return null; }
+  if(profile.role === 'atleta'){ location.href = 'atleta-home'; return null; }
   await carregarEquipes();
   renderStaffSidebar(activeId, profile);
   return { user, profile };
@@ -160,9 +166,9 @@ async function guardStaff(activeId){
 // Chame no topo de cada página do ATLETA.
 async function guardAthlete(activeId){
   const user = await getSessionUser();
-  if(!user){ location.href = 'login.html'; return null; }
+  if(!user){ location.href = 'login'; return null; }
   const profile = await loadProfile(user.id);
-  if(profile.role !== 'atleta'){ location.href = 'home.html'; return null; }
+  if(profile.role !== 'atleta'){ location.href = 'home'; return null; }
   const { data: athleteRow } = await sb.from('athletes').select('*').eq('auth_user_id', user.id).single();
   const athlete = athleteRow ? mapAthleteFromDB(athleteRow) : null;
   await carregarEquipes();
@@ -172,7 +178,7 @@ async function guardAthlete(activeId){
 
 async function logout(){
   await sb.auth.signOut();
-  location.href = 'login.html';
+  location.href = 'login';
 }
 
 /* ---------- Sidebar (mesmo HTML/CSS pros dois tipos de usuário) ---------- */
@@ -729,6 +735,9 @@ async function carregarDashboardVendas(cupomCode, ym, descontoCupomPct, comissao
    - o saldo vai acumulando mês a mês; quando passa de R$ 100 fica "liberado" pra pagamento */
 const META_PAGAMENTO_COMISSAO = 100;
 const MESES_HISTORICO = 12;
+// As comissões passam a contar a partir deste mês (as anteriores já foram pagas por fora).
+// Meses antes disso continuam aparecendo nos gráficos de vendas, mas não geram comissão nem saldo.
+const INICIO_COMISSOES = '2026-09';
 
 // roda várias chamadas com no máximo `n` ao mesmo tempo
 async function emLotes(itens, n, fn){
@@ -755,18 +764,20 @@ async function historicoComissao(a, opts){
     catch(err){ console.warn('Yampi', ym, err); falhas++; }
     feitos++; if(opts.onProgresso) opts.onProgresso(feitos, yms.length);
   });
-  let saldo = 0; const linhas = [];
+  let saldo = 0, saldoMesesFechados = 0; const linhas = [];
   yms.forEach(ym=>{
     const d = porMes[ym] || {valorVendido:0, comissaoMes:0, numeroPedidos:0};
-    const comissao = a.recebeComissao ? Number(d.comissaoMes||0) : 0;
-    const pagosNoMes = pag.pagamentos.filter(p=> (p.ym || String(p.pago_em||'').slice(0,7)) === ym);
+    const antes = ym < INICIO_COMISSOES;
+    const comissao = a.recebeComissao && !antes ? Number(d.comissaoMes||0) : 0;
+    const pagosNoMes = antes ? [] : pag.pagamentos.filter(p=> (p.ym || String(p.pago_em||'').slice(0,7)) === ym);
     const pagoValor = pagosNoMes.reduce((t,p)=> t + Number(p.valor||0), 0);
     saldo = Math.max(0, saldo + comissao - pagoValor);
     linhas.push({ ym, valor_vendido:Number(d.valorVendido||0), numero_pedidos:Number(d.numeroPedidos||0), comissao_mes:comissao,
       pago_valor:pagoValor, pago_em: pagosNoMes.length ? pagosNoMes[pagosNoMes.length-1].pago_em : null, saldo_total:saldo,
-      status: pagosNoMes.length ? 'pago' : saldo >= META_PAGAMENTO_COMISSAO ? 'liberado' : 'acumulando', semDados: !porMes[ym] });
+      status: antes ? 'antes' : pagosNoMes.length ? 'pago' : saldo >= META_PAGAMENTO_COMISSAO ? 'liberado' : 'acumulando', semDados: !porMes[ym], antes });
+    if(ym < ate) saldoMesesFechados = saldo;   // saldo sem o mês atual (que ainda está em andamento)
   });
-  return { linhas: linhas.reverse(), saldoAtual: saldo, pagamentos: pag.pagamentos, tabelaPagamentosOk: pag.tabelaOk, falhas,
+  return { linhas: linhas.reverse(), saldoAtual: saldo, saldoMesesFechados, pagamentos: pag.pagamentos, tabelaPagamentosOk: pag.tabelaOk, falhas,
     comissaoTotal: linhas.reduce((t,l)=> t + l.comissao_mes, 0) };
 }
 function statusComissaoHtml(l){

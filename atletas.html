@@ -13,13 +13,13 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:title" content="Painel dos atletas FourLab">
 <meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
-<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
-<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:url" content="https://atleta.fourlabnutrition.com.br/">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Painel dos atletas FourLab">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
+<meta name="twitter:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
 <div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
@@ -442,7 +442,7 @@ function openBancoDadosModal(athleteName, exemplos){
 }
 
 function mensagemBoasVindas(nome, username, password){
-  const link = new URL('login.html', location.href).href;
+  const link = new URL('login', location.href).href;
   return `Oi, ${nome.split(' ')[0]}! 👋 Seu acesso ao painel FourLab está pronto.\n\n` +
     `🔗 ${link}\n👤 Usuário: ${username}\n🔑 Senha: ${password}\n\n` +
     `No primeiro acesso, entra em "Meu Perfil" e completa seus dados (contato, redes sociais e endereço de envio). Qualquer dúvida é só chamar!`;

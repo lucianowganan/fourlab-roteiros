@@ -3,7 +3,7 @@
   "short_name": "FourLab",
   "description": "Seus roteiros, suas vendas e seu cupom em um só lugar.",
   "lang": "pt-BR",
-  "start_url": "login.html",
+  "start_url": "login",
   "scope": "./",
   "display": "standalone",
   "background_color": "#140e10",
