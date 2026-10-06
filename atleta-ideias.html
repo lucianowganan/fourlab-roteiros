@@ -31,7 +31,8 @@
    O banco só devolve as publicadas pro público da pessoa (atletas / profissionais / todos).
    A pessoa marca "quero gravar" e "já gravei" (com o link do post) — base da futura gamificação. */
 const MIGRACAO = 'migrations/2026-10-06b_sugestoes_conteudo.sql';
-const State = { athlete:null, sugestoes:[], minhas:{}, filtro:'todas', tabelaOk:true };
+const MIGRACAO_IA = 'migrations/2026-10-07_ia_sugestoes.sql';
+const State = { athlete:null, sugestoes:[], minhas:{}, filtro:'todas', tabelaOk:true, acessoIa:null, pedidosIa:[], produtos:[] };
 
 async function carregar(){
   const [sug, grav] = await Promise.all([
@@ -40,6 +41,77 @@ async function carregar(){
   ]);
   State.tabelaOk = !sug.error; State.sugestoes = sug.data || [];
   State.minhas = {}; (grav.data||[]).forEach(g=> State.minhas[g.sugestao_id] = g);
+  // IA de ideias: só aparece pra quem a equipe liberou
+  const [ac, ped, prod] = await Promise.all([
+    sb.from('ia_acesso').select('*').eq('athlete_id', State.athlete.id).maybeSingle(),
+    sb.from('ia_pedidos').select('*').eq('athlete_id', State.athlete.id).order('created_at', {ascending:false}),
+    sb.from('products').select('name').order('name'),
+  ]);
+  State.acessoIa = ac.data || null; State.pedidosIa = ped.data || []; State.produtos = (prod.data||[]).map(p=>p.name);
+}
+
+/* ---------- IA de ideias ---------- */
+const iaLiberada = ()=> !!State.acessoIa?.liberada;
+function iaUsadosNoMes(){ const ym = new Date().toISOString().slice(0,7); return State.pedidosIa.filter(p=> String(p.created_at).slice(0,7)===ym && p.status!=='erro').length; }
+function iaRestantes(){ return Math.max(0, (State.acessoIa?.limite_mes||0) - iaUsadosNoMes()); }
+const ideiasIa = ()=> State.pedidosIa.filter(p=> p.status==='ok' && p.resultado?.titulo);
+function ideiaIaComoSugestao(p){ const r = p.resultado||{}; return {...r, id:p.id, tipo:r.tipo||p.tipo, publicada:true, passos:r.passos||[], ia:true, avaliacao:p.avaliacao}; }
+function cardIaHtml(){
+  if(!iaLiberada()) return '';
+  const rest = iaRestantes(), lim = State.acessoIa.limite_mes;
+  return `<div class="card" style="margin-bottom:18px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; background:linear-gradient(135deg,#fff7ef,#fff);">
+    <span class="ic-bubble" style="background:var(--grad-accent); color:#fff;">✨</span>
+    <div style="flex:1; min-width:200px;"><div style="font-family:var(--font-title); font-weight:700; font-size:16px;">Peça uma ideia à IA da FourLab</div>
+      <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">Diga o formato e o que quer mostrar: ela monta o passo a passo pra você gravar. ${rest} de ${lim} ideias restantes este mês.</div></div>
+    <button class="btn btn-primary" id="btnPedirIa" ${rest?'':'disabled'}>${rest ? '✨ Pedir ideia' : 'Limite do mês atingido'}</button></div>`;
+}
+function abrirPedirIa(){
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>✨ Pedir ideia à IA</h3>
+    ${iaFormHtml({produtos:State.produtos})}
+    <div id="iaErro" style="font-size:12.5px; color:var(--red); margin-bottom:8px;"></div>
+    <div class="row" style="justify-content:space-between; gap:10px;"><span style="font-size:12px; color:var(--muted);">Restam ${iaRestantes()} de ${State.acessoIa.limite_mes} este mês</span>
+      <button class="btn btn-primary" id="btnIaGerar">✨ Criar ideia</button></div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const ler = ligarIaForm();
+  document.getElementById('btnIaGerar').onclick = async (ev)=>{
+    const btn = ev.currentTarget; botaoCarregandoIA(btn); document.getElementById('iaErro').textContent = '';
+    const dados = ler();
+    try{
+      const r = await gerarSugestaoIA(dados);
+      const p = {id:r.pedidoId, athlete_id:State.athlete.id, tipo:dados.tipo, produto:r.sugestao.produto, pedido:dados.pedido, status:'ok', resultado:r.sugestao, avaliacao:null, created_at:new Date().toISOString()};
+      State.pedidosIa.unshift(p); render(); abrirIdeiaIa(p.id);
+    }catch(err){
+      if(err.restantes != null) State.pedidosIa.unshift({id:'x'+Date.now(), status:'recusado', created_at:new Date().toISOString()});  // recusa conta no limite
+      document.getElementById('iaErro').textContent = err.message; btn.disabled = false; btn.innerHTML = '✨ Tentar de novo';
+      render();
+    }
+  };
+}
+function abrirIdeiaIa(id){
+  const p = State.pedidosIa.find(x=>x.id===id); if(!p) return;
+  const s = ideiaIaComoSugestao(p);
+  const textoTudo = [s.titulo, s.objetivo, ...(s.passos||[]).map((x,i)=>`${tipoSugestao(s.tipo).passo} ${i+1}: ${x.texto}${x.dica?` (${x.dica})`:''}`), s.roteiro].filter(Boolean).join('\n\n');
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button>
+    <div class="badge" style="background:var(--grad-accent); color:#fff; margin-bottom:8px;">✨ Ideia criada pela IA pra você</div>
+    ${sugestaoDetalheHtml(s)}
+    <div style="margin-top:20px; border-top:1px solid #f3eee8; padding-top:16px;">
+      <div style="font-size:12.5px; font-weight:700; margin-bottom:8px;">Essa ideia ficou boa? Sua avaliação ajuda a IA a melhorar.</div>
+      <div class="row" style="gap:8px;">
+        <button class="btn ${p.avaliacao==='bom'?'btn-primary':'btn-ghost'}" data-avaliar="bom">👍 Ficou boa</button>
+        <button class="btn ${p.avaliacao==='ruim'?'btn-dark':'btn-ghost'}" data-avaliar="ruim">👎 Não curti</button>
+        <button class="btn btn-ghost" id="btnCopiarTudo" style="margin-left:auto;">${ICONS.copy.replace('width="18" height="18"','width="13" height="13"')} Copiar tudo</button></div>
+      ${p.motivo?`<div style="font-size:12px; color:var(--muted); margin-top:6px;">Seu comentário: ${escHtml(p.motivo)}</div>`:''}</div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.querySelectorAll('[data-copiar-roteiro-sug]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(s.roteiro||'').then(()=> toast('Roteiro copiado')));
+  document.getElementById('btnCopiarTudo').onclick = ()=> navigator.clipboard.writeText(textoTudo).then(()=> toast('Ideia copiada'));
+  document.querySelectorAll('[data-avaliar]').forEach(b=> b.onclick = async ()=>{
+    const av = b.dataset.avaliar;
+    let motivo = '';
+    if(av==='ruim'){ motivo = prompt('O que não ficou bom? (opcional — ajuda a IA)', p.motivo||''); if(motivo===null) return; }
+    const { error } = await sb.rpc('avaliar_minha_ideia_ia', { p_id:p.id, p_avaliacao:av, p_motivo:motivo });
+    if(error){ erroBanco(error, MIGRACAO_IA); return; }
+    p.avaliacao = av; p.motivo = motivo; toast(av==='bom' ? 'Valeu! 👍' : 'Valeu pelo retorno!'); abrirIdeiaIa(p.id); render();
+  });
 }
 
 function seloMinha(s){
@@ -52,22 +124,25 @@ function view(){
   if(!State.tabelaOk) return `<div class="page-head"><div><h1>Ideias pra gravar</h1></div></div><div class="panel"><div class="empty-state"><div class="big">🛠️</div>Esta área ainda está sendo preparada pela FourLab. Volte em breve!</div></div>`;
   const gravei = State.sugestoes.filter(s=> State.minhas[s.id]?.status==='gravei').length;
   const quero = State.sugestoes.filter(s=> State.minhas[s.id]?.status==='quero').length;
-  const filtros = [['todas','Todas', State.sugestoes.length], ['quero','🙋 Minha lista', quero], ['gravei','✅ Já gravei', gravei],
+  const filtros = [['todas','Todas', State.sugestoes.length], ...(ideiasIa().length ? [['ia','✨ Da IA', ideiasIa().length]] : []), ['quero','🙋 Minha lista', quero], ['gravei','✅ Já gravei', gravei],
     ...Object.entries(SUGESTAO_TIPOS).map(([k,t])=>[k, `${t.emoji} ${t.curto||t.label}`, State.sugestoes.filter(s=>s.tipo===k).length]).filter(f=>f[2])];
-  const lista = State.sugestoes.filter(s=> State.filtro==='todas' ? true : State.filtro==='quero' || State.filtro==='gravei' ? State.minhas[s.id]?.status===State.filtro : s.tipo===State.filtro);
+  const lista = State.filtro==='ia' ? ideiasIa().map(ideiaIaComoSugestao) : State.sugestoes.filter(s=> State.filtro==='todas' ? true : State.filtro==='quero' || State.filtro==='gravei' ? State.minhas[s.id]?.status===State.filtro : s.tipo===State.filtro);
   return `
   <div class="page-head"><div><h1>Ideias pra gravar</h1><div class="sub">Sugestões da FourLab além dos seus roteiros do mês. Escolha uma, grave do seu jeito e marque aqui quando postar.</div></div>
     ${State.sugestoes.length ? `<div class="card" style="padding:14px 18px; display:flex; gap:22px; align-items:center;">
       <div><div style="font-size:26px; font-weight:700; font-family:var(--font-title);">${gravei}</div><div style="font-size:11.5px; color:var(--muted);">gravadas</div></div>
       <div><div style="font-size:26px; font-weight:700; font-family:var(--font-title);">${quero}</div><div style="font-size:11.5px; color:var(--muted);">na sua lista</div></div></div>` : ''}</div>
-  ${State.sugestoes.length ? `<div class="filter-pills" style="margin-bottom:16px;">${filtros.map(([k,l,n])=>`<button class="fpill ${State.filtro===k?'active':''}" data-filtro="${k}">${l} <span class="count">${n}</span></button>`).join('')}</div>` : ''}
-  ${lista.length ? `<div class="sug-grid">${lista.map(s=> sugestaoCardHtml(s, {extra: seloMinha(s)})).join('')}</div>`
+  ${cardIaHtml()}
+  ${State.sugestoes.length || ideiasIa().length ? `<div class="filter-pills" style="margin-bottom:16px;">${filtros.map(([k,l,n])=>`<button class="fpill ${State.filtro===k?'active':''}" data-filtro="${k}">${l} <span class="count">${n}</span></button>`).join('')}</div>` : ''}
+  ${lista.length ? `<div class="sug-grid">${lista.map(s=> s.ia ? sugestaoCardHtml(s, {extra: `<div class="sug-selo" style="background:var(--orange-soft); color:#b5480a;">✨ Criada pela IA${s.avaliacao==='bom'?' · 👍':s.avaliacao==='ruim'?' · 👎':''}</div>`}).replace('data-abrir-sugestao=','data-abrir-ia=') : sugestaoCardHtml(s, {extra: seloMinha(s)})).join('')}</div>`
     : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? (State.filtro==='quero' ? 'Abra uma ideia e toque em "Quero gravar" pra guardar aqui.' : State.filtro==='gravei' ? 'Quando gravar uma ideia, marque "Já gravei" nela.' : 'Nada aqui.') : 'Nenhuma ideia publicada ainda. Logo chegam sugestões novas!'}</div></div>`}`;
 }
 
 function render(){
   document.getElementById('main').innerHTML = view();
   document.querySelectorAll('[data-filtro]').forEach(b=> b.onclick = ()=>{ State.filtro = b.dataset.filtro; render(); });
+  const pedir = document.getElementById('btnPedirIa'); if(pedir) pedir.onclick = abrirPedirIa;
+  document.querySelectorAll('[data-abrir-ia]').forEach(el=>{ el.onclick = ()=> abrirIdeiaIa(el.dataset.abrirIa); el.onkeydown = (e)=>{ if(e.key==='Enter') abrirIdeiaIa(el.dataset.abrirIa); }; });
   document.querySelectorAll('[data-abrir-sugestao]').forEach(el=>{
     el.onclick = ()=> abrirDetalhe(el.dataset.abrirSugestao);
     el.onkeydown = (e)=>{ if(e.key==='Enter') abrirDetalhe(el.dataset.abrirSugestao); };

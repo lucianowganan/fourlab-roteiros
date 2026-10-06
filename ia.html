@@ -38,11 +38,15 @@ const CAMPOS = [
   {key:'evitar', titulo:'O que evitar', ajuda:'Palavras, promessas e vícios de texto que não podem aparecer.', linhas:5},
   {key:'estrutura', titulo:'Estrutura do roteiro (formato da resposta)', ajuda:'Como a IA deve organizar o roteiro. As seções com # viram títulos no app e no PDF.', linhas:10},
   {key:'regras_extras', titulo:'Regras extras', ajuda:'Qualquer outra orientação (ex.: duração máxima, regras de uma campanha fixa).', linhas:3},
+  {key:'regras_sugestoes', titulo:'Regras das sugestões de conteúdo (IA de ideias)', ajuda:'Só pra IA que cria sugestões de reels, stories e carrosséis (aba Sugestões e portal dos atletas). Ela também usa marca, público, tom, palavras-chave e "o que evitar" daqui.', linhas:5,
+    migracao:'migrations/2026-10-07_ia_sugestoes.sql', exemplo:'Ex.:\n- Sempre terminar stories com enquete ou caixinha\n- Reels de no máximo 30s\n- Mostrar o produto dentro do treino, nunca em close de anúncio'},
 ];
+// Campos novos só entram no salvamento depois que a migração deles rodou (senão o upsert falharia inteiro)
+const campoDisponivel = (c)=> !c.migracao || (State.ctxOriginal && c.key in State.ctxOriginal);
 const State = { aba:'contexto', ctx:null, ctxOriginal:null, tabelaOk:true, exemplos:[], atletas:[], filtro:'todos', busca:'', equipe:'', expandidos:new Set(), previa:null, carregandoPrevia:false, profile:null };
 
 function athleteNome(id){ return State.atletas.find(a=>a.id===id)?.name || ''; }
-function alterado(){ return State.ctx && State.ctxOriginal && CAMPOS.some(c=> (State.ctx[c.key]||'') !== (State.ctxOriginal[c.key]||'')); }
+function alterado(){ return State.ctx && State.ctxOriginal && CAMPOS.filter(campoDisponivel).some(c=> (State.ctx[c.key]||'') !== (State.ctxOriginal[c.key]||'')); }
 
 async function carregar(){
   const [ctx, ex, at] = await Promise.all([
@@ -70,7 +74,8 @@ function viewContexto(){
   <div class="grid-2" style="align-items:start;">
     ${CAMPOS.map(f=>`<div class="card" style="${f.key==='estrutura'?'grid-column:1/-1;':''}">
       <h2>${f.titulo}</h2><div class="desc" style="margin-bottom:10px;">${f.ajuda}</div>
-      <textarea data-campo="${f.key}" rows="${f.linhas}" style="min-height:${f.linhas*22}px; font-size:13px; line-height:1.5;">${escHtml(c[f.key]||'')}</textarea>
+      ${campoDisponivel(f) ? `<textarea data-campo="${f.key}" rows="${f.linhas}" placeholder="${escHtml(f.exemplo||'')}" style="min-height:${f.linhas*22}px; font-size:13px; line-height:1.5;">${escHtml(c[f.key]||'')}</textarea>`
+        : `<div style="font-size:12.5px; background:var(--orange-soft); border-radius:12px; padding:10px 12px;">Rode <code>${f.migracao}</code> no Supabase pra liberar este campo.</div>`}
     </div>`).join('')}
   </div>
   <div id="barraSalvar" style="position:sticky; bottom:14px; margin-top:18px; display:${alterado()?'flex':'none'}; align-items:center; gap:12px; background:var(--ink); color:#fff; border-radius:999px; padding:10px 12px 10px 22px; box-shadow:0 12px 30px rgba(0,0,0,0.25);">
@@ -261,7 +266,7 @@ function render(){
     document.getElementById('btnSalvarCtx').onclick = async (ev)=>{
       ev.target.disabled = true;
       const payload = { id:1, updated_at:new Date().toISOString(), updated_by: State.profile?.nome || '' };
-      CAMPOS.forEach(c=> payload[c.key] = State.ctx[c.key] || '');
+      CAMPOS.filter(campoDisponivel).forEach(c=> payload[c.key] = State.ctx[c.key] || '');
       const { error } = await sb.from('ia_contexto').upsert(payload);
       if(error){ erroBanco(error, 'migrations/2026-09-27_contexto_ia.sql'); ev.target.disabled = false; return; }
       Object.assign(State.ctx, payload); State.ctxOriginal = {...State.ctx}; State.previa = null;
