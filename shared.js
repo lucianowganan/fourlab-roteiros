@@ -1023,7 +1023,7 @@ function botaoCarregandoIA(btn, texto){ btn.disabled = true; btn.innerHTML = `<s
 const MIGRACAO_ENVIO = 'migrations/2026-10-08_envio_roteiros.sql';
 function camposEnvioDeLinha(r){
   return { enviadoEm:r.enviado_em||null, roteiroEnviado:r.roteiro_enviado||'', avaliacao:r.avaliacao||null,
-    alteradoEquipeEm:r.alterado_equipe_em||null, alteradoAtletaEm:r.alterado_atleta_em||null, envioDisponivel: 'enviado_em' in r };
+    alteradoEquipeEm:r.alterado_equipe_em||null, alteradoAtletaEm:r.alterado_atleta_em||null, envioDisponivel: 'enviado_em' in r, manual: !!r.manual };
 }
 function fmtDataCurta(iso){ return iso ? new Date(iso).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) : ''; }
 // Tags de situação do roteiro. opts.paraAtleta: textos do ponto de vista do atleta
@@ -1035,6 +1035,7 @@ function tagsRoteiroHtml(e, opts){
     else if(e.enviadoEm) t.push(`<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">✓ Enviado ${fmtDataCurta(e.enviadoEm)}</span>`);
     else t.push('<span class="chip static" style="color:#b5680a;">Rascunho — o atleta ainda não vê</span>');
   }
+  if(e.manual && !opts.paraAtleta) t.push('<span class="chip static" style="color:var(--purple);">✍️ Manual</span>');
   if(e.alteradoAtletaEm) t.push(`<span class="chip static" style="color:var(--purple); border-color:#e4cbe1; background:var(--purple-soft);">✏️ ${opts.paraAtleta ? 'Você alterou' : 'Alterado pelo atleta'} · ${fmtDataCurta(e.alteradoAtletaEm)}</span>`);
   if(e.alteradoEquipeEm) t.push(`<span class="chip static" style="color:#b5480a; border-color:#f8d6ba; background:var(--orange-soft);">✏️ Alterado pela FourLab · ${fmtDataCurta(e.alteradoEquipeEm)}</span>`);
   return t.join(' ');
@@ -1090,4 +1091,75 @@ function abrirRoteiroDaEquipe(e, nome, onMudou){
       else { ori.dataset.atual = ta.value; ta.value = e.roteiroEnviado; ta.readOnly = true; ori.textContent = 'Voltar pra versão atual'; ori.dataset.vendo = '1'; } };
   };
   desenhar();
+}
+
+/* ---------- Post manual (roteiro, stories, reels... adicionado à mão pela equipe) ----------
+   Usado em Mês / Roteiros e na pasta do atleta. Cria uma linha em entries com manual = true,
+   que nunca é mexida quando o calendário é gerado/atualizado. Dá pra escrever o texto ou pedir pra IA. */
+const MIGRACAO_MANUAIS = 'migrations/2026-10-10_posts_manuais.sql';
+const FORMATOS_MANUAIS = ['Vídeo','Carrossel','Stories','Reels','Post','Outro'];
+const SEM_PRODUTO = 'Sem produto (tema livre)';
+async function garantirCiclo(ym){
+  const { data } = await sb.from('cycles').select('*').eq('ym', ym).maybeSingle();
+  if(data) return data;
+  const r = await sb.from('cycles').insert({ ym }).select().single();
+  if(r.error) throw r.error;
+  return r.data;
+}
+// opts: {atletas (mapAthleteFromDB), produtos ({id,name,desc}), athleteId, data, onCriado(linhaDoBanco)}
+function abrirPostManual(opts){
+  const atletas = (opts.atletas||[]).filter(a=> !isProfissional(a) || a.id===opts.athleteId);
+  const hoje = todayISO();
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>✍️ Novo post manual</h3>
+    <div style="font-size:12.5px; color:var(--ink-2); background:var(--surface-2); border-radius:12px; padding:10px 12px; margin-bottom:14px;">Pra um pedido específico (produto diferente, uma instrução, um stories extra...). Não mexe no calendário nem nos outros atletas.</div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Atleta</label><select id="pmAtleta">${atletas.map(a=>`<option value="${a.id}" ${a.id===opts.athleteId?'selected':''}>${escHtml(a.name)} · ${escHtml(a.team||'')}</option>`).join('')}</select></div>
+      <div class="field"><label>Data do post</label><input id="pmData" type="date" value="${escHtml(opts.data || hoje)}"></div></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Formato</label><select id="pmFormato">${FORMATOS_MANUAIS.map(f=>`<option>${f}</option>`).join('')}</select></div>
+      <div class="field"><label>Produto</label><select id="pmProduto"><option value="">— ${SEM_PRODUTO} —</option>${(opts.produtos||[]).map(p=>`<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Instrução / tema</label><textarea id="pmTema" style="min-height:70px;" placeholder="Ex: ele já tem parceria com a Liquidz — falar só do gel em sachê, sem citar hidratação"></textarea></div>
+    <div class="field"><div class="row" style="justify-content:space-between; margin-bottom:6px;"><label style="margin:0;">Roteiro / texto</label>
+        <button type="button" class="btn btn-ghost btn-sm" id="pmIA">✨ Escrever com IA</button></div>
+      <textarea id="pmTexto" style="min-height:200px; font-size:13px; line-height:1.5;" placeholder="Escreva o roteiro, a sequência de stories... ou peça pra IA escrever a partir da instrução."></textarea>
+      <div id="pmIAStatus" style="font-size:12px; color:var(--muted); margin-top:4px;"></div></div>
+    <label style="display:flex; gap:8px; align-items:center; font-size:13px; cursor:pointer; text-transform:none; letter-spacing:0; color:var(--ink); margin:4px 0 12px;">
+      <input type="checkbox" id="pmEnviar" style="width:18px; height:18px;"> Revisei — já enviar pro atleta</label>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="pmSalvar">Salvar post</button></div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const val = (id)=> document.getElementById(id).value;
+  const atletaSel = ()=> (opts.atletas||[]).find(a=>a.id===val('pmAtleta'));
+  const produtoSel = ()=> (opts.produtos||[]).find(p=>p.id===val('pmProduto')) || null;
+  document.getElementById('pmEnviar').onchange = (e)=>{ document.getElementById('pmSalvar').textContent = e.target.checked ? 'Salvar e enviar pro atleta' : 'Salvar post'; };
+  document.getElementById('pmIA').onclick = async (ev)=>{
+    const btn = ev.currentTarget, st = document.getElementById('pmIAStatus'), a = atletaSel(), p = produtoSel();
+    if(!a){ toast('Escolha o atleta'); return; }
+    btn.disabled = true; btn.innerHTML = '<span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span> Escrevendo…'; st.textContent = 'A IA está escrevendo… pode levar até 1 minuto.';
+    try{
+      const ciclo = await sb.from('cycles').select('theme_geral, trends_notes, briefing_text').eq('ym', val('pmData').slice(0,7)).maybeSingle();
+      const { data, error } = await invocarFuncao('gerar-roteiro', {
+        athlete:a, produto: p ? {name:p.name, desc:p.desc||''} : {name:'__SEM_PRODUTO__', desc:''},
+        entry:{ date:val('pmData'), format:val('pmFormato'), theme:val('pmTema').trim() },
+        temaGeral:ciclo.data?.theme_geral||'', trendsNotes:ciclo.data?.trends_notes||'', briefingText:ciclo.data?.briefing_text||'', histAnterior:null });
+      if(error) throw error; if(data?.error) throw new Error(data.error);
+      document.getElementById('pmTexto').value = data.roteiro || ''; st.textContent = 'Pronto — revise e ajuste se precisar.';
+    }catch(err){ st.innerHTML = `<span style="color:var(--red);">${escHtml(err.message||String(err))}</span>`; }
+    btn.disabled = false; btn.textContent = '✨ Escrever com IA de novo';
+  };
+  document.getElementById('pmSalvar').onclick = async (ev)=>{
+    const a = atletaSel(), p = produtoSel(), data = val('pmData'), texto = val('pmTexto'), enviar = document.getElementById('pmEnviar').checked;
+    if(!a || !data){ toast('Escolha o atleta e a data'); return; }
+    if(enviar && !texto.trim()){ toast('Escreva o roteiro antes de enviar'); return; }
+    const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Salvando…';
+    try{
+      const ciclo = await garantirCiclo(data.slice(0,7));
+      const agora = new Date().toISOString();
+      const linha = { cycle_id:ciclo.id, athlete_id:a.id, team:a.team, product: p ? p.name : SEM_PRODUTO, theme:val('pmTema').trim(), format:val('pmFormato'),
+        post_date:data, roteiro:texto, manual:true, ...(enviar ? { enviado_em:agora, roteiro_enviado:texto } : {}) };
+      const { data: criada, error } = await sb.from('entries').insert(linha).select().single();
+      if(error) throw error;
+      closeModal(); toast(enviar ? `Post criado e enviado pra ${a.name.split(' ')[0]} ✓` : 'Post manual criado (rascunho)');
+      if(opts.onCriado) opts.onCriado(criada);
+    }catch(err){ btn.disabled = false; btn.textContent = enviar ? 'Salvar e enviar pro atleta' : 'Salvar post'; erroBanco(err, MIGRACAO_MANUAIS); }
+  };
 }

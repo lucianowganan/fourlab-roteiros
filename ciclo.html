@@ -41,7 +41,7 @@
 <script>
 // Equipes "de verdade" (postam em grupo). Avulsos e profissionais parceiros são tratados individualmente.
 let REAL_TEAMS = ["Trek","Audax","Oggi","Brou","Scott","4Fun"];
-const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false, envioOk:false, curtidos:[], compras:{}, cuponsCompras:{}, comprasOk:false };
+const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false, envioOk:false, curtidos:[], compras:{}, cuponsCompras:{}, comprasOk:false, manualOk:false };
 
 /* ---------- utilitários de data ---------- */
 function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
@@ -56,7 +56,7 @@ function mapEntryFromDB(r){
     format:r.format, date:r.post_date, roteiro:r.roteiro||'',
     status:{ postou:r.postou, collab:r.collab, obs:r.obs||'',
       metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} },
-    ...camposEnvioDeLinha(r) };
+    ...camposEnvioDeLinha(r), manual: !!r.manual };
 }
 // campos de envio só entram no banco depois da migração 2026-10-08 (State.envioOk)
 function camposEnvioParaBanco(e){
@@ -96,6 +96,7 @@ async function persistCycleEntries(ym){
     metric_views:e.status?.metrics?.views||0, metric_likes:e.status?.metrics?.likes||0,
     metric_comments:e.status?.metrics?.comments||0, metric_shares:e.status?.metrics?.shares||0, metric_saves:e.status?.metrics?.saves||0,
     ...camposEnvioParaBanco(e),
+    ...(State.manualOk ? { manual: !!e.manual } : {}),
   }));
   if(rows.length){
     const { data } = await sb.from('entries').insert(rows).select();
@@ -105,7 +106,7 @@ async function persistCycleEntries(ym){
 }
 async function persistOneEntry(ym, entry){
   const cycle = await getOrCreateCycleDB(ym);
-  await sb.from('entries').update({ post_date:entry.date, roteiro:entry.roteiro,
+  await sb.from('entries').update({ post_date:entry.date, roteiro:entry.roteiro, product:entry.product, format:entry.format, theme:entry.theme||'',
     postou:entry.status?.postou||null, collab:entry.status?.collab||null, obs:entry.status?.obs||'',
     metric_views:entry.status?.metrics?.views||0, metric_likes:entry.status?.metrics?.likes||0,
     metric_comments:entry.status?.metrics?.comments||0, metric_shares:entry.status?.metrics?.shares||0, metric_saves:entry.status?.metrics?.saves||0,
@@ -200,6 +201,33 @@ function avisoErroIA(err, nome){
   mostrarFaixaErro(`Não deu pra gerar o roteiro${nome?` de ${escHtml(nome)}`:''}.`, texto + '<br><span style="font-size:12px; color:var(--muted);">Dica: na aba <strong>Contexto da IA → Prévia</strong> tem o botão <strong>Testar IA</strong>, que diz na hora se a chave e o modelo estão ok.</span>');
 }
 
+// Encaixa atletas NOVOS nos dias livres do mês, sem mexer em quem já está no calendário.
+// Mesma regra do calendário automático: posts da mesma equipe com pelo menos 3 dias de distância.
+function agendarNovos(ym, selecoes, existentes){
+  const nDays = daysInMonth(ym), dias = existentes.map(e=>({team:e.team, dia:Number(e.date.slice(8,10))}));
+  return selecoes.map(sel=>{
+    const daEquipe = REAL_TEAMS.includes(sel.team);
+    let melhor = 1, melhorNota = -Infinity;
+    for(let d=1; d<=nDays; d++){
+      const distEquipe = daEquipe ? Math.min(99, ...dias.filter(x=>x.team===sel.team).map(x=>Math.abs(x.dia-d))) : 99;
+      const distTodos = Math.min(99, ...dias.map(x=>Math.abs(x.dia-d)));
+      const nota = (distEquipe >= 3 ? 1000 : distEquipe*100) + Math.min(distTodos, 10)*10 - d*0.01;
+      if(nota > melhorNota){ melhorNota = nota; melhor = d; }
+    }
+    dias.push({team:sel.team, dia:melhor});
+    return { id: uid(), athleteId: sel.athleteId, team: sel.team, product: sel.product, theme: sel.theme, format: sel.format,
+      date: dateFromDay(ym, melhor), roteiro: '', manual:false, status: { postou:null, collab:null, obs:'', metrics:{views:'',likes:'',comments:'',shares:'',saves:''} } };
+  });
+}
+async function inserirEntradas(ym, novas){
+  const cycle = await getOrCreateCycleDB(ym);
+  if(!novas.length) return [];
+  const rows = novas.map(e=>({ cycle_id:cycle.id, athlete_id:e.athleteId, team:e.team, product:e.product, theme:e.theme||'', format:e.format, post_date:e.date, roteiro:e.roteiro||'' }));
+  const { data, error } = await sb.from('entries').insert(rows).select();
+  if(error) throw error;
+  return (data||[]).map(mapEntryFromDB);
+}
+
 async function salvarExemplo(entry, athlete, tipo, motivo){
   try{
     await sb.from('roteiro_exemplos').insert({ athlete_id: athlete?.id || null, team: entry.team, produto: entry.product,
@@ -226,7 +254,7 @@ async function gerarUmRoteiro(cycle, entryId, motivoRegeracao){
   if(!a) return;
   e.__ym = cycle.ym;
   // ao regerar, o texto anterior vira exemplo 👎 — menos se a equipe tinha curtido (👍)
-  if(e.roteiro && e.roteiro.trim() && e.avaliacao !== 'bom') await salvarExemplo(e, a, 'ruim', motivoRegeracao||'');
+  if(e.roteiro && e.roteiro.trim() && e.avaliacao !== 'bom' && !e.__semExemplo) await salvarExemplo(e, a, 'ruim', motivoRegeracao||'');
   if(e.avaliacao){ e.avaliacao = null; if(State.envioOk) await sb.from('entries').update({ avaliacao:null }).eq('id', e.id); }
   try{
     const exemplosBons = await buscarExemplosBons(3);
@@ -363,10 +391,12 @@ function renderEntriesList(cycle){
           ${teamBadge(e.team)}
           <strong>${a?escHtml(a.name):'(removido)'}</strong>
           <span style="color:var(--muted);font-size:12px;">${weekdayShort(e.date)} ${e.date.split('-').reverse().join('/')} · ${escHtml(e.product)} · ${escHtml(e.format)}</span>
+          ${e.manual ? '<span class="chip static" style="color:var(--purple);">✍️ Manual</span>' : ''}
           ${e.roteiro ? '<span class="chip static" style="color:#b5680a;">Rascunho — o atleta ainda não vê</span>' : ''}
+          ${e.produtoMudou ? '<span class="chip static" style="color:var(--red);">Produto/formato mudou — clique em Regerar</span>' : ''}
         </div>
         <div class="row" style="gap:6px;">
-          <button class="btn btn-ghost btn-sm" data-change-date="${e.id}">Alterar data</button>
+          <button class="btn btn-ghost btn-sm" data-editar-post="${e.id}">Editar post</button>
           <button class="btn btn-outline btn-sm" data-gen-one="${e.id}">${e.roteiro?'Regerar':'Gerar'}</button>
           ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-copy="${e.id}">Copiar</button>`:''}
           ${e.roteiro?`<button class="btn ${e.avaliacao==='bom'?'btn-dark':'btn-ghost'} btn-sm" data-mark-bom="${e.id}" title="Bom exemplo pra IA aprender (o roteiro continua aqui)">${e.avaliacao==='bom'?'👍 Curtido':'👍'}</button>`:''}
@@ -447,12 +477,12 @@ function viewCiclo(){
     html += `<div class="section-title">${teamBadge(team)}${team==='Scott'?' <span style="color:var(--pink); text-transform:none; font-weight:700;">— confirmação manual</span>':''}</div>
     <table><thead><tr><th style="width:26px;"></th><th>Atleta</th><th>Produto</th><th>Tema/ângulo específico</th><th style="width:110px;">Formato</th></tr></thead><tbody>
     ${list.map(a=>{
-      const existing = cycle.entries.find(e=>e.athleteId===a.id);
+      const existing = cycle.entries.find(e=>e.athleteId===a.id && !e.manual);
       const checked = existing ? 'checked' : '';
       const last = lastEntryFor(a.id, ym);
       return `<tr>
         <td><input type="checkbox" class="selAthlete" data-athlete="${a.id}" data-team="${team}" ${checked}></td>
-        <td><strong>${a.name}</strong>${last?`<div style="font-size:11px;color:var(--muted);">último: ${last.product}</div>`:''}</td>
+        <td><strong>${a.name}</strong>${existing?`<div style="font-size:11px;color:var(--green);font-weight:700;">📅 no calendário: ${fmtDateBR(existing.date).slice(0,5)}${existing.enviadoEm?' · enviado':''}</div>`:''}${last?`<div style="font-size:11px;color:var(--muted);">último: ${last.product}</div>`:''}</td>
         <td><select class="selProduct" data-athlete="${a.id}">
           <option value="__SEM_PRODUTO__" ${existing&&existing.product==='Sem produto (tema livre)'?'selected':''}>— Sem produto (tema livre) —</option>
           ${State.products.map(p=>`<option value="${p.id}" ${existing&&existing.product===p.name?'selected':''}>${p.name}</option>`).join('')}
@@ -466,9 +496,14 @@ function viewCiclo(){
     </tbody></table>`;
   });
 
-  html += `<div class="row" style="margin-top:16px;">
-      <button class="btn btn-primary" id="btnGerarCalendario">1. Gerar calendário deste mês</button>
-      <span style="font-size:12px;color:var(--muted);">Recalcula as datas dos selecionados respeitando espaçamento por equipe.</span></div></div>`;
+  const temCalendario = cycle.entries.some(e=> !e.manual);
+  html += `<div class="row" style="margin-top:16px; gap:10px;">
+      <button class="btn btn-primary" id="btnGerarCalendario">${temCalendario ? '1. Adicionar ao calendário' : '1. Gerar calendário deste mês'}</button>
+      <span style="font-size:12px;color:var(--muted); flex:1; min-width:220px;">${temCalendario
+        ? 'Só encaixa os atletas marcados que ainda não estão no mês. Quem já está continua com a mesma data e o mesmo roteiro — pra trocar produto ou data de alguém, use <strong>Editar post</strong> no card dele.'
+        : 'Distribui as datas dos selecionados respeitando o espaçamento por equipe.'}</span>
+      <button class="btn btn-ghost btn-sm" id="btnPostManual">✍️ Post manual</button>
+      ${temCalendario ? '<button class="btn btn-ghost btn-sm" id="btnRefazerCalendario" style="color:var(--red);">Refazer calendário do zero</button>' : ''}</div></div>`;
 
   if(hasEntries){
     const faltam = cycle.entries.filter(e=> !e.enviadoEm && !(e.roteiro||'').trim()).length;
@@ -476,6 +511,7 @@ function viewCiclo(){
     html += `<div class="panel"><div class="row" style="justify-content:space-between;">
         <div><h2>Roteiros — ${fmtMonthLabel(ym)}</h2><div class="desc">${cycle.entries.length} posts agendados · gere, revise/edite e envie pro atleta.</div></div>
         <div class="row" style="gap:6px;">
+          <button class="btn btn-ghost" id="btnPostManual2">✍️ Post manual</button>
           <button class="btn btn-danger" id="btnApagarMes">🗑️ Apagar tudo deste mês</button>
           <button class="btn btn-outline" id="btnExportarPDF">📄 Exportar PDF</button>
           ${faltam ? `<button class="btn btn-primary" id="btnGerarTodosRoteiros">2. Gerar os que faltam (${faltam})</button>` : ''}
@@ -567,22 +603,56 @@ function wireEntriesList(){
       if(e){ e.roteiro = ta.value; await persistOneEntry(State.currentCycleYM, e); }
     };
   });
-  document.querySelectorAll('[data-change-date]').forEach(btn=>{
-    btn.onclick = ()=>{
-      const cycle = getOrCreateCycle(State.currentCycleYM);
-      const e = cycle.entries.find(x=>x.id===btn.dataset.changeDate);
-      openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Alterar data — ${athleteName(e.athleteId)}</h3>
-        <div class="field"><label>Nova data</label><input type="date" id="newDateInput" value="${e.date}"></div>
-        <button class="btn btn-primary" id="btnSaveDate">Salvar</button>`);
-      document.getElementById('modalCloseBtn').onclick = closeModal;
-      document.getElementById('btnSaveDate').onclick = async ()=>{
-        e.date = document.getElementById('newDateInput').value;
-        cycle.entries.sort((a,b)=>a.date.localeCompare(b.date));
-        await persistOneEntry(State.currentCycleYM, e);
-        closeModal(); render();
-      };
-    };
+  document.querySelectorAll('[data-editar-post]').forEach(btn=>{
+    btn.onclick = ()=> abrirEditarPost(btn.dataset.editarPost);
   });
+}
+
+// Editar UM post: data, produto, formato, tema. Não mexe em nenhum outro atleta.
+function abrirEditarPost(id){
+  const cycle = getOrCreateCycle(State.currentCycleYM);
+  const e = cycle.entries.find(x=>x.id===id); if(!e) return;
+  const formatos = [...new Set(['Vídeo','Carrossel', ...FORMATOS_MANUAIS, e.format].filter(Boolean))];
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Editar post — ${escHtml(athleteName(e.athleteId))}</h3>
+    <div style="font-size:12.5px; color:var(--muted); margin:-8px 0 12px;">Muda só este post. Os outros atletas e datas continuam iguais.</div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Data</label><input type="date" id="epData" value="${e.date}"></div>
+      <div class="field"><label>Formato</label><select id="epFormato">${formatos.map(f=>`<option ${f===e.format?'selected':''}>${f}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Produto</label><select id="epProduto"><option value="${SEM_PRODUTO}" ${e.product===SEM_PRODUTO?'selected':''}>— ${SEM_PRODUTO} —</option>
+      ${State.products.map(p=>`<option ${p.name===e.product?'selected':''}>${escHtml(p.name)}</option>`).join('')}${e.product && e.product!==SEM_PRODUTO && !State.products.some(p=>p.name===e.product) ? `<option selected>${escHtml(e.product)}</option>` : ''}</select>
+      ${State.compras[e.athleteId] ? `<div style="margin-top:6px;">${comprasChipsHtml(State.compras[e.athleteId], {produtos:State.products})}</div>` : ''}</div>
+    <div class="field"><label>Tema / instrução pra IA</label><textarea id="epTema" style="min-height:70px;" placeholder="Ex: ele tem parceria com a Liquidz — falar só do gel em sachê">${escHtml(e.theme||'')}</textarea></div>
+    ${e.roteiro && !e.enviadoEm ? `<label style="display:flex; gap:8px; align-items:center; font-size:13px; cursor:pointer; text-transform:none; letter-spacing:0; color:var(--ink); margin-bottom:10px;"><input type="checkbox" id="epRegerar" style="width:18px;height:18px;"> Regerar o roteiro com essas mudanças</label>` : ''}
+    ${e.enviadoEm ? '<div style="font-size:12px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:10px;">Este roteiro já foi enviado. Mudar o produto aqui não muda o texto que o atleta tem — pra isso, abra o roteiro em Acompanhamento.</div>' : ''}
+    <div class="row" style="justify-content:space-between;">
+      <button class="btn btn-danger btn-sm" id="epRemover">Remover do mês</button>
+      <button class="btn btn-primary" id="epSalvar">Salvar</button></div>`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const regerarChk = document.getElementById('epRegerar');
+  const marcarRegerar = ()=>{ if(!regerarChk) return; regerarChk.checked = document.getElementById('epProduto').value !== e.product || document.getElementById('epFormato').value !== e.format; };
+  document.getElementById('epProduto').onchange = marcarRegerar; document.getElementById('epFormato').onchange = marcarRegerar;
+  document.getElementById('epSalvar').onclick = async (ev)=>{
+    const novo = { date:document.getElementById('epData').value, product:document.getElementById('epProduto').value, format:document.getElementById('epFormato').value, theme:document.getElementById('epTema').value.trim() };
+    if(!novo.date){ toast('Escolha a data'); return; }
+    const mudouBase = novo.product !== e.product || novo.format !== e.format;
+    Object.assign(e, novo);
+    const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Salvando…';
+    await persistOneEntry(State.currentCycleYM, e);
+    cycle.entries.sort((x,y)=> x.date.localeCompare(y.date));
+    if(regerarChk && regerarChk.checked){
+      btn.innerHTML = '<span class="loader"></span> Regerando o roteiro…';
+      e.__semExemplo = true;   // o texto antigo não era ruim — só mudou o produto/formato
+      await gerarUmRoteiro(cycle, e.id); e.__semExemplo = false; e.produtoMudou = false;
+    } else if(mudouBase && e.roteiro && !e.enviadoEm) e.produtoMudou = true;
+    closeModal(); toast('Post atualizado'); render();
+  };
+  document.getElementById('epRemover').onclick = async ()=>{
+    if(!confirm(e.enviadoEm ? 'Este roteiro já foi enviado — o atleta deixa de ver. Remover este post do mês?' : 'Remover este post do mês? Os outros não mudam.')) return;
+    const { error } = await sb.from('entries').delete().eq('id', e.id);
+    if(error){ erroBanco(error); return; }
+    cycle.entries = cycle.entries.filter(x=>x.id!==e.id); await carregarHistorico();
+    closeModal(); toast('Post removido'); render();
+  };
 }
 
 function wireCicloView(){
@@ -622,36 +692,58 @@ function wireCicloView(){
     await persistCycleMeta(State.currentCycleYM);
   };
 
-  document.getElementById('btnGerarCalendario').onclick = async ()=>{
-    const ym = State.currentCycleYM;
-    const checks = Array.from(document.querySelectorAll('.selAthlete:checked'));
-    if(!checks.length){ toast('Marque ao menos um atleta'); return; }
-    const selections = checks.map(chk=>{
-      const athleteId = chk.dataset.athlete, team = chk.dataset.team;
-      const prodSel = document.querySelector(`.selProduct[data-athlete="${athleteId}"]`);
-      const isSemProduto = prodSel.value === '__SEM_PRODUTO__';
-      const productObj = isSemProduto ? null : State.products.find(p=>p.id===prodSel.value);
-      const themeInput = document.querySelector(`.selTheme[data-athlete="${athleteId}"]`);
-      const formatSel = document.querySelector(`.selFormat[data-athlete="${athleteId}"]`);
-      return { athleteId, team, product: isSemProduto ? 'Sem produto (tema livre)' : (productObj ? productObj.name : ''),
-        theme: themeInput.value.trim(), format: formatSel.value };
-    });
-    const cycle = getOrCreateCycle(ym);
-    // mantém o roteiro (e o envio) de quem continua com o mesmo produto e formato; só a data é recalculada
-    const antigos = cycle.entries || [];
+  const lerSelecoes = ()=> Array.from(document.querySelectorAll('.selAthlete:checked')).map(chk=>{
+    const athleteId = chk.dataset.athlete, team = chk.dataset.team;
+    const prodSel = document.querySelector(`.selProduct[data-athlete="${athleteId}"]`);
+    const isSemProduto = prodSel.value === '__SEM_PRODUTO__';
+    const productObj = isSemProduto ? null : State.products.find(p=>p.id===prodSel.value);
+    return { athleteId, team, product: isSemProduto ? SEM_PRODUTO : (productObj ? productObj.name : ''),
+      theme: document.querySelector(`.selTheme[data-athlete="${athleteId}"]`).value.trim(), format: document.querySelector(`.selFormat[data-athlete="${athleteId}"]`).value };
+  });
+
+  document.getElementById('btnGerarCalendario').onclick = async (ev)=>{
+    const ym = State.currentCycleYM, cycle = getOrCreateCycle(ym);
+    const selections = lerSelecoes();
+    if(!selections.length){ toast('Marque ao menos um atleta'); return; }
+    const noCalendario = cycle.entries.filter(e=> !e.manual);
+    if(!noCalendario.length){ await refazerCalendario(selections, true); return; }
+    // Incremental: só entra quem ainda não está no mês; ninguém que já está muda de data, produto ou roteiro
+    const novos = selections.filter(s=> !noCalendario.some(e=> e.athleteId===s.athleteId));
+    if(!novos.length){ toast('Todos os marcados já estão no calendário. Pra mudar produto ou data de alguém, use “Editar post” no card dele.'); return; }
+    const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Adicionando…';
+    try{
+      cycle.themeGeral = document.getElementById('temaGeral').value; await persistCycleMeta(ym);
+      const criadas = await inserirEntradas(ym, agendarNovos(ym, novos, cycle.entries));
+      cycle.entries = [...cycle.entries, ...criadas].sort((x,y)=> x.date.localeCompare(y.date));
+      await carregarHistorico();
+      toast(`${criadas.length} atleta(s) adicionado(s) — os outros não mudaram`);
+    }catch(err){ erroBanco(err); }
+    render();
+  };
+  // Refazer do zero: redistribui as datas de todos (mantém o roteiro de quem continua com o mesmo produto e formato)
+  async function refazerCalendario(selections, primeiraVez){
+    const ym = State.currentCycleYM, cycle = getOrCreateCycle(ym);
+    const antigos = cycle.entries.filter(e=> !e.manual), manuais = cycle.entries.filter(e=> e.manual);
     const novos = autoScheduleCycle(ym, selections).map(n=>{
       const o = antigos.find(x=> x.athleteId===n.athleteId && x.product===n.product && x.format===n.format && ((x.roteiro||'').trim() || x.enviadoEm));
       return o ? {...o, id:n.id, date:n.date, theme:n.theme} : n;
     });
-    const perdidos = antigos.filter(o=> o.enviadoEm && !novos.some(n=> n.athleteId===o.athleteId && n.roteiro===o.roteiro));
-    if(perdidos.length && !confirm(`${perdidos.length} roteiro(s) já enviado(s) vão ser apagados (${perdidos.map(o=>athleteName(o.athleteId)).join(', ')}), porque o atleta saiu da lista ou mudou de produto/formato. Continuar?`)) return;
-    cycle.entries = novos;
+    if(!primeiraVez){
+      const perdidos = antigos.filter(o=> (o.enviadoEm || (o.roteiro||'').trim()) && !novos.some(n=> n.athleteId===o.athleteId && n.roteiro===o.roteiro));
+      if(!confirm(`Refazer o calendário do zero muda as datas de TODOS os atletas marcados.${perdidos.length ? `\n\n${perdidos.length} roteiro(s) vão ser apagados (${perdidos.map(o=>athleteName(o.athleteId)).join(', ')}).` : ''}\n\nPosts manuais não são mexidos. Continuar?`)) return;
+    }
+    cycle.entries = [...novos, ...manuais];
     cycle.themeGeral = document.getElementById('temaGeral').value;
     await persistCycleMeta(ym);
     await persistCycleEntries(ym);
     toast('Calendário gerado');
     render();
-  };
+  }
+  const refazer = document.getElementById('btnRefazerCalendario');
+  if(refazer) refazer.onclick = ()=>{ const sel = lerSelecoes(); if(!sel.length){ toast('Marque ao menos um atleta'); return; } refazerCalendario(sel, false); };
+  const abrirManual = ()=> abrirPostManual({ atletas:State.athletes, produtos:State.products, data: State.currentCycleYM === monthKey(todayISO()) ? todayISO() : State.currentCycleYM+'-01',
+    onCriado:(linha)=>{ if(String(linha.post_date).slice(0,7) === State.currentCycleYM){ const c = getOrCreateCycle(State.currentCycleYM); if(!c.id) c.id = linha.cycle_id; c.entries.push(mapEntryFromDB(linha)); c.entries.sort((x,y)=> x.date.localeCompare(y.date)); } render(); } });
+  ['btnPostManual','btnPostManual2'].forEach(id=>{ const b = document.getElementById(id); if(b) b.onclick = abrirManual; });
 
   wireEntriesList();
 
@@ -710,6 +802,7 @@ function render(){
     sb.from('roteiro_exemplos').select('athlete_id, produto, formato, roteiro_text, created_at').eq('tipo', 'bom').order('created_at', {ascending:false}).limit(300),
   ]);
   State.envioOk = !probe.error;
+  State.manualOk = !(await sb.from('entries').select('manual').limit(1)).error;
   const [cads, comp] = await Promise.all([
     sb.from('atleta_cadastro').select('athlete_id, cupom_compras'),
     sb.from('atleta_compras').select('*'),
