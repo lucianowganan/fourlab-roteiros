@@ -101,9 +101,9 @@ function heroVendasHtml(){
       ${areaChartHtml(hist, {axis:true, height:150, ariaLabel:'Vendas dos últimos 6 meses'})}
     </div>
     <div class="span-7 tiles-3">
-      <div class="tile t-orange"><div><div class="t-value">${fmtBRL(comissao)}</div><div class="t-label">Sua comissão no mês</div></div>
+      <div class="tile t-orange"><div><div class="t-value">${fmtBRLSplit(comissao)}</div><div class="t-label">Sua comissão no mês</div></div>
         <div class="t-foot"><span class="t-ic" style="color:var(--orange);">${ICONS.vendas}</span>${deltaHtml(comissao, prev && Number(prev.comissao_mes))}</div></div>
-      <div class="tile t-purple"><div><div class="t-value">${fmtBRL(saldo)}</div><div class="t-label">Saldo acumulado</div></div>
+      <div class="tile t-purple"><div><div class="t-value">${fmtBRLSplit(saldo)}</div><div class="t-label">Saldo acumulado</div></div>
         <div class="t-foot"><span class="t-ic" style="color:var(--purple);">${ICONS.wallet}</span><span style="font-size:11px; font-weight:800; color:var(--purple);">${saldo>=META_PAGAMENTO?'Liberado!':`faltam ${fmtBRL(META_PAGAMENTO-saldo)}`}</span></div></div>
       <div class="tile t-yellow"><div><div class="t-value">${fmtNum(pedidos)}</div><div class="t-label">Pedidos com seu cupom</div></div>
         <div class="t-foot"><span class="t-ic" style="color:#8a6a00;">${ICONS.cart}</span>${deltaHtml(pedidos, prev && Number(prev.numero_pedidos))}</div></div>
