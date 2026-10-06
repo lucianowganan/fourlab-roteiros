@@ -79,6 +79,13 @@ async function carregarTudo(){
   if(r[0].error){ console.error(r[0].error); State.tabelaOk = false; return; }
   State.tabelaOk = true;
   [State.creators, State.envios, State.semanas, State.mensagens, State.calendario] = r.map(x=> x.data || []);
+  // Primeira vez (ou modelo novo no código): cadastra as mensagens padrão que faltam. As já editadas não são mexidas.
+  const faltam = MENSAGENS_PADRAO.filter(m=> !State.mensagens.some(x=> x.id===m.id));
+  if(faltam.length){
+    const { data, error } = await sb.from('creator_mensagens').upsert(faltam, { onConflict:'id', ignoreDuplicates:true }).select();
+    if(error) console.error(error);
+    State.mensagens = [...State.mensagens, ...(data || (error ? faltam : []))].sort((a,b)=> a.ordem - b.ordem);
+  }
 }
 async function registrarEvento(creatorId, tipo, texto){
   const { error } = await sb.from('creator_eventos').insert({ creator_id:creatorId, tipo, texto, autor:autor() });

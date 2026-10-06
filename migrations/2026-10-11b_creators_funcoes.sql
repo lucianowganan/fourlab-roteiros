@@ -2,7 +2,7 @@
 -- Programa FourLab Creators · PARTE 2 de 3 — formulário público (/lpcreators), cupom pedido pelo creator e pasta "Creators".
 -- Rodar no SQL Editor do Supabase, na ordem (a, b, c). É idempotente (pode rodar de novo).
 -- Dica: no GitHub, abra o arquivo e use o botão "Raw" (ou "Copy raw file") pra copiar inteiro.
--- Antes: 2026-10-11a_creators_tabelas.sql. Depois: 2026-10-11c_creators_mensagens.sql.
+-- Antes: 2026-10-11a_creators_tabelas.sql. Depois: 2026-10-11c_creators_calendario.sql.
 -- ============================================================
 
 -- ---------- 4) Formulário público (/lpcreators) ----------

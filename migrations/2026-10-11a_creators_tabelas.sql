@@ -2,7 +2,7 @@
 -- Programa FourLab Creators · PARTE 1 de 3 — tabelas e permissões (CRM separado dos atletas).
 -- Rodar no SQL Editor do Supabase, na ordem (a, b, c). É idempotente (pode rodar de novo).
 -- Dica: no GitHub, abra o arquivo e use o botão "Raw" (ou "Copy raw file") pra copiar inteiro.
--- Depois rode 2026-10-11b_creators_funcoes.sql e 2026-10-11c_creators_mensagens.sql.
+-- Depois rode 2026-10-11b_creators_funcoes.sql e 2026-10-11c_creators_calendario.sql.
 -- ============================================================
 
 -- ---------- 1) Inscrições / creators ----------
