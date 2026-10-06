@@ -41,7 +41,7 @@
 <script>
 // Equipes "de verdade" (postam em grupo). Avulsos e profissionais parceiros são tratados individualmente.
 let REAL_TEAMS = ["Trek","Audax","Oggi","Brou","Scott","4Fun"];
-const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false, envioOk:false, curtidos:[] };
+const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false, envioOk:false, curtidos:[], compras:{}, cuponsCompras:{}, comprasOk:false };
 
 /* ---------- utilitários de data ---------- */
 function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
@@ -435,8 +435,11 @@ function viewCiclo(){
 
   <div class="panel"><div class="row" style="justify-content:space-between;">
       <div><h2>Quem entra neste mês</h2><div class="desc">Marque os atletas ativos, escolha produto e (opcional) tema específico. Scott é confirmação manual.</div></div>
-      <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--purple); text-transform:none; cursor:pointer;">
-        <input type="checkbox" id="selectAllAthletes" style="width:auto;"> Selecionar todos</label></div>`;
+      <div class="row" style="gap:12px;">
+        ${State.comprasOk && Object.keys(State.cuponsCompras).length ? `<button class="btn btn-ghost btn-sm" id="btnAtualizarCompras" title="Busca na Yampi o que cada atleta pediu com o cupom de compras dele">🛒 Atualizar compras da Yampi</button>` : ''}
+        <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:var(--purple); text-transform:none; cursor:pointer;">
+          <input type="checkbox" id="selectAllAthletes" style="width:auto;"> Selecionar todos</label></div></div>
+      ${State.comprasOk && Object.keys(State.cuponsCompras).length ? '<div style="font-size:12px; color:var(--muted); margin-top:6px;">🛒 Embaixo do produto aparecem os itens que o atleta mais pediu na Yampi. Clique num deles pra escolher esse produto.</div>' : ''}`;
 
   Object.keys(grouped).forEach(team=>{
     const list = grouped[team];
@@ -453,7 +456,7 @@ function viewCiclo(){
         <td><select class="selProduct" data-athlete="${a.id}">
           <option value="__SEM_PRODUTO__" ${existing&&existing.product==='Sem produto (tema livre)'?'selected':''}>— Sem produto (tema livre) —</option>
           ${State.products.map(p=>`<option value="${p.id}" ${existing&&existing.product===p.name?'selected':''}>${p.name}</option>`).join('')}
-        </select></td>
+        </select>${State.compras[a.id] ? `<div style="margin-top:6px;">${comprasChipsHtml(State.compras[a.id], {produtos:State.products, clicavel:a.id})}</div>` : (State.cuponsCompras[a.id] ? `<div style="font-size:11px; color:var(--muted); margin-top:5px;">🛒 cupom ${escHtml(State.cuponsCompras[a.id])} — clique em “Atualizar compras da Yampi”</div>` : '')}</td>
         <td><input class="selTheme" data-athlete="${a.id}" placeholder="livre / deixa a IA decidir" value="${existing?existing.theme.replace(/"/g,'&quot;'):''}"></td>
         <td><select class="selFormat" data-athlete="${a.id}">
           <option ${((existing&&existing.format)||a.formatPref)==='Vídeo'?'selected':''}>Vídeo</option>
@@ -583,6 +586,26 @@ function wireEntriesList(){
 }
 
 function wireCicloView(){
+  document.querySelectorAll('[data-usar-produto]').forEach(b=> b.onclick = ()=>{
+    const sel = document.querySelector(`.selProduct[data-athlete="${b.dataset.atletaCompra}"]`);
+    if(sel){ sel.value = b.dataset.usarProduto; const chk = document.querySelector(`.selAthlete[data-athlete="${b.dataset.atletaCompra}"]`); if(chk) chk.checked = true; toast('Produto escolhido'); }
+  });
+  const btnCompras = document.getElementById('btnAtualizarCompras');
+  if(btnCompras) btnCompras.onclick = async ()=>{
+    btnCompras.disabled = true; btnCompras.innerHTML = '<span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span> Buscando na Yampi… (pode levar 1 min)';
+    // guarda o que foi escolhido na tela pra não perder ao redesenhar
+    const escolhas = [...document.querySelectorAll('.selAthlete')].map(c=>({id:c.dataset.athlete, on:c.checked, prod:document.querySelector(`.selProduct[data-athlete="${c.dataset.athlete}"]`)?.value,
+      tema:document.querySelector(`.selTheme[data-athlete="${c.dataset.athlete}"]`)?.value, fmt:document.querySelector(`.selFormat[data-athlete="${c.dataset.athlete}"]`)?.value}));
+    try{
+      const r = await atualizarComprasYampi(Object.keys(State.cuponsCompras));
+      (r.resultados||[]).forEach(x=> State.compras[x.athlete_id] = x);
+      toast(`Compras atualizadas — ${r.pedidosLidos} pedidos lidos na Yampi`);
+    }catch(err){ mostrarFaixaErro('Não consegui buscar na Yampi.', escHtml(err.message)); }
+    render();
+    escolhas.forEach(e=>{ const q = (cls)=> document.querySelector(`.${cls}[data-athlete="${e.id}"]`);
+      if(q('selAthlete')) q('selAthlete').checked = e.on; if(q('selProduct') && e.prod) q('selProduct').value = e.prod;
+      if(q('selTheme') && e.tema != null) q('selTheme').value = e.tema; if(q('selFormat') && e.fmt) q('selFormat').value = e.fmt; });
+  };
   const selectAll = document.getElementById('selectAllAthletes');
   if(selectAll) selectAll.onchange = ()=> document.querySelectorAll('.selAthlete').forEach(chk=> chk.checked = selectAll.checked);
 
@@ -687,6 +710,13 @@ function render(){
     sb.from('roteiro_exemplos').select('athlete_id, produto, formato, roteiro_text, created_at').eq('tipo', 'bom').order('created_at', {ascending:false}).limit(300),
   ]);
   State.envioOk = !probe.error;
+  const [cads, comp] = await Promise.all([
+    sb.from('atleta_cadastro').select('athlete_id, cupom_compras'),
+    sb.from('atleta_compras').select('*'),
+  ]);
+  State.comprasOk = !cads.error && !comp.error;
+  (cads.data||[]).forEach(c=>{ if((c.cupom_compras||'').trim()) State.cuponsCompras[c.athlete_id] = c.cupom_compras.trim(); });
+  (comp.data||[]).forEach(c=> State.compras[c.athlete_id] = c);
   const limite = new Date(Date.now() - 45*864e5).toISOString();
   State.curtidos = (curt.data || []).filter(x=> x.athlete_id && x.roteiro_text && x.created_at >= limite);
   await carregarMes(State.currentCycleYM);
