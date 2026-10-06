@@ -442,7 +442,7 @@
     position:fixed; inset:0;
     background:rgba(26,19,21,0.45);
     backdrop-filter:blur(3px);
-    z-index:300;
+    z-index:400;   /* acima da gaveta lateral (drawer), que pode abrir um modal por cima */
     align-items:center;
     justify-content:center;
     padding:20px;

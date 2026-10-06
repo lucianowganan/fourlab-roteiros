@@ -41,7 +41,7 @@
 <script>
 // Equipes "de verdade" (postam em grupo). Avulsos e profissionais parceiros são tratados individualmente.
 let REAL_TEAMS = ["Trek","Audax","Oggi","Brou","Scott","4Fun"];
-const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false };
+const State = { athletes:[], products:[], cycles:{}, history:{}, currentCycleYM: monthKey(todayISO()), cancelGeracao:false, envioOk:false, curtidos:[] };
 
 /* ---------- utilitários de data ---------- */
 function daysInMonth(ym){ const [y,m] = ym.split('-').map(Number); return new Date(y, m, 0).getDate(); }
@@ -55,7 +55,14 @@ function mapEntryFromDB(r){
   return { id:r.id, athleteId:r.athlete_id, team:r.team, product:r.product, theme:r.theme,
     format:r.format, date:r.post_date, roteiro:r.roteiro||'',
     status:{ postou:r.postou, collab:r.collab, obs:r.obs||'',
-      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} } };
+      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} },
+    ...camposEnvioDeLinha(r) };
+}
+// campos de envio só entram no banco depois da migração 2026-10-08 (State.envioOk)
+function camposEnvioParaBanco(e){
+  if(!State.envioOk) return {};
+  return { enviado_em:e.enviadoEm||null, roteiro_enviado:e.roteiroEnviado||'', avaliacao:e.avaliacao||null,
+    alterado_equipe_em:e.alteradoEquipeEm||null, alterado_atleta_em:e.alteradoAtletaEm||null };
 }
 
 /* ---------- ciclo / persistência ---------- */
@@ -88,6 +95,7 @@ async function persistCycleEntries(ym){
     postou:e.status?.postou||null, collab:e.status?.collab||null, obs:e.status?.obs||'',
     metric_views:e.status?.metrics?.views||0, metric_likes:e.status?.metrics?.likes||0,
     metric_comments:e.status?.metrics?.comments||0, metric_shares:e.status?.metrics?.shares||0, metric_saves:e.status?.metrics?.saves||0,
+    ...camposEnvioParaBanco(e),
   }));
   if(rows.length){
     const { data } = await sb.from('entries').insert(rows).select();
@@ -217,7 +225,9 @@ async function gerarUmRoteiro(cycle, entryId, motivoRegeracao){
   const produto = isSemProduto ? {name:'__SEM_PRODUTO__', desc:''} : (State.products.find(p=>p.name===e.product) || {name:e.product, desc:''});
   if(!a) return;
   e.__ym = cycle.ym;
-  if(e.roteiro && e.roteiro.trim()) await salvarExemplo(e, a, 'ruim', motivoRegeracao||'');
+  // ao regerar, o texto anterior vira exemplo 👎 — menos se a equipe tinha curtido (👍)
+  if(e.roteiro && e.roteiro.trim() && e.avaliacao !== 'bom') await salvarExemplo(e, a, 'ruim', motivoRegeracao||'');
+  if(e.avaliacao){ e.avaliacao = null; if(State.envioOk) await sb.from('entries').update({ avaliacao:null }).eq('id', e.id); }
   try{
     const exemplosBons = await buscarExemplosBons(3);
     const exemplosRuins = await buscarExemplosRuinsComMotivo(8);
@@ -337,27 +347,77 @@ async function apagarTudoDoMes(cycle){
 }
 
 /* ---------- render ---------- */
+// Roteiro curtido (👍) que sumiu do post na versão antiga — dá pra trazer de volta
+function roteiroCurtidoPara(e){
+  if(e.roteiro && e.roteiro.trim()) return null;
+  return State.curtidos.find(x=> x.athlete_id===e.athleteId && x.produto===e.product && (!x.formato || x.formato===e.format)) || null;
+}
 function renderEntriesList(cycle){
-  return cycle.entries.map(e=>{
-    const a = State.athletes.find(x=>x.id===e.athleteId);
-    return `<div data-entry-card="${e.id}" style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px;">
+  const pendentes = cycle.entries.filter(e=> !e.enviadoEm);
+  const enviados = cycle.entries.filter(e=> e.enviadoEm);
+  const cards = pendentes.map(e=>{
+    const a = State.athletes.find(x=>x.id===e.athleteId), curtido = roteiroCurtidoPara(e);
+    return `<div data-entry-card="${e.id}" style="border:1px solid ${e.roteiro?'#f8d6ba':'var(--line)'};border-radius:14px;padding:12px 14px;margin-top:10px;${e.roteiro?'background:#fffaf5;':''}">
       <div class="row" style="justify-content:space-between;">
         <div class="row" style="gap:8px;">
-          <span class="badge team-${(e.team||'').replace(/\s/g,'')}">${e.team}</span>
-          <strong>${a?a.name:'(removido)'}</strong>
-          <span style="color:var(--muted);font-size:12px;">${weekdayShort(e.date)} ${e.date.split('-').reverse().join('/')} · ${e.product} · ${e.format}</span>
+          ${teamBadge(e.team)}
+          <strong>${a?escHtml(a.name):'(removido)'}</strong>
+          <span style="color:var(--muted);font-size:12px;">${weekdayShort(e.date)} ${e.date.split('-').reverse().join('/')} · ${escHtml(e.product)} · ${escHtml(e.format)}</span>
+          ${e.roteiro ? '<span class="chip static" style="color:#b5680a;">Rascunho — o atleta ainda não vê</span>' : ''}
         </div>
         <div class="row" style="gap:6px;">
           <button class="btn btn-ghost btn-sm" data-change-date="${e.id}">Alterar data</button>
           <button class="btn btn-outline btn-sm" data-gen-one="${e.id}">${e.roteiro?'Regerar':'Gerar'}</button>
           ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-copy="${e.id}">Copiar</button>`:''}
-          ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-mark-bom="${e.id}" title="Marcar como bom exemplo">👍</button>`:''}
+          ${e.roteiro?`<button class="btn ${e.avaliacao==='bom'?'btn-dark':'btn-ghost'} btn-sm" data-mark-bom="${e.id}" title="Bom exemplo pra IA aprender (o roteiro continua aqui)">${e.avaliacao==='bom'?'👍 Curtido':'👍'}</button>`:''}
           ${e.roteiro?`<button class="btn btn-ghost btn-sm" data-mark-ruim="${e.id}" title="Descartar (ruim)">👎</button>`:''}
+          ${e.roteiro?`<button class="btn btn-primary btn-sm" data-enviar="${e.id}">Enviar pro atleta ✓</button>`:''}
         </div>
       </div>
-      ${e.roteiro ? `<textarea style="margin-top:10px;min-height:160px;font-size:12.5px;" data-roteiro-edit="${e.id}">${e.roteiro}</textarea>` : '<div style="color:var(--muted);font-size:12px;margin-top:8px;">Roteiro ainda não gerado.</div>'}
+      ${e.roteiro ? `<textarea style="margin-top:10px;min-height:200px;font-size:12.5px;line-height:1.5;" data-roteiro-edit="${e.id}">${escHtml(e.roteiro)}</textarea>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Edite à vontade (salva sozinho). Quando estiver bom, clique em <strong>Enviar pro atleta</strong>: ele passa a ver e o roteiro sai desta lista.</div>`
+        : `<div style="color:var(--muted);font-size:12px;margin-top:8px;">Roteiro ainda não gerado.${curtido ? ` <button class="btn btn-ghost btn-sm" data-recuperar="${e.id}" style="margin-left:6px;">↩︎ Recuperar o roteiro que você curtiu (${new Date(curtido.created_at).toLocaleDateString('pt-BR')})</button>` : ''}</div>`}
     </div>`;
   }).join('');
+  const resumoEnviados = enviados.length ? `<div style="margin-top:14px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; background:var(--green-soft); border-radius:14px; padding:12px 16px; font-size:13px; color:var(--green);">
+      <strong>✓ ${enviados.length} roteiro(s) já enviado(s) pros atletas</strong>
+      <span style="color:var(--ink-2); flex:1; min-width:200px;">${enviados.map(e=> escHtml(athleteName(e.athleteId).split(' ')[0])).join(', ')}. Pra ver ou editar, abra <a href="acompanhamento" style="color:var(--orange); font-weight:700;">Acompanhamento</a> ou a pasta do atleta.</span>
+      ${enviados.some(e=>e.alteradoAtletaEm||e.alteradoEquipeEm) ? `<span class="chip static" style="color:var(--purple);">✏️ ${enviados.filter(e=>e.alteradoAtletaEm||e.alteradoEquipeEm).length} alterado(s)</span>` : ''}</div>` : '';
+  return (pendentes.length ? cards : '<div class="empty-state" style="padding:22px;">Todos os roteiros deste mês já foram enviados. 🎉</div>') + resumoEnviados;
+}
+
+// "Re-check" antes de enviar: mostra como o atleta vai ver e pede confirmação
+function abrirEnvio(ids){
+  const cycle = getOrCreateCycle(State.currentCycleYM);
+  const lista = ids.map(id=> cycle.entries.find(x=>x.id===id)).filter(e=> e && e.roteiro && e.roteiro.trim());
+  if(!lista.length){ toast('Nenhum roteiro pronto pra enviar'); return; }
+  const um = lista.length === 1, e0 = lista[0];
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button>
+    <h3>${um ? `Enviar roteiro pra ${escHtml(athleteName(e0.athleteId))}?` : `Enviar ${lista.length} roteiros pros atletas?`}</h3>
+    ${um ? `<div style="font-size:12.5px; color:var(--muted); margin:-8px 0 10px;">${fmtDateBR(e0.date)} · ${escHtml(e0.product)} · ${escHtml(e0.format)} — é assim que o atleta vai ver:</div>
+      <div style="max-height:46vh; overflow-y:auto; border:1px solid var(--line); border-radius:14px; padding:14px 16px; font-size:13px; line-height:1.55;">${textoRicoHtml(e0.roteiro)}</div>`
+      : `<div style="max-height:46vh; overflow-y:auto;">${lista.map(e=>`<div style="display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;">
+          <strong>${escHtml(athleteName(e.athleteId))}</strong><span style="color:var(--muted);">${fmtDateBR(e.date)} · ${escHtml(e.product)} · ${contarPalavras(e.roteiro)} palavras</span></div>`).join('')}</div>`}
+    <label style="display:flex; gap:8px; align-items:center; margin:14px 0 4px; font-size:13px; cursor:pointer; text-transform:none; letter-spacing:0; color:var(--ink);">
+      <input type="checkbox" id="envioRevisado" style="width:18px; height:18px;"> ${um ? 'Revisei o roteiro e está pronto' : 'Revisei todos e estão prontos'}</label>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:12px;">Depois de enviado, o roteiro aparece pro atleta e sai desta lista. Ainda dá pra editar em Acompanhamento ou na pasta do atleta — fica marcado como “alterado”.</div>
+    <div class="row" style="justify-content:flex-end; gap:8px;"><button class="btn btn-ghost" id="envioVoltar">Voltar e revisar</button>
+      <button class="btn btn-primary" id="envioConfirmar" disabled>✓ Enviar${um?'':` os ${lista.length}`}</button></div>`, {largo:!um ? false : true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('envioVoltar').onclick = closeModal;
+  const chk = document.getElementById('envioRevisado'), ok = document.getElementById('envioConfirmar');
+  chk.onchange = ()=>{ ok.disabled = !chk.checked; };
+  ok.onclick = async ()=>{
+    if(!State.envioOk){ erroBanco({message:'column entries.enviado_em does not exist', code:'PGRST204'}, MIGRACAO_ENVIO); return; }
+    ok.disabled = true; ok.innerHTML = '<span class="loader"></span> Enviando…';
+    const agora = new Date().toISOString();
+    for(const e of lista){
+      const { error } = await sb.from('entries').update({ roteiro:e.roteiro, enviado_em:agora, roteiro_enviado:e.roteiro, alterado_equipe_em:null, alterado_atleta_em:null }).eq('id', e.id);
+      if(error){ erroBanco(error, MIGRACAO_ENVIO); render(); return; }
+      Object.assign(e, { enviadoEm:agora, roteiroEnviado:e.roteiro, alteradoEquipeEm:null, alteradoAtletaEm:null });
+    }
+    closeModal(); toast(um ? `Enviado pra ${athleteName(e0.athleteId).split(' ')[0]} ✓` : `${lista.length} roteiros enviados ✓`); render();
+  };
 }
 
 function viewCiclo(){
@@ -408,12 +468,15 @@ function viewCiclo(){
       <span style="font-size:12px;color:var(--muted);">Recalcula as datas dos selecionados respeitando espaçamento por equipe.</span></div></div>`;
 
   if(hasEntries){
+    const faltam = cycle.entries.filter(e=> !e.enviadoEm && !(e.roteiro||'').trim()).length;
+    const rascunhos = cycle.entries.filter(e=> !e.enviadoEm && (e.roteiro||'').trim()).length;
     html += `<div class="panel"><div class="row" style="justify-content:space-between;">
-        <div><h2>Roteiros — ${fmtMonthLabel(ym)}</h2><div class="desc">${cycle.entries.length} posts agendados.</div></div>
+        <div><h2>Roteiros — ${fmtMonthLabel(ym)}</h2><div class="desc">${cycle.entries.length} posts agendados · gere, revise/edite e envie pro atleta.</div></div>
         <div class="row" style="gap:6px;">
           <button class="btn btn-danger" id="btnApagarMes">🗑️ Apagar tudo deste mês</button>
           <button class="btn btn-outline" id="btnExportarPDF">📄 Exportar PDF</button>
-          <button class="btn btn-primary" id="btnGerarTodosRoteiros">2. Gerar todos os roteiros</button>
+          ${faltam ? `<button class="btn btn-primary" id="btnGerarTodosRoteiros">2. Gerar os que faltam (${faltam})</button>` : ''}
+          ${rascunhos ? `<button class="btn btn-dark" id="btnEnviarTodos">3. Enviar pros atletas (${rascunhos})</button>` : ''}
           <button class="btn btn-danger" id="btnCancelarGeracao" style="display:none;">Cancelar</button>
         </div></div>
       <div id="entriesList">${renderEntriesList(cycle)}</div></div>`;
@@ -444,10 +507,13 @@ function wireEntriesList(){
       const cycle = getOrCreateCycle(State.currentCycleYM);
       const e = cycle.entries.find(x=>x.id===btn.dataset.markBom);
       const a = State.athletes.find(x=>x.id===e.athleteId);
+      if(e.avaliacao === 'bom'){ toast('Já está como bom exemplo. Agora é só enviar pro atleta.'); return; }
+      const ta = document.querySelector(`[data-roteiro-edit="${e.id}"]`); if(ta) e.roteiro = ta.value;
       await salvarExemplo(e, a, 'bom');
-      e.roteiro = '';
-      await persistOneEntry(State.currentCycleYM, e);
-      toast('Marcado como bom exemplo — arquivado no banco do atleta');
+      e.avaliacao = 'bom';
+      if(State.envioOk) await sb.from('entries').update({ roteiro:e.roteiro, avaliacao:'bom' }).eq('id', e.id);
+      else await persistOneEntry(State.currentCycleYM, e);
+      toast('👍 Guardado como bom exemplo pra IA — o roteiro continua aqui pra você enviar');
       render();
     };
   });
@@ -471,6 +537,24 @@ function wireEntriesList(){
       };
       document.getElementById('btnDescartarSemMotivo').onclick = ()=> confirmar('');
       document.getElementById('btnDescartarComMotivo').onclick = ()=> confirmar(document.getElementById('motivoRuim').value.trim());
+    };
+  });
+  document.querySelectorAll('[data-enviar]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM), e = cycle.entries.find(x=>x.id===btn.dataset.enviar);
+      const ta = document.querySelector(`[data-roteiro-edit="${e.id}"]`);
+      if(ta && ta.value !== e.roteiro){ e.roteiro = ta.value; await persistOneEntry(State.currentCycleYM, e); }
+      abrirEnvio([e.id]);
+    };
+  });
+  document.querySelectorAll('[data-recuperar]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const cycle = getOrCreateCycle(State.currentCycleYM), e = cycle.entries.find(x=>x.id===btn.dataset.recuperar);
+      const c = roteiroCurtidoPara(e); if(!c) return;
+      e.roteiro = c.roteiro_text; e.avaliacao = 'bom';
+      await persistOneEntry(State.currentCycleYM, e);
+      if(State.envioOk) await sb.from('entries').update({ avaliacao:'bom' }).eq('id', e.id);
+      toast('Roteiro recuperado — revise e envie pro atleta'); render();
     };
   });
   document.querySelectorAll('[data-roteiro-edit]').forEach(ta=>{
@@ -530,7 +614,15 @@ function wireCicloView(){
         theme: themeInput.value.trim(), format: formatSel.value };
     });
     const cycle = getOrCreateCycle(ym);
-    cycle.entries = autoScheduleCycle(ym, selections);
+    // mantém o roteiro (e o envio) de quem continua com o mesmo produto e formato; só a data é recalculada
+    const antigos = cycle.entries || [];
+    const novos = autoScheduleCycle(ym, selections).map(n=>{
+      const o = antigos.find(x=> x.athleteId===n.athleteId && x.product===n.product && x.format===n.format && ((x.roteiro||'').trim() || x.enviadoEm));
+      return o ? {...o, id:n.id, date:n.date, theme:n.theme} : n;
+    });
+    const perdidos = antigos.filter(o=> o.enviadoEm && !novos.some(n=> n.athleteId===o.athleteId && n.roteiro===o.roteiro));
+    if(perdidos.length && !confirm(`${perdidos.length} roteiro(s) já enviado(s) vão ser apagados (${perdidos.map(o=>athleteName(o.athleteId)).join(', ')}), porque o atleta saiu da lista ou mudou de produto/formato. Continuar?`)) return;
+    cycle.entries = novos;
     cycle.themeGeral = document.getElementById('temaGeral').value;
     await persistCycleMeta(ym);
     await persistCycleEntries(ym);
@@ -554,18 +646,26 @@ function wireCicloView(){
       btnGerarTodos.disabled = true;
       State.cancelGeracao = false;
       if(btnCancelar) btnCancelar.style.display = 'inline-block';
-      for(let i=0;i<cycle.entries.length;i++){
+      // só os que ainda não têm roteiro (nunca mexe em rascunho editado nem no que já foi enviado)
+      const alvo = cycle.entries.filter(e=> !e.enviadoEm && !(e.roteiro||'').trim());
+      for(let i=0;i<alvo.length;i++){
         if(State.cancelGeracao){ toast('Geração cancelada'); break; }
-        btnGerarTodos.innerHTML = `<span class="loader"></span> Gerando ${i+1}/${cycle.entries.length}...`;
-        await gerarUmRoteiro(cycle, cycle.entries[i].id);
+        btnGerarTodos.innerHTML = `<span class="loader"></span> Gerando ${i+1}/${alvo.length}...`;
+        await gerarUmRoteiro(cycle, alvo[i].id);
       }
       btnGerarTodos.disabled = false;
-      btnGerarTodos.textContent = '2. Gerar todos os roteiros';
       if(btnCancelar) btnCancelar.style.display = 'none';
       if(!State.cancelGeracao) toast('Todos os roteiros gerados');
       render();
     };
   }
+  const btnEnviarTodos = document.getElementById('btnEnviarTodos');
+  if(btnEnviarTodos) btnEnviarTodos.onclick = async ()=>{
+    const cycle = getOrCreateCycle(State.currentCycleYM);
+    // guarda o que estiver digitado antes de abrir a revisão
+    for(const ta of document.querySelectorAll('[data-roteiro-edit]')){ const e = cycle.entries.find(x=>x.id===ta.dataset.roteiroEdit); if(e && ta.value !== e.roteiro){ e.roteiro = ta.value; await persistOneEntry(State.currentCycleYM, e); } }
+    abrirEnvio(cycle.entries.filter(e=> !e.enviadoEm && (e.roteiro||'').trim()).map(e=>e.id));
+  };
   if(btnCancelar) btnCancelar.onclick = ()=>{ State.cancelGeracao = true; btnCancelar.textContent = 'Cancelando...'; btnCancelar.disabled = true; };
 }
 
@@ -582,6 +682,13 @@ function render(){
   State.athletes = (athletesData||[]).map(mapAthleteFromDB);
   const { data: productsData } = await sb.from('products').select('*').order('cat').order('name');
   State.products = (productsData||[]).map(mapProductFromDB);
+  const [probe, curt] = await Promise.all([
+    sb.from('entries').select('enviado_em').limit(1),
+    sb.from('roteiro_exemplos').select('athlete_id, produto, formato, roteiro_text, created_at').eq('tipo', 'bom').order('created_at', {ascending:false}).limit(300),
+  ]);
+  State.envioOk = !probe.error;
+  const limite = new Date(Date.now() - 45*864e5).toISOString();
+  State.curtidos = (curt.data || []).filter(x=> x.athlete_id && x.roteiro_text && x.created_at >= limite);
   await carregarMes(State.currentCycleYM);
   await carregarHistorico();
   render();
