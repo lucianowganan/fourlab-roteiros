@@ -5,7 +5,7 @@
    e programa-creators.html (equipe). Carregar depois do shared.js.
    ============================================================ */
 
-const MIGRACAO_CREATORS = 'migrations/2026-10-11_programa_creators.sql';
+const MIGRACAO_CREATORS = 'migrations/2026-10-11a_creators_tabelas.sql (e depois as partes b e c)';
 const SITE_CREATORS = 'https://atleta.fourlabnutrition.com.br';
 const LINK_PORTAL_CREATORS = SITE_CREATORS + '/creators';
 const LINK_LP_CREATORS = SITE_CREATORS + '/lpcreators';
