@@ -32,7 +32,9 @@
    que a equipe monta (com imagens de referência e passo a passo) pros atletas e parceiros gravarem,
    além dos roteiros do mês. Os atletas marcam "quero gravar" / "já gravei" — base da futura gamificação. */
 const MIGRACAO = 'migrations/2026-10-06b_sugestoes_conteudo.sql';
-const State = { sugestoes:[], gravacoes:[], produtos:[], tabelaOk:true, filtroTipo:'todos', filtroStatus:'todas', edit:null, enviando:false, profile:null };
+const MIGRACAO_IA = 'migrations/2026-10-07_ia_sugestoes.sql';
+const State = { sugestoes:[], gravacoes:[], produtos:[], tabelaOk:true, filtroTipo:'todos', filtroStatus:'todas', edit:null, enviando:false, profile:null,
+  aba:'sugestoes', pedidos:[], exemplos:[], acessos:[], iaTabela:true, iaOrigem:null };
 
 async function carregar(){
   const [sug, grav, prod] = await Promise.all([
@@ -40,6 +42,12 @@ async function carregar(){
     sb.from('sugestao_gravacoes').select('*, athletes(name, team)').order('updated_at', {ascending:false}),
     sb.from('products').select('name').order('name'),
   ]);
+  const [ped, ex, ac] = await Promise.all([
+    sb.from('ia_pedidos').select('*, athletes(name, team)').order('created_at', {ascending:false}).limit(300),
+    sb.from('sugestao_exemplos').select('*').order('created_at', {ascending:false}),
+    sb.from('ia_acesso').select('*, athletes(name, team)'),
+  ]);
+  State.iaTabela = !ped.error; State.pedidos = ped.data || []; State.exemplos = ex.data || []; State.acessos = ac.data || [];
   State.tabelaOk = !sug.error; State.sugestoes = sug.data || [];
   State.gravacoes = grav.data || []; State.produtos = (prod.data || []).map(p=>p.name);
 }
@@ -57,8 +65,14 @@ function view(){
   <div class="page-head">
     <div><h1>Sugestões de conteúdo</h1><div class="sub">Ideias extras pra gravar — além dos roteiros do mês. Monte o passo a passo com imagens e publique pros atletas e parceiros.</div></div>
     <div class="row" style="gap:26px;">${stat(State.sugestoes.filter(s=>s.publicada).length, 'Publicadas')}${stat(gravaram, 'Gravações')}
+      <button class="btn btn-primary" id="btnGerarIA">✨ Gerar com IA</button>
       <button class="btn btn-dark" id="btnNova">${ICONS.plus} Nova sugestão</button></div>
   </div>
+  <div class="seg brand" style="margin-bottom:18px;">
+    <button class="${State.aba==='sugestoes'?'active':''}" data-aba="sugestoes">${ICONS.ideia.replace('width="18" height="18"','width="14" height="14"')} Sugestões</button>
+    <button class="${State.aba==='ia'?'active':''}" data-aba="ia">✨ IA: pedidos, exemplos e acessos</button>
+  </div>
+  ${State.aba==='ia' ? viewIA() : `
   <div class="row" style="justify-content:space-between; gap:12px; margin-bottom:16px;">
     <div class="filter-pills">
       <button class="fpill ${State.filtroTipo==='todos'?'active':''}" data-tipo="todos">Todas <span class="count">${State.sugestoes.length}</span></button>
@@ -69,13 +83,121 @@ function view(){
   ${lista.length ? `<div class="sug-grid">${lista.map(s=>{ const g = gravacoesDe(s.id), feitos = g.filter(x=>x.status==='gravei').length, querem = g.length - feitos;
       return sugestaoCardHtml(s, {rascunho:!s.publicada, extra: `<div style="font-size:12px; color:var(--muted); margin-top:10px; border-top:1px solid #f3eee8; padding-top:10px;">
         ${s.publicada ? `✅ <strong style="color:var(--ink);">${feitos}</strong> gravaram · 🙋 <strong style="color:var(--ink);">${querem}</strong> querem gravar` : 'Só a equipe vê — publique quando estiver pronta.'}</div>`}); }).join('')}</div>`
-    : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? 'Nada com esse filtro.' : 'Nenhuma sugestão ainda. Crie a primeira — por exemplo, uma sequência de 5 stories mostrando a rotina de treino com o produto.'}</div></div>`}`;
+    : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? 'Nada com esse filtro.' : 'Nenhuma sugestão ainda. Crie a primeira — por exemplo, uma sequência de 5 stories mostrando a rotina de treino com o produto.'}</div></div>`}`}`;
+}
+
+/* ---------- Aba IA: pedidos, exemplos 👍/👎 e quem tem acesso ---------- */
+const doMes = (d)=> String(d||'').slice(0,7) === new Date().toISOString().slice(0,7);
+function nomePedido(p){ return p.athletes?.name ? escHtml(p.athletes.name) : `Equipe${p.autor?` · ${escHtml(p.autor)}`:''}`; }
+function viewIA(){
+  if(!State.iaTabela) return `<div class="panel"><div class="empty-state"><div class="big">🛠️</div>Rode <code>${MIGRACAO_IA}</code> no SQL Editor do Supabase e publique a função <code>gerar-sugestao</code>.</div></div>`;
+  const mes = State.pedidos.filter(p=>doMes(p.created_at));
+  const tokens = mes.reduce((t,p)=> t + (p.tokens_entrada||0) + (p.tokens_saida||0), 0);
+  const bons = State.exemplos.filter(e=>e.tipo==='bom'), ruins = State.exemplos.filter(e=>e.tipo==='ruim');
+  const liberados = State.acessos.filter(a=>a.liberada);
+  const kpi = (v, l, sub)=> `<div class="card kpi"><div class="kpi-label">${l}</div><div class="kpi-value">${v}</div>${sub?`<div style="font-size:11.5px; color:var(--muted); margin-top:4px;">${sub}</div>`:''}</div>`;
+  const status = {ok:['Ideia criada','status-ok'], recusado:['Fora do escopo','status-bad'], erro:['Erro','status-wait']};
+  const exemploLinha = (e)=> `<div style="display:flex; gap:10px; align-items:flex-start; padding:10px 0; border-bottom:1px solid #f3eee8;">
+      <div style="flex:1; min-width:0;"><strong style="font-size:13px;">${escHtml(e.conteudo?.titulo||'Sem título')}</strong> <span style="font-size:11.5px; color:var(--muted);">· ${escHtml(tipoSugestao(e.conteudo?.tipo).curto||tipoSugestao(e.conteudo?.tipo).label)}${e.origem==='atleta'?' · avaliado por atleta':''}</span>
+        ${e.motivo?`<div style="font-size:12px; color:var(--ink-2); margin-top:2px;">Motivo: ${escHtml(e.motivo)}</div>`:''}</div>
+      <button class="icon-btn" data-remover-exemplo="${e.id}" title="Remover exemplo" style="width:30px; height:30px;">${ICONS.trash.replace('width="18" height="18"','width="13" height="13"')}</button></div>`;
+  return `
+  <div class="grid-4" style="margin-bottom:18px;">
+    ${kpi(mes.length, 'Pedidos à IA este mês', `${mes.filter(p=>p.status==='recusado').length} fora do escopo`)}
+    ${kpi(fmtNum(tokens), 'Tokens este mês', 'entrada + saída')}
+    ${kpi(liberados.length, 'Pessoas com acesso', '<a href="atletas.html" style="color:var(--orange); font-weight:600;">liberar em Atletas</a>')}
+    ${kpi(`${bons.length} · ${ruins.length}`, 'Exemplos 👍 · 👎', 'ensinam a IA')}
+  </div>
+  <div class="panel">
+    <div class="card-head"><div><h2>Pedidos feitos à IA</h2><div class="desc">Tudo o que a equipe e os atletas pediram. Marque 👍/👎 pra IA aprender, ou transforme a ideia numa sugestão publicada.</div></div></div>
+    ${State.pedidos.length ? State.pedidos.slice(0,100).map(p=>{ const st = status[p.status]||status.erro, r = p.resultado||{};
+      return `<div style="display:flex; gap:12px; align-items:flex-start; padding:12px 0; border-bottom:1px solid #f3eee8; flex-wrap:wrap;">
+        <div style="flex:1; min-width:220px;">
+          <div style="font-size:13px;"><strong>${nomePedido(p)}</strong> <span style="color:var(--muted);">· ${new Date(p.created_at).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})} · ${tipoSugestao(p.tipo).emoji} ${escHtml(tipoSugestao(p.tipo).curto||tipoSugestao(p.tipo).label)}${p.produto?` · ${escHtml(p.produto)}`:''}</span></div>
+          ${p.pedido?`<div style="font-size:12.5px; color:var(--ink-2); margin-top:3px;">“${escHtml(p.pedido)}”</div>`:''}
+          ${r.titulo?`<div style="font-size:12.5px; margin-top:4px;">→ <strong>${escHtml(r.titulo)}</strong></div>`:''}
+          ${r.motivo||r.erro?`<div style="font-size:12px; color:var(--red); margin-top:4px;">${escHtml(r.motivo||r.erro)}</div>`:''}
+          ${p.avaliacao?`<div style="font-size:12px; margin-top:4px;">${p.avaliacao==='bom'?'👍':'👎'} avaliado pela pessoa${p.motivo?`: ${escHtml(p.motivo)}`:''}</div>`:''}
+        </div>
+        <div style="text-align:right;"><span class="status-dot ${st[1]}">${st[0]}</span><div style="font-size:11px; color:var(--muted); margin-top:4px;">${fmtNum((p.tokens_entrada||0)+(p.tokens_saida||0))} tokens</div>
+          ${r.titulo?`<div class="row" style="gap:6px; margin-top:8px; justify-content:flex-end;">
+            <button class="btn btn-ghost btn-sm" data-ver-pedido="${p.id}">Ver</button>
+            <button class="btn btn-ghost btn-sm" data-exemplo-pedido="${p.id}" data-tipo-ex="bom" title="Usar como exemplo bom">👍</button>
+            <button class="btn btn-ghost btn-sm" data-exemplo-pedido="${p.id}" data-tipo-ex="ruim" title="Marcar como exemplo ruim">👎</button>
+            <button class="btn btn-outline btn-sm" data-virar-sugestao="${p.id}">Virar sugestão</button></div>`:''}</div>
+      </div>`; }).join('') : '<div class="empty-state">Nenhum pedido ainda. Clique em ✨ Gerar com IA.</div>'}
+  </div>
+  <div class="grid-2" style="align-items:start;">
+    <div class="panel"><h2>👍 Exemplos bons</h2><div class="desc" style="margin-bottom:6px;">Além destes, as sugestões publicadas também contam como bons exemplos.</div>${bons.length?bons.map(exemploLinha).join(''):'<div class="empty-state" style="padding:20px;">Nenhum ainda.</div>'}</div>
+    <div class="panel"><h2>👎 Exemplos ruins</h2><div class="desc" style="margin-bottom:6px;">A IA lê o motivo e evita repetir o problema.</div>${ruins.length?ruins.map(exemploLinha).join(''):'<div class="empty-state" style="padding:20px;">Nenhum ainda.</div>'}</div>
+  </div>
+  <div class="panel"><h2>Quem pode pedir ideias à IA</h2><div class="desc" style="margin-bottom:8px;">Libere ou mude o limite na ficha de cada pessoa, em <a href="atletas.html" style="color:var(--orange); font-weight:600;">Atletas & parceiros</a> → Editar.</div>
+    ${liberados.length ? liberados.map(a=>{ const usados = State.pedidos.filter(p=>p.athlete_id===a.athlete_id && doMes(p.created_at) && p.status!=='erro').length;
+      return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;">
+        <div class="row" style="gap:8px;">${avatarHtml(a.athletes?.name||'?','sm')}<strong>${escHtml(a.athletes?.name||'—')}</strong><span style="color:var(--muted);">· ${escHtml(a.athletes?.team||'')}</span></div>
+        <span class="chip static">${usados} de ${a.limite_mes} este mês</span></div>`; }).join('') : '<div style="font-size:12.5px; color:var(--muted);">Ninguém liberado ainda.</div>'}
+  </div>`;
+}
+
+function conteudoDoPedido(p){ const r = p.resultado||{}; return {titulo:r.titulo||'', tipo:r.tipo||p.tipo, objetivo:r.objetivo||'', passos:(r.passos||[]).map(x=>({texto:x.texto||'', dica:x.dica||''})), roteiro:r.roteiro||''}; }
+async function marcarExemplo(tipo, conteudo, extra){
+  let motivo = '';
+  if(tipo==='ruim'){ motivo = prompt('O que ficou ruim nessa ideia? (a IA lê isso pra não repetir)', ''); if(motivo===null) return false; }
+  const { data, error } = await sb.from('sugestao_exemplos').insert({ tipo, conteudo, motivo:motivo.trim(), autor:State.profile?.nome||'', origem:'equipe', ...(extra||{}) }).select().single();
+  if(error){ erroBanco(error, MIGRACAO_IA); return false; }
+  State.exemplos.unshift(data); toast(tipo==='bom' ? '👍 Guardado como bom exemplo' : '👎 Guardado como exemplo ruim'); return true;
+}
+function sugestaoDoPedido(p){
+  const r = p.resultado||{};
+  return {...novaSugestao(), titulo:r.titulo||'', tipo:SUGESTAO_TIPOS[r.tipo||p.tipo]?(r.tipo||p.tipo):'stories', objetivo:r.objetivo||'', roteiro:r.roteiro||'',
+    produto:r.produto||p.produto||'', dificuldade:r.dificuldade||'facil', passos:(r.passos||[]).map(x=>({texto:x.texto||'', dica:x.dica||'', imagem:''}))};
+}
+
+/* ---------- Gerar com IA (equipe) ---------- */
+function abrirGerarIA(){
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>✨ Gerar sugestão com IA</h3>
+    <div style="font-size:12.5px; color:var(--ink-2); background:var(--surface-2); border-radius:12px; padding:10px 12px; margin-bottom:14px;">A IA usa o Contexto da IA, os produtos, o tema do mês, as sugestões publicadas e os exemplos 👍/👎. A ideia abre no editor pra você revisar, pôr imagens e publicar.</div>
+    ${iaFormHtml({produtos:State.produtos, maxPedido:3000})}
+    <div id="iaErro" style="font-size:12.5px; color:var(--red); margin-bottom:8px;"></div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnIaGerar">✨ Gerar ideia</button></div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const ler = ligarIaForm();
+  document.getElementById('btnIaGerar').onclick = async (ev)=>{
+    const btn = ev.currentTarget; botaoCarregandoIA(btn); document.getElementById('iaErro').textContent = '';
+    try{
+      const dados = ler(), r = await gerarSugestaoIA(dados);
+      const pedido = {id:r.pedidoId, athlete_id:null, autor:State.profile?.nome||'', tipo:dados.tipo, produto:r.sugestao.produto, pedido:dados.pedido, status:'ok', resultado:r.sugestao,
+        tokens_entrada:r.uso?.tokens_entrada||0, tokens_saida:r.uso?.tokens_saida||0, created_at:new Date().toISOString()};
+      State.pedidos.unshift(pedido);
+      abrirEditor(sugestaoDoPedido(pedido), {pedidoId:pedido.id, conteudo:conteudoDoPedido(pedido)});
+    }catch(err){ document.getElementById('iaErro').textContent = err.message; btn.disabled = false; btn.innerHTML = '✨ Tentar de novo'; }
+  };
+}
+function abrirPedido(id){
+  const p = State.pedidos.find(x=>x.id===id); if(!p) return;
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">Pedido de <strong style="color:var(--ink);">${nomePedido(p)}</strong> em ${new Date(p.created_at).toLocaleString('pt-BR')}${p.pedido?` — “${escHtml(p.pedido)}”`:''}</div>
+    ${sugestaoDetalheHtml({...sugestaoDoPedido(p), id:p.id})}
+    <div class="row" style="justify-content:flex-end; gap:8px; margin-top:18px;"><button class="btn btn-outline btn-sm" id="btnVirar">Virar sugestão</button></div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  ligarCopiarRoteiro(sugestaoDoPedido(p));
+  document.getElementById('btnVirar').onclick = ()=> abrirEditor(sugestaoDoPedido(p), {pedidoId:p.id, conteudo:conteudoDoPedido(p), avaliado:true});
 }
 
 function render(){
   document.getElementById('main').innerHTML = view();
   if(!State.tabelaOk) return;
   document.getElementById('btnNova').onclick = ()=> abrirEditor(null);
+  document.getElementById('btnGerarIA').onclick = abrirGerarIA;
+  document.querySelectorAll('[data-aba]').forEach(b=> b.onclick = ()=>{ State.aba = b.dataset.aba; render(); });
+  document.querySelectorAll('[data-ver-pedido]').forEach(b=> b.onclick = ()=> abrirPedido(b.dataset.verPedido));
+  document.querySelectorAll('[data-virar-sugestao]').forEach(b=> b.onclick = ()=>{ const p = State.pedidos.find(x=>x.id===b.dataset.virarSugestao); abrirEditor(sugestaoDoPedido(p), {pedidoId:p.id, conteudo:conteudoDoPedido(p), avaliado:true}); });
+  document.querySelectorAll('[data-exemplo-pedido]').forEach(b=> b.onclick = async ()=>{ const p = State.pedidos.find(x=>x.id===b.dataset.exemploPedido);
+    if(await marcarExemplo(b.dataset.tipoEx, conteudoDoPedido(p), {pedido_id:p.id, athlete_id:p.athlete_id||null, origem:p.athlete_id?'atleta':'equipe'})) render(); });
+  document.querySelectorAll('[data-remover-exemplo]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Remover este exemplo? A IA deixa de ler.')) return;
+    const { error } = await sb.from('sugestao_exemplos').delete().eq('id', b.dataset.removerExemplo); if(error){ erroBanco(error, MIGRACAO_IA); return; }
+    State.exemplos = State.exemplos.filter(e=>e.id!==b.dataset.removerExemplo); render(); });
   document.querySelectorAll('[data-tipo]').forEach(b=> b.onclick = ()=>{ State.filtroTipo = b.dataset.tipo; render(); });
   document.querySelectorAll('[data-status]').forEach(b=> b.onclick = ()=>{ State.filtroStatus = b.dataset.status; render(); });
   document.querySelectorAll('[data-abrir-sugestao]').forEach(el=>{
@@ -126,7 +248,11 @@ function novaSugestao(){ return {titulo:'', tipo:'stories', objetivo:'', roteiro
 function editorHtml(){
   const s = State.edit, tipo = tipoSugestao(s.tipo);
   const opt = (v, atual, label)=> `<option value="${escHtml(v)}" ${v===atual?'selected':''}>${escHtml(label||v)}</option>`;
+  const ia = State.iaOrigem;
   return `<button class="modal-close" id="modalCloseBtn">&times;</button><h3>${s.id ? 'Editar sugestão' : 'Nova sugestão'}</h3>
+    ${ia ? `<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; background:var(--orange-soft); border-radius:14px; padding:10px 14px; margin-bottom:14px; font-size:12.5px;">
+      <span style="flex:1; min-width:200px;">✨ <strong>Criada pela IA.</strong> Revise, ajuste, ponha imagens e publique.${ia.avaliado ? '' : ' Ensine a IA:'}</span>
+      ${ia.avaliado ? '' : `<button type="button" class="btn btn-ghost btn-sm" data-avaliar-ia="bom">👍 Boa ideia</button><button type="button" class="btn btn-ghost btn-sm" data-avaliar-ia="ruim">👎 Ruim</button>`}</div>` : ''}
     <div class="field"><label>Tipo de conteúdo</label>
       <div class="seg" id="sTipo">${Object.entries(SUGESTAO_TIPOS).map(([k,t])=>`<button type="button" data-set-tipo="${k}" class="${s.tipo===k?'active':''}">${t.emoji} ${t.curto||t.label}</button>`).join('')}</div></div>
     <div class="field"><label>Título</label><input id="sTitulo" value="${escHtml(s.titulo)}" placeholder="Ex: Minha manhã de treino em 5 stories"></div>
@@ -201,6 +327,8 @@ function ligarEditor(){
   const s = State.edit;
   document.getElementById('modalCloseBtn').onclick = ()=>{ if(confirm('Fechar sem salvar?')) closeModal(); };
   document.querySelectorAll('[data-set-tipo]').forEach(b=> b.onclick = ()=>{ lerEditor(); s.tipo = b.dataset.setTipo; redesenharEditor(); });
+  document.querySelectorAll('[data-avaliar-ia]').forEach(b=> b.onclick = async ()=>{ lerEditor();
+    if(await marcarExemplo(b.dataset.avaliarIa, State.iaOrigem.conteudo, {pedido_id:State.iaOrigem.pedidoId||null})){ State.iaOrigem.avaliado = true; redesenharEditor(); } });
   document.getElementById('btnAddPasso').onclick = ()=>{ lerEditor(); s.passos.push({texto:'',dica:'',imagem:''}); redesenharEditor();
     const ult = document.querySelectorAll('[data-passo-texto]'); ult[ult.length-1]?.focus(); };
   document.querySelectorAll('[data-remover-passo]').forEach(b=> b.onclick = ()=>{ lerEditor(); s.passos.splice(Number(b.dataset.removerPasso), 1); redesenharEditor(); });
@@ -237,7 +365,8 @@ async function salvar(ev, publicar){
   State.sugestoes.sort((a,b)=> (b.fixada-a.fixada) || b.created_at.localeCompare(a.created_at));
   closeModal(); toast(publicar ? 'Publicada — já aparece pros atletas' : 'Rascunho salvo'); render();
 }
-function abrirEditor(s){
+function abrirEditor(s, origemIA){
+  State.iaOrigem = origemIA || null;
   State.edit = s ? JSON.parse(JSON.stringify(s)) : novaSugestao();
   if(!Array.isArray(State.edit.passos)) State.edit.passos = [];
   State.edit.passos = State.edit.passos.map(p=>({texto:p.texto||'', dica:p.dica||'', imagem:p.imagem||''}));

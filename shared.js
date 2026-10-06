@@ -919,3 +919,38 @@ async function enviarImagemSugestao(file){
   if(error) throw error;
   return sb.storage.from('sugestoes').getPublicUrl(path).data.publicUrl;
 }
+
+/* ---------- IA de sugestões (função gerar-sugestao) ---------- */
+const IA_MAX_PEDIDO = 600;   // mesmo limite da função pra quem não é da equipe
+// Formulário do pedido (usado pela equipe e pelos atletas). opts: {produtos, maxPedido, tipo}
+function iaFormHtml(opts){
+  opts = opts || {};
+  const max = opts.maxPedido || IA_MAX_PEDIDO, tipo = opts.tipo || 'stories';
+  return `<div class="field"><label>O que você quer gravar?</label>
+      <div class="seg" id="iaTipo">${Object.entries(SUGESTAO_TIPOS).filter(([k])=>k!=='outro').map(([k,t])=>`<button type="button" data-ia-tipo="${k}" class="${k===tipo?'active':''}">${t.emoji} ${t.curto||t.label}</button>`).join('')}</div></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Produto (opcional)</label><select id="iaProduto"><option value="">Nenhum / a IA escolhe se fizer sentido</option>${(opts.produtos||[]).map(p=>`<option>${escHtml(p)}</option>`).join('')}</select></div>
+      <div class="field"><label>Quantas telas / cenas</label><select id="iaTelas">${[3,4,5,6,7,8].map(n=>`<option ${n===5?'selected':''}>${n}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Conte a ideia (opcional)</label>
+      <textarea id="iaPedido" maxlength="${max}" style="min-height:90px;" placeholder="Ex: mostrar meu café da manhã antes do longão de domingo, com enquete no final"></textarea>
+      <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted); margin-top:4px;"><span>A IA cria só ideias de conteúdo da FourLab (treino, prova, recuperação, rotina, produtos).</span><span id="iaConta">0/${max}</span></div></div>`;
+}
+function ligarIaForm(){
+  let tipo = document.querySelector('[data-ia-tipo].active')?.dataset.iaTipo || 'stories';
+  document.querySelectorAll('[data-ia-tipo]').forEach(b=> b.onclick = ()=>{ tipo = b.dataset.iaTipo; document.querySelectorAll('[data-ia-tipo]').forEach(x=>x.classList.toggle('active', x===b)); });
+  const ped = document.getElementById('iaPedido'), conta = document.getElementById('iaConta');
+  ped.oninput = ()=>{ conta.textContent = `${ped.value.length}/${ped.maxLength}`; };
+  return ()=>({ tipo, produto:document.getElementById('iaProduto').value, telas:Number(document.getElementById('iaTelas').value), pedido:ped.value.trim() });
+}
+// Chama a função e devolve {sugestao, pedidoId, restantes} ou lança erro com a mensagem pronta pra tela
+async function gerarSugestaoIA(dados){
+  const { data, error } = await invocarFuncao('gerar-sugestao', dados);
+  if(error){
+    const semFuncao = error.name==='FunctionsFetchError' || /Failed to send a request/i.test(error.message||'');
+    const e = new Error(semFuncao ? 'A função gerar-sugestao não respondeu. Ela precisa estar publicada no Supabase (Edge Functions).' : (error.message||'Erro ao chamar a IA'));
+    throw e;
+  }
+  if(data?.error){ const e = new Error(data.error); e.restantes = data.restantes; throw e; }
+  return data;
+}
+function botaoCarregandoIA(btn, texto){ btn.disabled = true; btn.innerHTML = `<span class="loader"></span> ${texto || 'Criando ideia… (leva uns 30s)'}`; }

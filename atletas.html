@@ -27,7 +27,9 @@
 <script src="shared.js"></script>
 <script>
 // categoria: 'equipe' (atletas) ou 'profissional' (profissionais parceiros)
-const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true };
+const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true, iaAcesso:{}, iaTabela:true };
+const MIGRACAO_IA = 'migrations/2026-10-07_ia_sugestoes.sql';
+const iaDe = (id)=> State.iaAcesso[id] || {liberada:false, limite_mes:10};
 const MIGRACAO_CADASTRO = 'migrations/2026-10-06a_cadastro_interno.sql';
 const cadastroDe = (id)=> State.cadastros[id] || mapCadastroFromDB(null);
 const CATEGORIAS = {
@@ -126,6 +128,7 @@ function viewAtletas(){
         ${a.dificuldadeGravacao==='sim' && !isProfissional(a) ? '<span class="chip static" style="color:#b5680a;">trava na câmera</span>' : ''}
         ${aniversarioNoMes(cadastroDe(a.id).dataNascimento) ? `<span class="chip static" style="color:var(--purple);">🎂 aniversário dia ${cadastroDe(a.id).dataNascimento.slice(8,10)}</span>` : ''}
         ${alertaContrato(cadastroDe(a.id))}
+        ${iaDe(a.id).liberada ? `<span class="chip static" style="color:#b5480a;">✨ IA · ${iaDe(a.id).limite_mes}/mês</span>` : ''}
       </div>
     </div>`; }).join('');
 
@@ -271,7 +274,8 @@ function athleteDrawerHtml(a){
       ${a.estiloVideo ? `<span class="chip static">Vídeo: ${escHtml(a.estiloVideo)}</span>`:''}
     </div>`}
     <div class="section-title">Acesso ao painel</div>
-    <div class="row" style="gap:6px;">${a.username ? `<span class="chip static">${ICONS.lock} login: ${escHtml(a.username)}</span>`:'<span class="chip static" style="color:var(--muted);">ainda sem login</span>'}</div>
+    <div class="row" style="gap:6px;">${a.username ? `<span class="chip static">${ICONS.lock} login: ${escHtml(a.username)}</span>`:'<span class="chip static" style="color:var(--muted);">ainda sem login</span>'}
+      ${iaDe(a.id).liberada ? `<span class="chip static" style="color:#b5480a;">✨ IA de ideias liberada · ${iaDe(a.id).limite_mes} por mês</span>` : '<span class="chip static" style="color:var(--muted);">IA de ideias bloqueada</span>'}</div>
     ${a.notes ? `<div style="font-size:12.5px; background:var(--surface-2); border-radius:12px; padding:12px; margin-top:10px; white-space:pre-wrap;">${escHtml(a.notes)}</div>` : ''}
 
     ${isProfissional(a) ? '' : `<div class="section-title">Últimos posts</div>
@@ -402,6 +406,11 @@ function athleteFormHtml(a){
     <div id="fVerVendasWrap">${toggleHtml('fVerVendas', a.verVendas, 'Mostrar volume de vendas (sem valores)', 'Sem comissão, mas quer acompanhar: ele vê só quantos pedidos saíram com o cupom — nenhum valor em R$, comissão ou saldo.')}</div>
     <div class="field" id="fComissaoWrap"><label>% de comissão</label><input id="fComissaoPct" type="number" value="${a.comissaoPct!=null?a.comissaoPct:10}" style="max-width:160px;"></div>
 
+    <div class="section-title">IA de ideias</div>
+    ${!State.iaTabela ? `<div style="font-size:12px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Rode <code>${MIGRACAO_IA}</code> no Supabase pra liberar a IA pras pessoas.</div>` : `
+    ${toggleHtml('fIaLiberada', a.id ? iaDe(a.id).liberada : false, 'Pode pedir ideias de conteúdo à IA', 'Ela vê "Pedir ideia à IA" em Ideias pra gravar. A IA só cria conteúdo da FourLab; pedidos fora disso são recusados e contam no limite.')}
+    <div class="field" id="fIaLimiteWrap"><label>Limite de ideias por mês</label><input id="fIaLimite" type="number" min="0" max="200" value="${a.id ? iaDe(a.id).limite_mes : 10}" style="max-width:160px;"></div>`}
+
     ${!isNew ? `<div class="section-title">Acesso ao painel</div>
     <div style="font-size:12.5px; color:var(--ink-2); background:var(--surface-2); border-radius:12px; padding:12px 14px; margin-bottom:12px; line-height:1.5;">
       <strong>Como funciona:</strong> você cria o usuário e a senha aqui e envia pra pessoa (tem um botão que copia a mensagem pronta).
@@ -452,6 +461,8 @@ function wireAthleteModalHandlers(){
     document.getElementById('fVerVendasWrap').style.display = comissao.checked ? 'none' : '';
   };
   teamSel.onchange = sync; comissao.onchange = sync; sync();
+  const iaLib = document.getElementById('fIaLiberada');
+  if(iaLib){ const syncIa = ()=>{ document.getElementById('fIaLimiteWrap').style.display = iaLib.checked ? '' : 'none'; }; iaLib.onchange = syncIa; syncIa(); }
   const cpf = document.getElementById('cCpf'), cnpj = document.getElementById('cCnpj'), cpfAviso = document.getElementById('cCpfAviso');
   const checaCpf = ()=>{ const d = soDigitos(cpf.value); cpfAviso.textContent = d.length===11 && !cpfValido(d) ? 'CPF inválido — confira os números' : ''; };
   cpf.oninput = ()=>{ cpf.value = fmtCPF(cpf.value); checaCpf(); };
@@ -516,6 +527,15 @@ function wireAthleteModalHandlers(){
       let athleteObj;
       if(id){ const idx = State.athletes.findIndex(x=>x.id===id); athleteObj = {...State.athletes[idx], name, ...fields}; await saveOneAthlete(athleteObj); State.athletes[idx] = athleteObj; }
       else{ athleteObj = {id:null, name, ...fields}; await saveOneAthlete(athleteObj); State.athletes.push(athleteObj); }
+      if(iaLib){
+        const ia = { liberada: iaLib.checked, limite_mes: Math.max(0, Math.min(200, parseInt(document.getElementById('fIaLimite').value) || 0)) };
+        const atual = iaDe(athleteObj.id);
+        if(ia.liberada !== atual.liberada || (ia.liberada && ia.limite_mes !== atual.limite_mes)){
+          const { error } = await sb.from('ia_acesso').upsert({ athlete_id:athleteObj.id, ...ia, updated_at:new Date().toISOString() });
+          if(error){ closeModal(); render(); erroBanco(error, MIGRACAO_IA); return; }
+          State.iaAcesso[athleteObj.id] = ia;
+        }
+      }
       const mudouCadastro = JSON.stringify(cadastro) !== JSON.stringify(cadastroDe(athleteObj.id));
       if(mudouCadastro && State.cadastroTabela){
         try{ await salvarCadastro(athleteObj.id, cadastro); }
@@ -579,6 +599,9 @@ function render(){
     sb.from('teams').select('id').limit(1),
     sb.from('atleta_cadastro').select('*'),
   ]);
+  const ia = await sb.from('ia_acesso').select('*');
+  State.iaTabela = !ia.error;
+  (ia.data||[]).forEach(r=> State.iaAcesso[r.athlete_id] = {liberada:r.liberada, limite_mes:r.limite_mes});
   State.teamsTabela = !teamsCheck.error;
   State.cadastroTabela = !cad.error;
   (cad.data||[]).forEach(r=> State.cadastros[r.athlete_id] = mapCadastroFromDB(r));
