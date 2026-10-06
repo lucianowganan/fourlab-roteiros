@@ -50,6 +50,22 @@
   .var-chip{ font-size:11px; font-family:ui-monospace,monospace; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:2px 6px; cursor:pointer; }
   .alert-row{ display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #f3eee8; font-size:13px; }
   .alert-row:last-child{ border-bottom:none; }
+  /* Calendário do mês */
+  .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .cal-mes{ font-family:var(--font-title); font-weight:800; font-size:17px; }
+  .cal-nav{ width:36px; height:36px; border-radius:12px; border:1px solid var(--line); background:#fff; font-size:20px; cursor:pointer; line-height:1; }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  .cal-dow{ font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; text-align:center; padding:4px 0; }
+  .cal-day{ min-height:96px; border:1px solid var(--line); border-radius:14px; padding:6px; background:#fff; cursor:pointer; display:flex; flex-direction:column; gap:3px; overflow:hidden; transition:border-color .15s; }
+  .cal-day:hover{ border-color:var(--orange); }
+  .cal-day.out{ background:var(--surface-2); opacity:0.55; }
+  .cal-day.hoje{ box-shadow:0 0 0 2px var(--orange) inset; }
+  .cal-n{ font-size:12px; font-weight:800; color:var(--ink-2); }
+  .cal-ev{ font-size:10.5px; font-weight:700; border-radius:6px; padding:2px 6px; color:#fff; background:var(--ev); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-mais{ font-size:10.5px; color:var(--muted); font-weight:700; }
+  .cal-leg{ display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; font-size:12px; color:var(--muted); }
+  .cal-leg i{ display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  @media (max-width:720px){ .cal-day{ min-height:58px; padding:4px; } .cal-ev{ font-size:0; padding:0; height:6px; } .cal-grid{ gap:3px; } }
 </style></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main" style="max-width:1400px;"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
@@ -61,7 +77,7 @@
 /* Programa FourLab Creators — área da equipe ("app dentro do app").
    CRM separado dos atletas: tabela creators (+ eventos, envios, semanas, mensagens, calendário).
    Funil: Contato recebido → Etapa 01 (30 dias) → Etapa 02 (60 dias) → Creator Oficial (vira cadastro na pasta "Creators"). */
-const State = { profile:null, tabelaOk:true, aba:'geral', creators:[], envios:[], semanas:[], mensagens:[], calendario:[],
+const State = { profile:null, tabelaOk:true, aba:'geral', calYm: todayISO().slice(0,7), creators:[], envios:[], semanas:[], mensagens:[], calendario:[],
   busca:'', esporte:'', verArquivados:false };
 const sm = (svg, n)=> svg.replace('width="18" height="18"', `width="${n||13}" height="${n||13}"`);
 function creatorById(id){ return State.creators.find(c=>c.id===id); }
@@ -500,6 +516,13 @@ function abrirMensagem(c, id, extra){
   const m = State.mensagens.find(x=>x.id===id);
   if(!m){ toast('Modelo de mensagem não encontrado'); return; }
   extra = extra || {};
+  // A senha não fica guardada em lugar nenhum: se o texto pede {senha}, gera uma nova agora e já manda junto.
+  if(/\{senha\}/.test(m.corpo) && !extra.senha){
+    abrirAcesso(c, { titulo:'Gerar senha pra esta mensagem', botao: c.username ? 'Gerar nova senha e abrir mensagem' : 'Criar acesso e abrir mensagem',
+      texto:`Esta mensagem leva o login de ${escHtml(primeiroNome(c.nome))}. Como a senha não fica salva, vamos definir uma agora${c.username ? ' (a anterior deixa de valer)' : ''} e ela já vai preenchida no texto.`,
+      aposCriar: async (usuario, senha)=>{ reabrir(c); abrirMensagem(c, id, { ...extra, senha, usuario }); } });
+    return;
+  }
   if(id==='kit_enviado' && !extra.rastreio){ const e = enviosDe(c).find(x=>x.rastreio) || enviosDe(c)[0]; if(e){ extra.rastreio = e.rastreio; extra.itens = e.itens; } }
   abrirMensagemTexto(c, m.titulo, preencherMensagem(m.assunto, c, extra), preencherMensagem(m.corpo, c, extra));
 }
@@ -591,15 +614,17 @@ function abaCalendario(){
   const linhaData = (d)=> `<tr><td style="white-space:nowrap;"><strong>${fmtDateBR(d.data)}</strong>${d.data_fim?`<div class="sub" style="font-size:11.5px; color:var(--muted);">até ${fmtDateBR(d.data_fim)}</div>`:''}</td>
     <td><strong>${escHtml(d.titulo)}</strong><div style="font-size:12px; color:var(--muted);">${escHtml(d.descricao)}</div></td><td><span class="chip static">${tipoLbl[d.tipo]||d.tipo}</span></td>
     <td style="text-align:right;"><button class="btn btn-ghost btn-sm" data-cal="${d.id}">Editar</button></td></tr>`;
-  return `<div class="panel" style="overflow-x:auto;"><div class="card-head"><div><h2>Calendário de conteúdo dos creators</h2><div class="desc">Aparece no portal /creators. Datas comemorativas, campanhas e provas pra guiar os posts.</div></div>
+  return `<div class="panel"><div class="card-head"><div><h2>Calendário de conteúdo dos creators</h2><div class="desc">Aparece no portal /creators. Clique num dia pra adicionar uma data, ou num evento pra editar.</div></div>
       <button class="btn btn-dark btn-sm" id="btnNovaData">${ICONS.plus} Nova data</button></div>
+    ${calendarioMesHtml(State.calendario, State.calYm, { max:3 })}</div>
+    <div class="panel" style="overflow-x:auto;"><div class="card-head"><div><h2>Próximas datas</h2><div class="desc">${futuras.length} data(s)</div></div></div>
     <table><thead><tr><th>Quando</th><th>O quê</th><th>Tipo</th><th></th></tr></thead><tbody>
       ${futuras.map(linhaData).join('') || '<tr><td colspan="4"><div class="empty-state">Nenhuma data futura.</div></td></tr>'}</tbody></table>
     ${passadas.length ? `<details style="margin-top:14px;"><summary style="cursor:pointer; font-size:12.5px; color:var(--muted);">Datas passadas (${passadas.length})</summary>
       <table><tbody>${passadas.slice().reverse().map(linhaData).join('')}</tbody></table></details>` : ''}</div>`;
 }
-function editarData(d){
-  const nova = !d; d = d || { data:todayISO(), data_fim:'', titulo:'', descricao:'', tipo:'data' };
+function editarData(d, dia){
+  const nova = !d; d = d || { data:dia||todayISO(), data_fim:'', titulo:'', descricao:'', tipo:'data' };
   openModal(`<button class="modal-close" id="mClose">&times;</button><h3>${nova?'Nova data':'Editar data'}</h3>
     <div class="field"><label>Título</label><input id="dTitulo" value="${escHtml(d.titulo)}" placeholder="Ex.: Black November, Dia do Ciclista, L'Étape..."></div>
     <div class="grid-3" style="gap:12px;"><div class="field"><label>Data</label><input type="date" id="dData" value="${d.data||''}"></div>
@@ -707,6 +732,9 @@ function render(){
   document.querySelectorAll('[data-edit-envio]').forEach(b=> b.onclick = ()=>{ const e = State.envios.find(x=>x.id===b.dataset.editEnvio); editarEnvio(creatorById(e.creator_id), e); });
   const nd = q('btnNovaData'); if(nd) nd.onclick = ()=> editarData(null);
   document.querySelectorAll('[data-cal]').forEach(b=> b.onclick = ()=> editarData(State.calendario.find(d=>d.id===b.dataset.cal)));
+  document.querySelectorAll('[data-cal-nav]').forEach(b=> b.onclick = ()=>{ State.calYm = addMonths(State.calYm, Number(b.dataset.calNav)); render(); });
+  document.querySelectorAll('[data-cal-ev]').forEach(b=> b.onclick = (e)=>{ e.stopPropagation(); editarData(State.calendario.find(d=>d.id===b.dataset.calEv)); });
+  document.querySelectorAll('[data-cal-dia]').forEach(b=> b.onclick = ()=> editarData(null, b.dataset.calDia));
   document.querySelectorAll('[data-var]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(b.dataset.var).then(()=> toast(`${b.dataset.var} copiado`)));
   document.querySelectorAll('[data-m-salvar]').forEach(b=> b.onclick = ()=> salvarModelo(b.dataset.mSalvar, b));
 }

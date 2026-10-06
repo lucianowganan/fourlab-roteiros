@@ -892,7 +892,7 @@ const SUGESTAO_TIPOS = {
   outro:{label:'Outro', emoji:'✨', passo:'Parte', plural:'partes', proporcao:'1 / 1'},
 };
 const SUGESTAO_DIFICULDADE = { facil:{label:'Fácil', cor:'var(--green)', fundo:'var(--green-soft)'}, medio:{label:'Médio', cor:'#b5680a', fundo:'#fdf1dc'}, avancado:{label:'Avançado', cor:'var(--red)', fundo:'var(--red-soft)'} };
-const SUGESTAO_PUBLICO = { todos:'Atletas e profissionais', atletas:'Só atletas', profissionais:'Só profissionais parceiros' };
+const SUGESTAO_PUBLICO = { todos:'Todos (atletas, profissionais e creators)', atletas:'Só atletas', profissionais:'Só profissionais parceiros', creators:'Só creators (Programa Creators)' };
 function tipoSugestao(t){ return SUGESTAO_TIPOS[t] || SUGESTAO_TIPOS.outro; }
 function passosDaSugestao(s){ return Array.isArray(s && s.passos) ? s.passos.filter(p=> p && (p.texto || p.dica || p.imagem)) : []; }
 function capaDaSugestao(s){ return s.capa_url || (passosDaSugestao(s).find(p=>p.imagem)||{}).imagem || ''; }
