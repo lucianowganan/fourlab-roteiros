@@ -1,10 +1,5 @@
--- ============================================================
--- Programa FourLab Creators · PARTE 3 de 3 — datas de exemplo no calendário e conferência.
--- (As mensagens padrão são cadastradas pelo próprio app ao abrir o Programa Creators.)
--- Rodar no SQL Editor do Supabase, na ordem (a, b, c). É idempotente (pode rodar de novo).
--- Dica: no GitHub, abra o arquivo e use o botão "Raw" (ou "Copy raw file") pra copiar inteiro.
--- Antes: 2026-10-11a e 2026-10-11b. Depois publique a Edge Function "criar-acesso-creator".
--- ============================================================
+-- Programa FourLab Creators · PARTE 6 de 6 — datas de exemplo e conferência.
+-- Rode as 6 partes na ordem, cada uma numa aba nova do SQL Editor. Pode rodar de novo sem problema.
 
 -- ---------- 7) Algumas datas de exemplo no calendário (a equipe edita/apaga no app) ----------
 insert into public.creator_calendario (data, data_fim, titulo, descricao, tipo)
