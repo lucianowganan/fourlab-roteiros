@@ -15,58 +15,66 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="creators.css">
 <style>
+  .pagina{ position:relative; overflow-x:clip; }
   /* ---------- Topo ---------- */
-  .top{ position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); background:rgba(10,7,9,0.6); border-bottom:1px solid rgba(255,255,255,0.06); }
-  .top .wrap{ display:flex; align-items:center; justify-content:space-between; height:66px; gap:12px; }
-  .top .entrar{ color:var(--c-text); text-decoration:none; font-weight:700; font-size:13.5px; border:1px solid var(--c-line-2); border-radius:999px; padding:8px 16px; white-space:nowrap; }
-  .top .entrar:hover{ border-color:var(--c-orange); }
+  .top{ position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); background:rgba(10,7,9,0.55); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .top .wrap{ display:flex; align-items:center; justify-content:space-between; height:68px; gap:12px; }
+  .top .logo-fl{ height:38px; width:auto; display:block; }
+  .top .entrar{ color:var(--c-text); text-decoration:none; font-weight:800; font-size:12.5px; text-transform:uppercase; letter-spacing:0.4px; border:1px solid var(--c-line-2); border-radius:999px; padding:9px 16px; white-space:nowrap; transition:border-color .2s, background .2s; }
+  .top .entrar:hover{ border-color:var(--c-orange); background:rgba(255,155,61,0.08); }
 
   /* ---------- Hero ---------- */
-  .hero{ position:relative; text-align:center; padding:clamp(40px, 8vw, 90px) 0 clamp(40px, 7vw, 80px); overflow:hidden; }
-  .hero .logo-creators{ width:min(820px, 100%); height:auto; display:block; margin:0 auto; filter:drop-shadow(0 18px 60px rgba(255,110,60,0.35)); }
-  .hero .pill{ display:inline-block; margin-top:clamp(8px, 2vw, 18px); font-size:clamp(14px, 2.2vw, 18px); max-width:100%; }
-  .hero .lead{ max-width:620px; margin:22px auto 30px; color:var(--c-muted); font-size:clamp(15px, 2vw, 17px); }
-  .hero .anel{ position:absolute; width:clamp(220px, 32vw, 420px); right:-9%; top:8%; opacity:0.85; pointer-events:none; z-index:-1; }
-  .hero .anel.esq{ left:-12%; right:auto; top:auto; bottom:-14%; width:clamp(180px, 26vw, 340px); opacity:0.6; }
-  .hero .arrow-down{ display:inline-flex; width:46px; height:46px; border-radius:50%; border:2px solid var(--c-coral); color:var(--c-coral); align-items:center; justify-content:center; margin-top:28px; text-decoration:none; }
+  .hero{ position:relative; text-align:center; padding:clamp(48px, 9vw, 110px) 0 clamp(50px, 8vw, 96px); }
+  .hero .logo-creators{ width:min(860px, 100%); height:auto; display:block; margin:0 auto; animation:cr-entra-logo 1.4s cubic-bezier(.2,.8,.2,1) both, cr-pulsa-logo 5s ease-in-out 1.4s infinite; }
+  @keyframes cr-entra-logo{ from{ opacity:0; transform:scale(0.86) translateY(20px); filter:blur(18px); } to{ opacity:1; transform:none; filter:none; } }
+  @keyframes cr-pulsa-logo{ 0%,100%{ filter:drop-shadow(0 16px 50px rgba(255,110,60,0.30)); } 50%{ filter:drop-shadow(0 16px 80px rgba(255,80,90,0.55)); } }
+  .hero .pill{ display:inline-block; margin-top:clamp(10px, 2vw, 20px); font-size:clamp(14px, 2.2vw, 18px); max-width:100%; }
+  .hero .lead{ max-width:620px; margin:22px auto 32px; color:var(--c-muted); font-size:clamp(15px, 2vw, 17.5px); }
+  .hero .arrow-down{ display:inline-flex; width:48px; height:48px; border-radius:50%; border:2px solid var(--c-coral); color:var(--c-coral); align-items:center; justify-content:center; margin-top:30px; text-decoration:none; animation:cr-quica 2.2s ease-in-out infinite; }
+  @keyframes cr-quica{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(9px); } }
 
   /* ---------- Seções ---------- */
-  section.bloco{ padding:clamp(30px, 6vw, 60px) 0; }
-  .titulo-xl{ font-size:clamp(40px, 8.5vw, 92px); font-weight:900; text-transform:uppercase; letter-spacing:-1.5px; }
-  .titulo-xl .seta{ display:inline-block; font-weight:300; font-size:0.55em; vertical-align:middle; margin-left:8px; }
-  .texto-card{ padding:clamp(20px, 4vw, 34px); margin-top:22px; font-size:clamp(15px, 1.9vw, 17.5px); }
+  section.bloco{ padding:clamp(34px, 6vw, 70px) 0; }
+  .titulo-xl{ font-size:clamp(42px, 9vw, 100px); letter-spacing:-1px; }
+  .titulo-xl .seta{ display:inline-block; font-weight:400; font-size:0.5em; vertical-align:middle; margin-left:10px; }
+  .texto-card{ padding:clamp(20px, 4vw, 34px); margin-top:24px; font-size:clamp(15px, 1.9vw, 17.5px); }
   .texto-card p{ margin:0 0 14px; } .texto-card p:last-child{ margin:0; }
-  .hl-pink{ color:var(--c-pink); font-weight:700; } .hl-orange{ color:var(--c-orange); font-weight:700; }
+  .hl-pink{ color:var(--c-pink); font-weight:800; } .hl-orange{ color:var(--c-orange); font-weight:800; }
+  .glass{ transition:transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s, border-color .35s; }
+  .glass.hover-luz:hover{ transform:translateY(-4px); border-color:rgba(255,120,80,0.35); box-shadow:0 24px 60px rgba(0,0,0,0.45), 0 0 40px rgba(255,90,70,0.12); }
 
-  /* Como funciona: 3 cards com ícone 3D */
+  /* Como funciona */
   .como-head{ display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; }
-  .como-head .pill{ font-size:12px; letter-spacing:5px; font-weight:700; padding:7px 16px; margin-bottom:10px; }
-  .passos{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px; margin-top:58px; }
-  .passo{ position:relative; padding:58px 22px 24px; text-align:left; }
-  .passo img{ position:absolute; top:-46px; right:18px; height:92px; width:auto; filter:drop-shadow(0 12px 26px rgba(255,59,107,0.45)); }
-  .passo .num{ font-family:var(--c-font-title); font-weight:900; font-size:72px; line-height:0.8; float:left; margin:4px 12px 0 0; }
-  .passo h3{ font-size:18px; font-weight:800; }
+  .como-head .pill{ font-size:12px; letter-spacing:5px; font-weight:800; padding:7px 16px; margin-bottom:12px; }
+  .passos{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px; margin-top:62px; }
+  .passo{ position:relative; padding:60px 22px 24px; text-align:left; }
+  .passo img{ position:absolute; top:-50px; right:18px; height:96px; width:auto; filter:drop-shadow(0 12px 26px rgba(255,59,107,0.45)); animation:cr-boia 4.5s ease-in-out infinite; }
+  .passo:nth-child(2) img{ animation-delay:-1.5s; } .passo:nth-child(3) img{ animation-delay:-3s; }
+  @keyframes cr-boia{ 0%,100%{ transform:translateY(0) rotate(-4deg); } 50%{ transform:translateY(-12px) rotate(5deg); } }
+  .passo .num{ font-family:var(--c-font-title); font-weight:900; font-size:78px; line-height:0.8; float:left; margin:4px 12px 0 0; }
+  .passo h3{ font-size:19px; }
   .passo p{ margin:8px 0 0; color:var(--c-muted); font-size:14px; }
-  @media (max-width:760px){ .passos{ grid-template-columns:1fr; gap:56px; } }
+  @media (max-width:760px){ .passos{ grid-template-columns:1fr; gap:60px; } }
 
   /* Etapas */
-  .etapa{ padding:clamp(22px, 4vw, 36px); margin-top:26px; position:relative; overflow:hidden; }
-  .etapa::before{ content:''; position:absolute; left:8%; right:8%; top:0; height:3px; background:var(--c-grad-line); border-radius:3px; }
+  .etapa{ padding:clamp(22px, 4vw, 38px); margin-top:28px; position:relative; overflow:hidden; }
+  .etapa::before{ content:''; position:absolute; left:8%; right:8%; top:0; height:3px; background:var(--c-grad-line); background-size:200% 100%; border-radius:3px; animation:cr-linha 4s linear infinite; }
   .etapa .eh{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
   .etapa .eh .lbl{ font-size:clamp(15px, 2vw, 19px); color:var(--c-muted); }
-  .etapa .eh .dias{ font-family:var(--c-font-title); font-weight:800; font-size:clamp(34px, 6vw, 52px); color:#d9d2d5; }
-  .etapa h4{ font-family:var(--c-font-title); font-size:clamp(17px, 2.4vw, 22px); font-weight:800; margin:18px 0 10px; letter-spacing:0.3px; }
+  .etapa .eh .dias{ font-family:var(--c-font-title); font-weight:900; font-size:clamp(36px, 6.5vw, 58px); color:#e2dbde; text-transform:uppercase; }
+  .etapa h4{ font-family:var(--c-font-title); font-size:clamp(17px, 2.4vw, 23px); font-weight:900; margin:20px 0 10px; text-transform:uppercase; }
   .itens{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
-  .item{ background:rgba(0,0,0,0.45); border:1px solid var(--c-line); border-radius:14px; padding:11px 16px; font-family:var(--c-font-title); font-weight:800; font-size:clamp(15px, 2.2vw, 20px); }
+  .item{ background:rgba(0,0,0,0.45); border:1px solid var(--c-line); border-radius:14px; padding:12px 16px; font-family:var(--c-font-title); font-weight:900; font-size:clamp(15px, 2.2vw, 20px); min-height:52px;
+    opacity:0.25; transition:opacity .3s, border-color .4s, box-shadow .4s; }
+  .item.vivo{ opacity:1; } .item.feito{ border-color:rgba(255,120,80,0.28); box-shadow:inset 0 0 22px rgba(255,90,70,0.07); }
   .item small{ font-size:0.6em; font-weight:700; color:var(--c-muted); }
   .item .q{ font-size:0.75em; margin-right:4px; }
-  .item.meta{ color:#fff; } .item.meta .grad-text{ font-size:0.75em; }
   .etapa .nota{ color:var(--c-muted); font-size:14px; margin:14px 0 0; }
   @media (max-width:640px){ .itens{ grid-template-columns:1fr; } }
   .oficial{ display:grid; grid-template-columns:1.4fr 1fr; gap:20px; align-items:center; }
-  .oficial h3{ font-size:clamp(30px, 5.5vw, 52px); font-weight:800; }
-  .oficial img{ width:100%; max-width:300px; justify-self:center; filter:drop-shadow(0 18px 40px rgba(255,59,107,0.35)); }
-  .beneficios{ display:grid; grid-template-columns:1fr 1fr; gap:6px 22px; margin:14px 0 0; padding:0; list-style:none; font-weight:700; font-size:14.5px; }
+  .oficial h3{ font-size:clamp(32px, 5.8vw, 56px); }
+  .oficial img{ width:100%; max-width:300px; justify-self:center; filter:drop-shadow(0 18px 40px rgba(255,59,107,0.35)); animation:cr-boia 5s ease-in-out infinite; }
+  .beneficios{ display:grid; grid-template-columns:1fr 1fr; gap:6px 22px; margin:14px 0 0; padding:0; list-style:none; font-weight:800; font-size:14.5px; }
   .beneficios li::before{ content:'•'; color:var(--c-orange); margin-right:8px; }
   @media (max-width:760px){ .oficial{ grid-template-columns:1fr; } .oficial img{ max-width:200px; grid-row:1; } .beneficios{ grid-template-columns:1fr; } }
 
@@ -77,40 +85,66 @@
   .form-foot .aviso{ font-size:12.5px; color:var(--c-muted); max-width:520px; }
   .erro-geral{ display:none; background:rgba(255,90,90,0.12); border:1px solid rgba(255,90,90,0.4); color:#ffb0b0; border-radius:14px; padding:12px 14px; font-size:14px; margin-top:18px; }
   .hp{ position:absolute !important; left:-9999px !important; width:1px; height:1px; overflow:hidden; }
-  .sucesso{ text-align:center; padding:clamp(30px, 6vw, 56px) clamp(20px, 4vw, 40px); }
-  .sucesso .ok-ic{ width:76px; height:76px; border-radius:24px; background:var(--c-grad); display:inline-flex; align-items:center; justify-content:center; box-shadow:0 14px 40px rgba(255,90,70,0.45); margin-bottom:22px; }
-  .sucesso h2{ font-size:clamp(26px, 4.6vw, 38px); font-weight:800; }
-  .sucesso p{ color:var(--c-muted); max-width:520px; margin:14px auto 0; font-size:16px; }
 
-  footer{ padding:50px 0 60px; text-align:center; }
-  footer .redes{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px 28px; margin-top:26px; font-family:var(--c-font-title); font-weight:700; font-size:clamp(16px, 2.6vw, 21px); }
-  footer .redes a{ color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:10px; }
-  footer .redes .bx{ width:38px; height:38px; border-radius:11px; background:var(--c-grad); display:inline-flex; align-items:center; justify-content:center; }
+  /* Sucesso */
+  .sucesso{ position:relative; text-align:center; padding:clamp(36px, 7vw, 70px) clamp(20px, 4vw, 44px); margin-top:24px; overflow:hidden;
+    animation:cr-pop .9s cubic-bezier(.2,1.4,.3,1) both; border-color:rgba(255,120,80,0.35); box-shadow:0 30px 90px rgba(0,0,0,0.5), 0 0 80px rgba(255,90,70,0.18); }
+  .sucesso::before{ content:''; position:absolute; inset:-40%; background:conic-gradient(from 0deg, transparent, rgba(255,106,77,0.16), transparent 30%, rgba(227,5,95,0.14), transparent 60%); animation:cr-gira 9s linear infinite; z-index:-1; }
+  @keyframes cr-pop{ from{ opacity:0; transform:scale(0.82) translateY(30px); } to{ opacity:1; transform:none; } }
+  @keyframes cr-gira{ to{ transform:rotate(360deg); } }
+  .ok-wrap{ position:relative; width:110px; height:110px; margin:0 auto 26px; }
+  .ok-wrap .pulso{ position:absolute; inset:0; border-radius:34px; border:2px solid rgba(255,106,77,0.7); animation:cr-pulso 2.4s ease-out infinite; }
+  .ok-wrap .pulso.p2{ animation-delay:1.2s; }
+  @keyframes cr-pulso{ from{ transform:scale(1); opacity:0.9; } to{ transform:scale(1.9); opacity:0; } }
+  .ok-ic{ position:absolute; inset:0; border-radius:34px; background:var(--c-grad); display:flex; align-items:center; justify-content:center; box-shadow:0 18px 50px rgba(255,90,70,0.55); animation:cr-pop .7s .15s cubic-bezier(.2,1.6,.3,1) both; }
+  .ok-ic path{ stroke-dasharray:30; stroke-dashoffset:30; animation:cr-tique .6s .6s ease-out forwards; }
+  @keyframes cr-tique{ to{ stroke-dashoffset:0; } }
+  .sucesso h2{ font-size:clamp(32px, 6vw, 56px); background:linear-gradient(100deg, #fff 20%, #ffb36b 40%, #ff3b6b 55%, #fff 75%); background-size:250% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent; animation:cr-brilho-txt 4s linear infinite; }
+  @keyframes cr-brilho-txt{ from{ background-position:100% 0; } to{ background-position:-150% 0; } }
+  .sucesso .msg{ color:var(--c-text); max-width:540px; margin:16px auto 0; font-size:clamp(15.5px, 2vw, 18px); }
+  .proximos{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin:30px auto 0; max-width:640px; text-align:left; }
+  .proximos div{ border:1px solid var(--c-line); background:rgba(0,0,0,0.35); border-radius:16px; padding:14px; font-size:13px; color:var(--c-muted); }
+  .proximos b{ display:block; color:var(--c-text); font-family:var(--c-font-title); font-weight:900; text-transform:uppercase; font-size:13px; margin-bottom:3px; }
+  .proximos .n{ display:inline-flex; width:24px; height:24px; border-radius:8px; background:var(--c-grad); color:#fff; font-weight:900; font-size:12px; align-items:center; justify-content:center; margin-bottom:8px; }
+  @media (max-width:640px){ .proximos{ grid-template-columns:1fr; } }
+  .seguir{ display:flex; justify-content:center; flex-wrap:wrap; gap:12px; margin-top:30px; }
+  .seguir .btn-c svg{ flex:none; }
+  .confete{ position:fixed; inset:0; pointer-events:none; z-index:200; }
+
+  footer{ padding:50px 0 70px; text-align:center; position:relative; }
+  footer .logo-fl{ height:54px; width:auto; }
+  footer .redes{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px 28px; margin-top:28px; font-family:var(--c-font-title); font-weight:900; font-size:clamp(16px, 2.6vw, 21px); }
+  footer .redes a{ color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:10px; transition:transform .2s; }
+  footer .redes a:hover{ transform:translateY(-2px); }
+  footer .redes .bx{ width:40px; height:40px; border-radius:12px; background:var(--c-grad); display:inline-flex; align-items:center; justify-content:center; }
 </style></head>
 <body class="cr">
+<div class="bg-vivo" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="luz-cursor" id="luzCursor" aria-hidden="true"></div>
+<div class="pagina" id="pagina">
+<div class="aneis" id="aneis" aria-hidden="true"></div>
 
 <header class="top"><div class="wrap">
-  <a class="fl-logo" href="#" aria-label="FourLab Nutrition"><img class="logoSimbolo" alt=""><span class="nm">FourLab<small>nutrition</small></span></a>
+  <a href="#" aria-label="FourLab Nutrition"><img class="logo-fl" src="assets/creators/logo-fourlab.webp" alt="FourLab Nutrition"></a>
   <a class="entrar" href="creators">Já sou creator · Entrar</a>
 </div></header>
 
 <main>
   <section class="hero">
-    <img class="anel" src="assets/creators/anel.webp" alt="">
-    <img class="anel esq" src="assets/creators/anel.webp" alt="">
     <div class="wrap">
       <h1 style="margin:0;"><img class="logo-creators" src="assets/creators/logo-creators.webp" alt="Programa Creators"></h1>
-      <div class="pill">Conheça o programa de creators da <strong>FourLab Nutrition</strong></div>
-      <p class="lead">Queremos construir com quem vive o esporte de verdade. Você entrega, a parceria evolui.</p>
-      <a class="btn-c lg" href="#inscricao">Quero ser creator</a><br>
+      <div class="pill" data-rev style="--d:.5s">Conheça o programa de creators da <strong>FourLab Nutrition</strong></div>
+      <p class="lead" data-rev style="--d:.7s">Queremos construir com quem vive o esporte de verdade. Você entrega, a parceria evolui.</p>
+      <div data-rev="zoom" style="--d:.9s"><a class="btn-c lg" href="#inscricao">Quero ser creator</a></div>
       <a class="arrow-down" href="#quem-somos" aria-label="Saiba mais"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg></a>
     </div>
   </section>
 
   <section class="bloco" id="quem-somos"><div class="wrap-sm">
-    <hr class="line-grad">
-    <h2 class="titulo-xl" style="text-align:center; margin-top:26px;">Quem somos?</h2>
-    <div class="glass texto-card">
+    <hr class="line-grad" data-rev>
+    <h2 class="titulo-xl palavras" style="text-align:center; margin-top:28px;">Quem somos?</h2>
+    <div class="glass texto-card hover-luz" data-rev>
       <p>A <strong>FourLab nasceu com 4 pilares</strong> bem definidos e isso nos guia diariamente em cada tomada de ação. São eles: <strong>Pessoas, Produtos, Acessibilidade e Experiência</strong>.</p>
       <p>Revolucionar a performance esportiva através da ciência e da nutrição: <span class="hl-pink">esse é o nosso desafio!</span></p>
       <p>A jornada da <strong>FourLab</strong> é marcada por inovação e comprometimento. Desde nossos primeiros passos, nos destacamos ao trazer suplementos formulados para realmente fazer a diferença na vida e no bolso dos atletas.</p>
@@ -119,9 +153,9 @@
   </div></section>
 
   <section class="bloco"><div class="wrap-sm">
-    <hr class="line-grad">
-    <h2 class="titulo-xl" style="margin-top:26px;">Programa<br>Creators<span class="seta">↘</span></h2>
-    <div class="glass texto-card">
+    <hr class="line-grad" data-rev>
+    <h2 class="titulo-xl palavras" style="margin-top:28px;">Programa Creators<span class="seta">↘</span></h2>
+    <div class="glass texto-card hover-luz" data-rev>
       <p>Queremos construir com quem vive isso de verdade!</p>
       <p><strong>O FourLab Creators é o nosso programa para <span class="hl-pink">descobrir e desenvolver novos parceiros da marca.</span></strong></p>
       <p><strong>Não estamos procurando apenas grandes números.</strong></p>
@@ -132,35 +166,35 @@
   </div></section>
 
   <section class="bloco"><div class="wrap">
-    <div class="como-head"><h2 class="titulo-xl">Como<br>funciona?</h2><span class="pill">PLANOS</span></div>
+    <div class="como-head"><h2 class="titulo-xl palavras">Como funciona?</h2><span class="pill" data-rev="dir">PLANOS</span></div>
     <div class="passos">
-      <div class="glass passo"><img src="assets/creators/cadeado.webp" alt=""><span class="num grad-text">1</span>
+      <div class="glass passo hover-luz" data-rev style="--d:0s"><img src="assets/creators/cadeado.webp" alt=""><span class="num grad-text">1</span>
         <h3>Desbloqueie a experiência</h3><p>30 dias para conhecermos seu trabalho.</p></div>
-      <div class="glass passo"><img src="assets/creators/coracao.webp" alt=""><span class="num grad-text">2</span>
+      <div class="glass passo hover-luz" data-rev style="--d:.15s"><img src="assets/creators/coracao.webp" alt=""><span class="num grad-text">2</span>
         <h3>Evolução da parceria</h3><p>60 dias para elevar a parceria a outro nível.</p></div>
-      <div class="glass passo"><img src="assets/creators/f.webp" alt=""><span class="num grad-text">3</span>
+      <div class="glass passo hover-luz" data-rev style="--d:.3s"><img src="assets/creators/f.webp" alt=""><span class="num grad-text">3</span>
         <h3>Se torne um Creator Oficial</h3><p>Parceria recorrente com campanhas, metas, benefícios e recompensas.</p></div>
     </div>
 
-    <div class="glass etapa">
+    <div class="glass etapa" data-rev data-digitar>
       <div class="eh"><span class="lbl">Etapa 01 | Experiência</span><span class="dias">30 Dias</span></div>
-      <h4>VOCÊ RECEBE:</h4>
+      <h4>Você recebe:</h4>
       <div class="itens">
         <div class="item"><span class="grad-text"><span class="q">1x</span> Display Energy Gel</span></div>
         <div class="item"><span class="grad-text"><span class="q">1x</span> Caixa Na.K+ Hidratação</span></div>
       </div>
       <p class="nota">Durante 30 dias, você terá acesso aos produtos e deverá inseri-los na sua rotina de treinos e conteúdos.</p>
-      <h4 class="grad-text">ENTREGAS MÍNIMAS:</h4>
+      <h4 class="grad-text">Entregas mínimas:</h4>
       <div class="itens">
-        <div class="item meta"><span class="q">1x</span> Vídeo semanal <small>(TikTok e Instagram)</small></div>
-        <div class="item meta"><span class="q">3x</span> Stories semanais <small>(TikTok e Instagram)</small></div>
+        <div class="item"><span class="q">1x</span> Vídeo semanal <small>(TikTok e Instagram)</small></div>
+        <div class="item"><span class="q">3x</span> Stories semanais <small>(TikTok e Instagram)</small></div>
       </div>
       <p class="nota">Ao final da etapa, nosso time avaliará seu trabalho para definir quem avança no programa.</p>
     </div>
 
-    <div class="glass etapa">
+    <div class="glass etapa" data-rev data-digitar>
       <div class="eh"><span class="lbl">Etapa 02 | Evolução</span><span class="dias">60 Dias</span></div>
-      <h4>VOCÊ RECEBE:</h4>
+      <h4>Você recebe:</h4>
       <div class="itens">
         <div class="item"><span class="grad-text"><span class="q">1x</span> Display Energy Gel</span></div>
         <div class="item"><span class="grad-text"><span class="q">1x</span> Energy Gel Refil <small>500g</small></span></div>
@@ -170,20 +204,20 @@
         <div class="item"><span class="grad-text">Cupom 10% OFF</span> <small>(seus seguidores) + comissão em vendas</small></div>
       </div>
       <p class="nota">Nesta fase, aumentamos a frequência das entregas e começamos a avaliar também sua capacidade de gerar influência e resultado para a marca.</p>
-      <h4 class="grad-text">ENTREGAS MÍNIMAS:</h4>
+      <h4 class="grad-text">Entregas mínimas:</h4>
       <div class="itens">
-        <div class="item meta"><span class="q">3x</span> Vídeos semanais <small>(TikTok · Carrinho Laranja)</small></div>
-        <div class="item meta"><span class="q">1x</span> Vídeo semanal <small>(Instagram)</small></div>
-        <div class="item meta"><span class="q">3x</span> Stories semanais <small>(TikTok e Instagram)</small></div>
+        <div class="item"><span class="q">3x</span> Vídeos semanais <small>(TikTok · Carrinho Laranja)</small></div>
+        <div class="item"><span class="q">1x</span> Vídeo semanal <small>(Instagram)</small></div>
+        <div class="item"><span class="q">3x</span> Stories semanais <small>(TikTok e Instagram)</small></div>
       </div>
       <p class="nota">Após os 60 dias, você será avaliado para prosseguir para a próxima fase.</p>
     </div>
 
-    <div class="glass etapa">
+    <div class="glass etapa" data-rev>
       <div class="eh"><span class="lbl">Etapa 03 | <strong style="color:var(--c-text);">Creator Oficial</strong></span></div>
       <div class="oficial">
         <div>
-          <h3 class="grad-text" style="margin-top:10px;">Você se tornou um Creator Oficial</h3>
+          <h3 class="grad-text palavras" style="margin-top:12px;">Você se tornou um Creator Oficial</h3>
           <p class="nota" style="font-size:15px; color:var(--c-text);">Após a avaliação durante os primeiros <strong>90 dias</strong>, você será convidado para se tornar oficialmente um <strong>FourLab Creator</strong>. A partir daqui, a parceria passa a ser recorrente.</p>
           <p class="nota" style="margin-top:12px;">Você poderá ter acesso a:</p>
           <ul class="beneficios">
@@ -199,38 +233,39 @@
   </div></section>
 
   <section class="bloco" id="inscricao"><div class="wrap-sm">
-    <h2 class="titulo-xl" style="font-size:clamp(34px, 6.5vw, 64px);">Pronto para começar?</h2>
-    <div class="glass texto-card">
+    <h2 class="titulo-xl palavras" style="font-size:clamp(36px, 7vw, 70px);">Pronto para começar?</h2>
+    <div class="glass texto-card" data-rev>
       <p>Se você chegou até aqui, já sabe o que buscamos.</p>
       <p>Pessoas que vivem o esporte. Que gostam de criar. Que respeitam sua comunidade.</p>
       <p>E que querem crescer junto com uma marca que <span class="hl-orange">também vive performance todos os dias.</span></p>
       <p><strong><span class="hl-orange">Preencha o formulário</span> abaixo para participar do processo de seleção!</strong></p>
     </div>
-
-    <div id="formArea"></div>
+    <div id="formArea" data-rev></div>
   </div></section>
 </main>
 
 <footer><div class="wrap">
-  <hr class="line-grad" style="max-width:760px; margin:0 auto 40px;">
-  <a class="fl-logo" href="#" aria-label="FourLab Nutrition" style="transform:scale(1.4);"><img class="logoSimbolo" alt=""><span class="nm">FourLab<small>nutrition</small></span></a>
-  <div class="redes">
+  <hr class="line-grad" style="max-width:760px; margin:0 auto 44px;">
+  <img class="logo-fl" src="assets/creators/logo-fourlab.webp" alt="FourLab Nutrition" data-rev="zoom">
+  <div class="redes" data-rev>
     <a href="https://instagram.com/fourlabnutri" target="_blank" rel="noopener"><span class="bx" id="icIg"></span>@fourlabnutri</a>
     <a href="https://tiktok.com/@fourlabnutri" target="_blank" rel="noopener"><span class="bx" id="icTt"></span>@fourlabnutri</a>
     <a href="https://www.fourlabnutri.com.br" target="_blank" rel="noopener"><span class="bx"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>www.fourlabnutri.com.br</a>
   </div>
 </div></footer>
+</div>
 <div class="toast-c" id="toastC"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script src="creators-shared.js"></script>
+<script src="creators-motion.js"></script>
 <script>
 /* Landing pública do Programa Creators + formulário de inscrição.
    Quem preenche não tem login: a inscrição vai pela função inscrever_creator() do banco
-   e cai na coluna "Contato recebido" do Programa Creators (equipe). */
-document.querySelectorAll('.logoSimbolo').forEach(i=> i.src = LOGO_SIMBOLO_BRANCO);
-const icBranco = (svg)=> svg.replace('stroke="currentColor"','stroke="#fff"').replace(/width="18" height="18"/,'width="20" height="20"');
+   e cai na coluna "Contato recebido" do Programa Creators (equipe).
+   O movimento (anéis, textos aparecendo, kits sendo escritos, confete) fica em creators-motion.js. */
+const icBranco = (svg, n)=> svg.replace('stroke="currentColor"','stroke="#fff"').replace(/width="18" height="18"/,`width="${n||20}" height="${n||20}"`);
 document.getElementById('icIg').innerHTML = icBranco(ICONS.instagram);
 document.getElementById('icTt').innerHTML = icBranco(ICONS.tiktok);
 
@@ -291,12 +326,22 @@ function formHtml(){
   </form>`;
 }
 function sucessoHtml(duplicado){
-  return `<div class="glass sucesso" style="margin-top:24px;">
-    <div class="ok-ic"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+  return `<div class="glass sucesso">
+    <div class="ok-wrap"><span class="pulso"></span><span class="pulso p2"></span>
+      <div class="ok-ic"><svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div>
     <h2>${duplicado ? 'Já recebemos sua inscrição!' : 'Inscrição enviada!'}</h2>
-    <p>${duplicado ? 'Sua inscrição já está com o <strong>time de marketing responsável</strong>. Em breve você recebe um retorno.'
-      : 'Seu pedido foi enviado ao <strong>time de marketing responsável</strong> pelo Programa FourLab Creators. Em breve você recebe um retorno por WhatsApp ou e-mail.'}</p>
-    <p style="margin-top:22px;">Enquanto isso, acompanhe a gente: <a href="https://instagram.com/fourlabnutri" target="_blank" rel="noopener">@fourlabnutri</a></p>
+    <p class="msg">${duplicado ? 'Sua inscrição já está com o <strong>time de marketing responsável</strong>. Em breve você recebe um retorno.'
+      : 'Seu pedido foi enviado ao <strong>time de marketing responsável</strong> pelo Programa FourLab Creators. Em breve você recebe um retorno.'}</p>
+    <div class="proximos">
+      <div data-rev style="--d:.5s"><span class="n">1</span><b>Avaliação</b>Nosso time analisa seu perfil e seus conteúdos.</div>
+      <div data-rev style="--d:.7s"><span class="n">2</span><b>Retorno</b>Você recebe a resposta por WhatsApp ou e-mail.</div>
+      <div data-rev style="--d:.9s"><span class="n">3</span><b>Seu kit</b>Aprovado? O kit da Etapa 01 vai direto pra você.</div>
+    </div>
+    <p class="msg" style="color:var(--c-muted); margin-top:30px;">Enquanto isso, segue a gente pra não perder nada:</p>
+    <div class="seguir">
+      <a class="btn-c" href="https://instagram.com/fourlabnutri" target="_blank" rel="noopener">${icBranco(ICONS.instagram, 19)} Seguir no Instagram</a>
+      <a class="btn-c ghost" href="https://tiktok.com/@fourlabnutri" target="_blank" rel="noopener">${icBranco(ICONS.tiktok, 19)} Seguir no TikTok</a>
+    </div>
   </div>`;
 }
 
@@ -358,7 +403,7 @@ function validar(){
 async function enviar(ev){
   ev.preventDefault();
   $('erroGeral').style.display = 'none';
-  if($('fSite').value) { $('formArea').innerHTML = sucessoHtml(false); return; }   // robô
+  if($('fSite').value) { $('formArea').innerHTML = sucessoHtml(false); CrMotion.revelar($('formArea')); return; }   // robô
   const esportes = validar(); if(!esportes) return;
   const v = (id)=> $(id).value.trim();
   const dados = {
@@ -381,10 +426,11 @@ async function enviar(ev){
     return;
   }
   $('formArea').innerHTML = sucessoHtml(data === 'duplicado');
-  $('inscricao').scrollIntoView({behavior:'smooth', block:'start'});
+  $('formArea').scrollIntoView({behavior:'smooth', block:'center'});
+  CrMotion.revelar($('formArea'));
+  if(data !== 'duplicado') setTimeout(CrMotion.confete, 350);
 }
 
 $('formArea').innerHTML = formHtml();
 ligarForm();
 </script>
-</body></html>

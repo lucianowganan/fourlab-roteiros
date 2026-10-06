@@ -86,7 +86,7 @@ function preencherMensagem(texto, c, extra){
   const etapaGuia = extra.etapaGuia || (c.etapa === 'etapa2' ? 'etapa2' : 'etapa1');
   const vars = {
     nome: c.nome || '', primeiro_nome: primeiroNome(c.nome), usuario: c.username || extra.usuario || '',
-    senha: extra.senha || '(a mesma que você já usa)', link_portal: LINK_PORTAL_CREATORS, link_lp: LINK_LP_CREATORS,
+    senha: extra.senha || '{senha}', link_portal: LINK_PORTAL_CREATORS, link_lp: LINK_LP_CREATORS,
     link_guia: SITE_CREATORS + '/' + etapaInfo(etapaGuia).guia,
     itens_envio: extra.itens || '', rastreio: extra.rastreio || '',
     cupom_desconto: c.cupom_desconto || '', cupom_pessoal: c.cupom_pessoal || '',
@@ -106,4 +106,38 @@ function linkEmail(email, assunto, texto){
   // e-mail não tem negrito do WhatsApp: tira os *asteriscos*
   const corpo = String(texto||'').replace(/\*([^*\n]+)\*/g, '$1');
   return `mailto:${encodeURIComponent(email||'')}?subject=${encodeURIComponent(assunto||'')}&body=${encodeURIComponent(corpo)}`;
+}
+
+/* ---------- Calendário do mês (portal do creator e equipe) ----------
+   eventos: [{id, data, data_fim, titulo, tipo, cor?}] · ym = 'AAAA-MM'
+   Devolve o HTML da grade; cada página estiliza as classes .cal-* do seu jeito.
+   Botões: [data-cal-nav="-1|1"] troca o mês · [data-cal-dia="AAAA-MM-DD"] clicou no dia · [data-cal-ev="id"] clicou no evento. */
+const CAL_TIPOS = { campanha:{label:'Campanha', cor:'#ff6a4d'}, data:{label:'Data', cor:'#ffb13d'}, prova:{label:'Prova', cor:'#c13cff'}, etapa:{label:'Sua etapa', cor:'#3ddc84'} };
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+function addDiasISO(iso, n){ const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); }
+function eventosDoDia(eventos, iso){ return eventos.filter(e=> e.data <= iso && (e.data_fim || e.data) >= iso); }
+function calendarioMesHtml(eventos, ym, opts){
+  opts = opts || {};
+  const [a, m] = ym.split('-').map(Number), primeiro = new Date(a, m-1, 1, 12);
+  const inicio = addDiasISO(`${ym}-01`, -primeiro.getDay());
+  const hoje = todayISO();
+  let celulas = '';
+  for(let i = 0; i < 42; i++){
+    const iso = addDiasISO(inicio, i);
+    if(i === 35 && iso.slice(0,7) !== ym) break;          // 5 semanas bastam
+    const evs = eventosDoDia(eventos, iso);
+    celulas += `<div class="cal-day ${iso.slice(0,7)!==ym?'out':''} ${iso===hoje?'hoje':''} ${evs.length?'tem':''}" data-cal-dia="${iso}">
+      <span class="cal-n">${Number(iso.slice(8))}</span>
+      ${evs.slice(0, opts.max || 3).map(e=>{ const t = CAL_TIPOS[e.tipo] || CAL_TIPOS.data;
+        return `<span class="cal-ev" data-cal-ev="${escHtml(e.id||'')}" style="--ev:${e.cor||t.cor};" title="${escHtml(e.titulo)}">${escHtml(e.titulo)}</span>`; }).join('')}
+      ${evs.length > (opts.max || 3) ? `<span class="cal-mais">+${evs.length - (opts.max || 3)}</span>` : ''}
+    </div>`;
+  }
+  return `<div class="cal">
+    <div class="cal-head"><button class="cal-nav" data-cal-nav="-1" aria-label="Mês anterior">‹</button>
+      <div class="cal-mes">${escHtml(fmtMonthLabel(ym))}</div>
+      <button class="cal-nav" data-cal-nav="1" aria-label="Próximo mês">›</button></div>
+    <div class="cal-grid">${DIAS_SEMANA.map(d=>`<div class="cal-dow">${d}</div>`).join('')}${celulas}</div>
+    <div class="cal-leg">${Object.entries(CAL_TIPOS).filter(([k])=> k!=='etapa' || opts.comEtapa).map(([k,t])=>`<span><i style="background:${t.cor}"></i>${t.label}</span>`).join('')}</div>
+  </div>`;
 }
