@@ -71,6 +71,7 @@ const ICONS = {
   ideia: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1.1 1.3 1.1 2.2h5c0-.9.5-1.7 1.1-2.2A6 6 0 0 0 12 3z"/></svg>`,
   idcard: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.3 1.7-2 3-2s2.4.7 3 2"/><path d="M15 10h3M15 13h3"/></svg>`,
   menu: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>`,
+  creators: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.3 4.9 5.2.6-3.9 3.6 1.1 5.2L12 14.7l-4.7 2.6 1.1-5.2-3.9-3.6 5.2-.6z"/><path d="M5 21h14"/></svg>`,
   sair: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l4-5-4-5M20 12H9"/></svg>`,
 };
 
@@ -82,6 +83,7 @@ const STAFF_NAV = [
   {id:'sugestoes', label:'Sugestões de conteúdo', ic:ICONS.ideia, href:'sugestoes'},
   {id:'acompanhamento', label:'Acompanhamento', ic:ICONS.acompanhamento, href:'acompanhamento'},
   {id:'crm', label:'Pipeline / CRM', ic:ICONS.kanban, href:'crm'},
+  {id:'creators', label:'Programa Creators', ic:ICONS.creators, href:'programa-creators'},
   {id:'blog', label:'Blog (parceiros)', ic:ICONS.blog, href:'blog'},
   {id:'avisos', label:'Avisos', ic:ICONS.avisos, href:'avisos'},
   {id:'vendas', label:'Vendas', ic:ICONS.vendas, href:'vendas'},
@@ -151,13 +153,19 @@ async function loadProfile(userId){
   return data ? {id:data.id, nome:data.nome, role:data.role} : {id:userId, nome:'', role:'geral'};
 }
 
+// Página inicial de cada tipo de login: equipe → home, atleta/parceiro → portal do atleta,
+// creator do Programa Creators → portal /creators (ele nunca entra nas páginas da equipe).
+function paginaInicialDoPerfil(profile){
+  return profile.role === 'atleta' ? 'atleta-home' : profile.role === 'creator' ? 'creators' : 'home';
+}
+
 // Chame no topo de cada página da EQUIPE. Redireciona pro login se não tiver
-// sessão, ou pro portal do atleta se quem logou for um atleta.
+// sessão, ou pro portal certo se quem logou for atleta ou creator.
 async function guardStaff(activeId){
   const user = await getSessionUser();
   if(!user){ location.href = 'login'; return null; }
   const profile = await loadProfile(user.id);
-  if(profile.role === 'atleta'){ location.href = 'atleta-home'; return null; }
+  if(profile.role === 'atleta' || profile.role === 'creator'){ location.href = paginaInicialDoPerfil(profile); return null; }
   await carregarEquipes();
   renderStaffSidebar(activeId, profile);
   return { user, profile };
@@ -168,7 +176,7 @@ async function guardAthlete(activeId){
   const user = await getSessionUser();
   if(!user){ location.href = 'login'; return null; }
   const profile = await loadProfile(user.id);
-  if(profile.role !== 'atleta'){ location.href = 'home'; return null; }
+  if(profile.role !== 'atleta'){ location.href = paginaInicialDoPerfil(profile); return null; }
   const { data: athleteRow } = await sb.from('athletes').select('*').eq('auth_user_id', user.id).single();
   const athlete = athleteRow ? mapAthleteFromDB(athleteRow) : null;
   await carregarEquipes();

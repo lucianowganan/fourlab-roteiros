@@ -54,7 +54,7 @@ document.querySelector('#loginBox .logoWrap').style.cssText = 'width:72px;height
   const user = await getSessionUser();
   if(user){
     const profile = await loadProfile(user.id);
-    location.href = profile.role === 'atleta' ? 'atleta-home' : 'home';
+    location.href = paginaInicialDoPerfil(profile);
   }
 })();
 
@@ -77,7 +77,7 @@ async function tryLogin(){
     return;
   }
   const profile = await loadProfile(data.session.user.id);
-  location.href = profile.role === 'atleta' ? 'atleta-home' : 'home';
+  location.href = paginaInicialDoPerfil(profile);
 }
 
 document.getElementById('btnLogin').onclick = tryLogin;
