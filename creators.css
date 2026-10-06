@@ -1,0 +1,120 @@
+/* ============================================================
+   CREATORS.CSS — visual do Programa FourLab Creators
+   (landing /lpcreators e portal /creators). Segue os PDFs do programa:
+   fundo preto com brilhos, cards de vidro e degradê laranja → rosa.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Maven+Pro:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --c-bg:#0a0709;
+  --c-bg-2:#140c11;
+  --c-glass:rgba(255,255,255,0.045);
+  --c-glass-2:rgba(255,255,255,0.08);
+  --c-line:rgba(255,255,255,0.12);
+  --c-line-2:rgba(255,255,255,0.2);
+  --c-text:#f7f2f4;
+  --c-muted:rgba(247,242,244,0.62);
+  --c-orange:#ff9b3d;
+  --c-coral:#ff6a4d;
+  --c-pink:#ff3b6b;
+  --c-magenta:#e3055f;
+  --c-green:#3ddc84;
+  --c-red:#ff5a5a;
+  --c-grad:linear-gradient(100deg, #ffa53d 0%, #ff6a4d 50%, #ff3b6b 100%);
+  --c-grad-v:linear-gradient(180deg, #ffa53d 0%, #ff3b6b 100%);
+  --c-grad-line:linear-gradient(90deg, #ffc53d 0%, #ff6a4d 50%, #e3055f 100%);
+  --c-radius:24px;
+  --c-font-title:'Poppins', 'Maven Pro', sans-serif;
+  color-scheme:dark;
+}
+*{ box-sizing:border-box; }
+html{ -webkit-text-size-adjust:100%; }
+body.cr{
+  margin:0; min-height:100vh; background:var(--c-bg); color:var(--c-text);
+  font-family:'Maven Pro', 'Segoe UI', system-ui, sans-serif; font-size:15px; line-height:1.55;
+  overflow-x:hidden;
+}
+body.cr::before{
+  /* brilhos de fundo fixos (magenta à esquerda, laranja à direita) */
+  content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:
+    radial-gradient(60vmax 50vmax at -10% 10%, rgba(227,5,95,0.22), transparent 60%),
+    radial-gradient(50vmax 45vmax at 110% 60%, rgba(255,120,40,0.16), transparent 60%),
+    radial-gradient(40vmax 40vmax at 30% 110%, rgba(115,27,88,0.35), transparent 60%),
+    var(--c-bg);
+}
+.cr a{ color:var(--c-orange); }
+.cr h1, .cr h2, .cr h3{ font-family:var(--c-font-title); line-height:1.08; margin:0; letter-spacing:-0.5px; }
+.cr .grad-text{ background:var(--c-grad); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.cr .wrap{ width:min(1080px, 100% - 32px); margin:0 auto; }
+.cr .wrap-sm{ width:min(760px, 100% - 32px); margin:0 auto; }
+.cr .line-grad{ height:3px; border:none; border-radius:3px; background:var(--c-grad-line); margin:0; }
+
+/* Logo FourLab (símbolo + nome) */
+.cr .fl-logo{ display:inline-flex; align-items:center; gap:10px; text-decoration:none; color:#fff; }
+.cr .fl-logo img{ height:30px; width:auto; }
+.cr .fl-logo .nm{ font-family:var(--c-font-title); font-weight:800; font-size:24px; letter-spacing:-0.6px; line-height:1; }
+.cr .fl-logo .nm small{ display:block; font-weight:500; font-size:9.5px; letter-spacing:5.2px; text-transform:lowercase; opacity:0.85; margin-top:3px; }
+
+/* Vidro */
+.cr .glass{
+  background:linear-gradient(160deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025));
+  border:1px solid var(--c-line); border-radius:var(--c-radius);
+  box-shadow:0 20px 50px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+}
+.cr .pill{ display:inline-flex; align-items:center; gap:8px; border:1.5px solid transparent; border-radius:999px; padding:8px 18px; font-weight:600;
+  background:linear-gradient(var(--c-bg-2), var(--c-bg-2)) padding-box, var(--c-grad-line) border-box; }
+.cr .tag{ display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 11px; font-size:11.5px; font-weight:700; letter-spacing:0.3px;
+  background:var(--c-glass-2); border:1px solid var(--c-line); color:var(--c-text); }
+.cr .tag.ok{ color:var(--c-green); border-color:rgba(61,220,132,0.35); background:rgba(61,220,132,0.1); }
+.cr .tag.warn{ color:#ffc53d; border-color:rgba(255,197,61,0.35); background:rgba(255,197,61,0.1); }
+.cr .tag.hot{ color:var(--c-pink); border-color:rgba(255,59,107,0.4); background:rgba(255,59,107,0.12); }
+
+/* Botões */
+.cr .btn-c{ display:inline-flex; align-items:center; justify-content:center; gap:10px; border:none; cursor:pointer; text-decoration:none;
+  font-family:var(--c-font-title); font-weight:800; font-size:16px; color:#fff; border-radius:16px; padding:15px 26px;
+  background:var(--c-grad); box-shadow:0 12px 32px rgba(255,90,70,0.35), inset 0 1px 0 rgba(255,255,255,0.3); transition:transform .15s ease, box-shadow .15s ease; }
+.cr .btn-c:hover{ transform:translateY(-1px); box-shadow:0 16px 40px rgba(255,90,70,0.45), inset 0 1px 0 rgba(255,255,255,0.3); }
+.cr .btn-c:disabled{ opacity:0.6; cursor:default; transform:none; }
+.cr .btn-c.lg{ font-size:clamp(18px, 3.4vw, 24px); padding:18px 34px; border-radius:20px; }
+.cr .btn-c.ghost{ background:var(--c-glass-2); box-shadow:none; border:1px solid var(--c-line-2); font-weight:700; font-size:14px; padding:11px 18px; }
+.cr .btn-c.sm{ font-size:13px; padding:9px 14px; border-radius:12px; }
+
+/* Formulário */
+.cr .f-grid{ display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:14px 14px; }
+.cr .f-grid > .s2{ grid-column:span 2; } .cr .f-grid > .s3{ grid-column:span 3; } .cr .f-grid > .s4{ grid-column:span 4; } .cr .f-grid > .s6{ grid-column:span 6; }
+@media (max-width:640px){ .cr .f-grid{ grid-template-columns:1fr 1fr; } .cr .f-grid > .s2, .cr .f-grid > .s3{ grid-column:span 1; } .cr .f-grid > .s4, .cr .f-grid > .s6{ grid-column:span 2; } .cr .f-grid > .full-sm{ grid-column:span 2; } }
+.cr .fld label{ display:block; font-size:12.5px; font-weight:700; color:var(--c-muted); margin:0 0 6px 2px; letter-spacing:0.2px; }
+.cr .fld label .opt{ font-weight:500; opacity:0.8; }
+.cr .fld input, .cr .fld select, .cr .fld textarea{
+  width:100%; font:inherit; font-size:15px; color:var(--c-text); background:rgba(0,0,0,0.35); border:1px solid var(--c-line); border-radius:14px;
+  padding:12px 14px; outline:none; transition:border-color .15s ease, box-shadow .15s ease;
+}
+.cr .fld input::placeholder, .cr .fld textarea::placeholder{ color:rgba(247,242,244,0.32); }
+.cr .fld input:focus, .cr .fld select:focus, .cr .fld textarea:focus{ border-color:var(--c-coral); box-shadow:0 0 0 3px rgba(255,106,77,0.18); }
+.cr .fld.erro input, .cr .fld.erro select{ border-color:var(--c-red); }
+.cr .fld .msg-erro{ font-size:12px; color:var(--c-red); margin:5px 0 0 2px; display:none; }
+.cr .fld.erro .msg-erro{ display:block; }
+.cr .f-section{ font-family:var(--c-font-title); font-weight:700; font-size:15px; margin:26px 0 12px; display:flex; align-items:center; flex-wrap:wrap; gap:6px 10px; }
+.cr .f-section .n{ width:26px; height:26px; border-radius:8px; background:var(--c-grad); display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; }
+.cr .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.cr .chip-c{ position:relative; }
+.cr .chip-c input{ position:absolute; opacity:0; pointer-events:none; }
+.cr .chip-c span{ display:inline-flex; align-items:center; gap:6px; border:1px solid var(--c-line-2); background:rgba(0,0,0,0.3); border-radius:999px;
+  padding:10px 18px; font-weight:700; font-size:14px; cursor:pointer; user-select:none; transition:all .15s ease; }
+.cr .chip-c input:checked + span{ background:var(--c-grad); border-color:transparent; box-shadow:0 6px 18px rgba(255,90,70,0.3); }
+.cr .chip-c input:focus-visible + span{ outline:2px solid var(--c-orange); outline-offset:2px; }
+.cr .net-ic{ position:relative; }
+.cr .net-ic svg{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--c-muted); pointer-events:none; }
+.cr .net-ic input{ padding-left:40px; }
+.cr .check-line{ display:flex; gap:12px; align-items:flex-start; font-size:13px; color:var(--c-muted); cursor:pointer; }
+.cr .check-line input{ width:20px; height:20px; accent-color:var(--c-coral); margin-top:1px; flex:none; }
+
+.cr .loader-c{ width:18px; height:18px; border-radius:50%; border:2.5px solid rgba(255,255,255,0.35); border-top-color:#fff; animation:crspin .7s linear infinite; display:inline-block; }
+@keyframes crspin{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce){ .cr *{ animation:none !important; transition:none !important; } }
+
+.cr .toast-c{ position:fixed; left:50%; bottom:24px; transform:translate(-50%, 20px); opacity:0; pointer-events:none; z-index:600;
+  background:#1d1418; color:#fff; border:1px solid var(--c-line-2); border-radius:14px; padding:12px 18px; font-weight:600; font-size:14px; transition:all .2s ease; max-width:calc(100vw - 32px); }
+.cr .toast-c.show{ opacity:1; transform:translate(-50%, 0); }

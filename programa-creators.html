@@ -1,0 +1,721 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programa Creators · FourLab</title>
+<meta name="description" content="Painel FourLab: CRM do Programa Creators.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="shared.css">
+<style>
+  /* Faixa do "app dentro do app": cabeçalho escuro no estilo dos PDFs do programa */
+  .cr-hero{ position:relative; overflow:hidden; border-radius:26px; padding:22px 26px; margin-bottom:18px; color:#fff;
+    background:radial-gradient(420px 220px at 0% 0%, rgba(227,5,95,0.35), transparent 70%), radial-gradient(420px 260px at 100% 100%, rgba(255,120,40,0.28), transparent 70%), #110a0e; }
+  .cr-hero .row-top{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .cr-hero img.logo{ height:46px; width:auto; }
+  .cr-hero .sub{ color:rgba(255,255,255,0.65); font-size:13px; }
+  .cr-hero .links{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+  .cr-hero .links a{ color:#fff; text-decoration:none; font-size:12px; font-weight:700; border:1px solid rgba(255,255,255,0.22); border-radius:999px; padding:7px 13px; }
+  .cr-hero .links a:hover{ border-color:#ff9b3d; }
+  .cr-tabs{ display:flex; gap:6px; margin-top:18px; overflow-x:auto; scrollbar-width:none; }
+  .cr-tabs button{ flex:none; border:1px solid transparent; background:none; color:rgba(255,255,255,0.7); font:inherit; font-weight:700; font-size:13px; padding:8px 14px; border-radius:999px; cursor:pointer; }
+  .cr-tabs button.active{ background:rgba(255,255,255,0.12); color:#fff; border-color:rgba(255,255,255,0.22); }
+  .cr-tabs .badge-n{ display:inline-block; min-width:18px; padding:0 5px; border-radius:999px; background:linear-gradient(100deg,#ffa53d,#ff3b6b); color:#fff; font-size:10.5px; margin-left:4px; }
+
+  .kanban.cr-kanban{ grid-template-columns:repeat(4, minmax(250px, 1fr)); }
+  .kcard .k-bar{ height:6px; border-radius:6px; background:var(--surface-2); overflow:hidden; margin-top:10px; }
+  .kcard .k-bar > div{ height:100%; background:linear-gradient(90deg,#ffa53d,#ff3b6b); }
+  .kcard .k-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; }
+  .kc{ font-size:10.5px; font-weight:800; border-radius:6px; padding:2px 7px; border:1px solid var(--line); color:var(--ink-2); background:#fff; }
+  .kc.alerta{ color:var(--red); border-color:#f3c3bd; background:var(--red-soft); }
+  .kc.ok{ color:var(--green); border-color:#bfe6cd; background:var(--green-soft); }
+  .kc.aviso{ color:#b5680a; border-color:#f5e39a; background:#fff4c9; }
+
+  .acoes-etapa{ display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 6px; }
+  .btn-grad{ background:linear-gradient(100deg,#ffa53d,#ff6a4d 50%,#ff3b6b); color:#fff; border:none; }
+  .btn-grad:hover{ filter:brightness(1.05); }
+  .msg-btns{ display:flex; flex-wrap:wrap; gap:6px; }
+  .msg-btns button{ font-size:12px; }
+  .sem-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(118px,1fr)); gap:8px; }
+  .sem-box{ border:1px solid var(--line); border-radius:14px; padding:9px 10px; font-size:11.5px; }
+  .sem-box.ok{ border-color:#bfe6cd; background:var(--green-soft); }
+  .sem-box.atual{ box-shadow:0 0 0 2px var(--orange); }
+  .sem-box .h{ font-weight:800; font-size:12px; display:flex; justify-content:space-between; margin-bottom:5px; }
+  .cnt{ display:flex; align-items:center; justify-content:space-between; gap:4px; margin-top:3px; }
+  .cnt button{ width:22px; height:22px; border-radius:7px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:800; line-height:1; padding:0; }
+  .cnt b{ min-width:26px; text-align:center; }
+  .hist .ev{ font-size:12.5px; padding:8px 0; border-bottom:1px solid #f3eee8; }
+  .hist .ev .q{ color:var(--muted); font-size:11px; }
+  .var-chip{ font-size:11px; font-family:ui-monospace,monospace; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:2px 6px; cursor:pointer; }
+  .alert-row{ display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #f3eee8; font-size:13px; }
+  .alert-row:last-child{ border-bottom:none; }
+</style></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main" style="max-width:1400px;"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script src="creators-shared.js"></script>
+<script>
+/* Programa FourLab Creators — área da equipe ("app dentro do app").
+   CRM separado dos atletas: tabela creators (+ eventos, envios, semanas, mensagens, calendário).
+   Funil: Contato recebido → Etapa 01 (30 dias) → Etapa 02 (60 dias) → Creator Oficial (vira cadastro na pasta "Creators"). */
+const State = { profile:null, tabelaOk:true, aba:'geral', creators:[], envios:[], semanas:[], mensagens:[], calendario:[],
+  busca:'', esporte:'', verArquivados:false };
+const sm = (svg, n)=> svg.replace('width="18" height="18"', `width="${n||13}" height="${n||13}"`);
+function creatorById(id){ return State.creators.find(c=>c.id===id); }
+function autor(){ return (State.profile && State.profile.nome) || 'Equipe'; }
+
+/* ---------- Dados ---------- */
+async function carregarTudo(){
+  const r = await Promise.all([
+    sb.from('creators').select('*').order('position').order('created_at', {ascending:false}),
+    sb.from('creator_envios').select('*').order('created_at', {ascending:false}),
+    sb.from('creator_semanas').select('*'),
+    sb.from('creator_mensagens').select('*').order('ordem'),
+    sb.from('creator_calendario').select('*').order('data'),
+  ]);
+  if(r[0].error){ console.error(r[0].error); State.tabelaOk = false; return; }
+  State.tabelaOk = true;
+  [State.creators, State.envios, State.semanas, State.mensagens, State.calendario] = r.map(x=> x.data || []);
+  // Primeira vez (ou modelo novo no código): cadastra as mensagens padrão que faltam. As já editadas não são mexidas.
+  const faltam = MENSAGENS_PADRAO.filter(m=> !State.mensagens.some(x=> x.id===m.id));
+  if(faltam.length){
+    const { data, error } = await sb.from('creator_mensagens').upsert(faltam, { onConflict:'id', ignoreDuplicates:true }).select();
+    if(error) console.error(error);
+    State.mensagens = [...State.mensagens, ...(data || (error ? faltam : []))].sort((a,b)=> a.ordem - b.ordem);
+  }
+}
+async function registrarEvento(creatorId, tipo, texto){
+  const { error } = await sb.from('creator_eventos').insert({ creator_id:creatorId, tipo, texto, autor:autor() });
+  if(error) console.error(error);
+}
+async function atualizarCreator(c, campos){
+  const { data, error } = await sb.from('creators').update({ ...campos, updated_at:new Date().toISOString() }).eq('id', c.id).select().single();
+  if(error) throw error;
+  Object.assign(c, data);
+  return c;
+}
+
+/* ---------- Indicadores e alertas ---------- */
+function enviosDe(c, etapa){ return State.envios.filter(e=> e.creator_id===c.id && (!etapa || e.etapa===etapa)); }
+function semanasDe(c, etapa){ return State.semanas.filter(s=> s.creator_id===c.id && s.etapa===etapa); }
+function semanasOk(c, etapa){ return semanasDe(c, etapa).filter(s=> semanaCumprida(etapa, s.feito)).length; }
+function pendencias(c){
+  const p = [];
+  if(c.etapa==='contato') p.push({tipo:'triagem', texto:'Inscrição para avaliar'});
+  if(c.etapa==='etapa1' || c.etapa==='etapa2'){
+    const pr = progressoEtapa(c);
+    if(pr && pr.vencida) p.push({tipo:'avaliar', texto:`${etapaInfo(c.etapa).curto} terminou: avaliar`});
+    if(!enviosDe(c, c.etapa).length) p.push({tipo:'kit', texto:'Kit da etapa ainda não lançado'});
+    else if(enviosDe(c, c.etapa).some(e=> e.status==='preparando')) p.push({tipo:'kit', texto:'Kit preparando (sem rastreio)'});
+    // semana anterior sem nenhum registro
+    if(pr && pr.semanaAtual > 1){ const ant = Math.min(pr.semanaAtual - 1, etapaInfo(c.etapa).semanas);
+      if(!semanasDe(c, c.etapa).some(s=> s.semana===ant)) p.push({tipo:'semana', texto:`Semana ${ant} sem marcação`}); }
+    if(c.etapa==='etapa2' && !c.cupom_desconto) p.push({tipo:'cupom', texto: c.cupom_desconto_sugerido ? `Cupom pedido: ${c.cupom_desconto_sugerido}` : 'Cupons ainda não criados'});
+    if(!c.auth_user_id) p.push({tipo:'acesso', texto:'Sem acesso ao portal'});
+  }
+  return p;
+}
+
+/* ---------- Topo do programa ---------- */
+const ABAS = [ {id:'geral', label:'Visão geral'}, {id:'funil', label:'Funil / CRM'}, {id:'envios', label:'Envios'}, {id:'calendario', label:'Calendário'}, {id:'mensagens', label:'Mensagens padrão'} ];
+function heroHtml(){
+  const novos = State.creators.filter(c=>c.etapa==='contato').length;
+  return `<div class="cr-hero">
+    <div class="row-top"><img class="logo" src="assets/creators/logo-creators.webp" alt="Creators">
+      <div><div style="font-family:var(--font-title); font-weight:800; font-size:18px;">Programa FourLab Creators</div>
+        <div class="sub">CRM separado dos atletas · inscrição → 30 dias → 60 dias → creator oficial</div></div>
+      <div class="links"><a href="lpcreators" target="_blank" rel="noopener">↗ Landing + formulário</a><a href="creators" target="_blank" rel="noopener">↗ Portal do creator</a>
+        <a href="#" id="btnCopiarLp">Copiar link do formulário</a></div></div>
+    <div class="cr-tabs">${ABAS.map(a=>`<button data-aba="${a.id}" class="${State.aba===a.id?'active':''}">${a.label}${a.id==='funil'&&novos?`<span class="badge-n">${novos}</span>`:''}</button>`).join('')}</div>
+  </div>`;
+}
+
+/* ---------- Visão geral ---------- */
+function abaGeral(){
+  const n = (et)=> State.creators.filter(c=>c.etapa===et).length;
+  const stat = (ic, valor, label, cor)=> `<div class="card kpi" style="padding:18px;"><span class="ic-bubble" style="background:${cor||'var(--ink)'}; color:#fff; border-color:transparent; border-radius:12px; font-size:16px;">${ic}</span>
+    <div class="kpi-value" style="font-size:28px; margin-top:14px;">${valor}</div><div class="kpi-label" style="margin-top:2px;">${label}</div></div>`;
+  const ativos = State.creators.filter(c=> !['recusado','encerrado'].includes(c.etapa));
+  const alertas = ativos.flatMap(c=> pendencias(c).map(p=>({c, ...p})));
+  const ordemAlerta = {avaliar:0, triagem:1, kit:2, cupom:3, semana:4, acesso:5};
+  alertas.sort((a,b)=> ordemAlerta[a.tipo]-ordemAlerta[b.tipo]);
+  const icAlerta = {avaliar:'⏱', triagem:'✉', kit:'📦', cupom:'%', semana:'✓', acesso:'🔐'};
+  const recentes = State.creators.slice().sort((a,b)=> String(b.created_at).localeCompare(String(a.created_at))).slice(0,6);
+  const esportes = {}; State.creators.forEach(c=> (c.esportes||[]).forEach(e=> esportes[e] = (esportes[e]||0)+1));
+  return `<div class="grid-4" style="margin-bottom:18px;">
+      ${stat('✉', n('contato'), 'Inscrições para avaliar', 'var(--ink)')}
+      ${stat('1', n('etapa1'), 'Na Etapa 01 · 30 dias', 'var(--pink)')}
+      ${stat('2', n('etapa2'), 'Na Etapa 02 · 60 dias', 'var(--orange)')}
+      ${stat('⚡', n('oficial'), 'Creators oficiais', 'var(--purple)')}
+    </div>
+    <div class="grid-2" style="align-items:start;">
+      <div class="panel"><div class="card-head"><div><h2>O que precisa de atenção</h2><div class="desc">${alertas.length} pendência(s) nos creators ativos</div></div></div>
+        ${alertas.length ? alertas.slice(0,14).map(a=>`<div class="alert-row"><span class="ic-bubble" style="width:34px; height:34px; font-size:15px;">${icAlerta[a.tipo]}</span>
+          <div style="flex:1; min-width:0;"><strong>${escHtml(a.c.nome)}</strong><div style="color:var(--muted); font-size:12px;">${escHtml(a.texto)} · ${escHtml(etapaInfo(a.c.etapa).curto)}</div></div>
+          <button class="btn btn-ghost btn-sm" data-abrir="${a.c.id}">Abrir</button></div>`).join('') + (alertas.length>14?`<div style="font-size:12px; color:var(--muted); padding-top:10px;">+ ${alertas.length-14} no Funil</div>`:'')
+          : '<div class="empty-state" style="padding:20px;">Tudo em dia ✨</div>'}</div>
+      <div>
+        <div class="panel"><div class="card-head"><div><h2>Últimas inscrições</h2><div class="desc">Chegam pelo formulário da landing /lpcreators</div></div></div>
+          ${recentes.length ? recentes.map(c=>`<div class="alert-row">${avatarHtml(c.nome,'sm')}<div style="flex:1; min-width:0;"><strong>${escHtml(c.nome)}</strong>
+            <div style="color:var(--muted); font-size:12px;">${escHtml(esportesLabel(c))} · ${new Date(c.created_at).toLocaleDateString('pt-BR')}</div></div>
+            <span class="kcol-pill" style="background:${etapaInfo(c.etapa).bg}; color:${etapaInfo(c.etapa).fg}; padding:3px 10px; font-size:11px;">${escHtml(etapaInfo(c.etapa).curto)}</span>
+            <button class="btn btn-ghost btn-sm" data-abrir="${c.id}">Abrir</button></div>`).join('')
+            : `<div class="empty-state" style="padding:20px;">Nenhuma inscrição ainda. Envie o link do formulário:<br><code>${escHtml(LINK_LP_CREATORS)}</code></div>`}</div>
+        ${Object.keys(esportes).length ? `<div class="panel"><div class="card-head"><div><h2>Esportes dos inscritos</h2></div></div>
+          <div class="row" style="gap:8px; flex-wrap:wrap;">${CREATOR_ESPORTES.filter(e=>esportes[e.id]).map(e=>`<span class="chip static">${e.label} · <strong>${esportes[e.id]}</strong></span>`).join('')}</div></div>` : ''}
+      </div>
+    </div>`;
+}
+
+/* ---------- Funil (kanban) ---------- */
+function creatorsFiltrados(){
+  const q = State.busca.trim().toLowerCase();
+  return State.creators.filter(c=>{
+    if(State.esporte && !(c.esportes||[]).includes(State.esporte)) return false;
+    if(q && ![c.nome, c.email, c.instagram, c.tiktok, c.endereco_cidade, c.username].some(v=> String(v||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+}
+function kcardHtml(c){
+  const pr = progressoEtapa(c), et = etapaInfo(c.etapa);
+  const chips = [];
+  if(pr) chips.push(`<span class="kc ${pr.vencida?'alerta':''}">${pr.vencida ? 'avaliar' : `dia ${pr.dia}/${pr.dias}`}</span>`);
+  if(et.semanas) chips.push(`<span class="kc ${semanasOk(c, c.etapa)>=Math.min(et.semanas, pr?pr.semanaAtual-1:0)?'ok':'aviso'}">✓ ${semanasOk(c, c.etapa)}/${et.semanas} sem.</span>`);
+  if(et.kit){ const env = enviosDe(c, c.etapa)[0];
+    chips.push(env ? `<span class="kc ${env.status==='entregue'?'ok':env.status==='enviado'?'':'aviso'}">📦 ${CREATOR_ENVIO_STATUS[env.status].label.toLowerCase()}</span>` : '<span class="kc alerta">📦 sem kit</span>'); }
+  if(c.etapa==='etapa2') chips.push(c.cupom_desconto ? `<span class="kc ok">% ${escHtml(c.cupom_desconto)}</span>` : c.cupom_desconto_sugerido ? `<span class="kc aviso">% pediu ${escHtml(c.cupom_desconto_sugerido)}</span>` : '<span class="kc alerta">% sem cupom</span>');
+  const rede = c.instagram || c.tiktok || c.youtube;
+  return `<div class="kcard" data-card="${c.id}" style="cursor:pointer;">
+    <div class="k-meta">${escHtml(esportesLabel(c) || '—')}<span style="margin-left:auto;">${new Date(c.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})}</span></div>
+    <div class="k-title">${escHtml(c.nome)}</div>
+    <div class="k-sub">${rede ? escHtml(rede.startsWith('@')||rede.startsWith('http') ? rede : '@'+rede) : ''}${c.endereco_cidade ? ` · ${escHtml(c.endereco_cidade)}/${escHtml(c.endereco_estado)}` : ''}</div>
+    ${pr ? `<div class="k-bar"><div style="width:${Math.min(100, Math.round(pr.dia/pr.dias*100))}%"></div></div>` : ''}
+    ${chips.length ? `<div class="k-chips">${chips.join('')}</div>` : ''}
+  </div>`;
+}
+function abaFunil(){
+  const lista = creatorsFiltrados();
+  const colunas = State.verArquivados ? [...CREATOR_FUNIL, 'recusado', 'encerrado'] : CREATOR_FUNIL;
+  const arquivados = State.creators.filter(c=> ['recusado','encerrado'].includes(c.etapa)).length;
+  return `<div class="row" style="justify-content:space-between; margin-bottom:16px;">
+      <div class="row">
+        <div class="input-ic"><span class="ic">${ICONS.search}</span><input id="crBusca" placeholder="Buscar nome, @, cidade..." value="${escHtml(State.busca)}" style="background:#fff; border-radius:999px; width:220px;"></div>
+        <div class="filter-pills">${[{id:'', label:'Todos'}, ...CREATOR_ESPORTES].map(e=>`<button class="fpill ${State.esporte===e.id?'active':''}" data-esporte="${e.id}" style="padding:7px 13px;">${e.label}</button>`).join('')}</div>
+      </div>
+      <label style="font-size:12.5px; color:var(--muted); display:flex; gap:6px; align-items:center; cursor:pointer;"><input type="checkbox" id="crArquivados" ${State.verArquivados?'checked':''} style="width:auto;"> Mostrar recusados/encerrados (${arquivados})</label>
+    </div>
+    <div class="kanban cr-kanban" style="grid-template-columns:repeat(${colunas.length}, minmax(250px, 1fr));">${colunas.map(id=>{ const et = etapaInfo(id);
+      const cs = lista.filter(c=>c.etapa===id);
+      return `<div class="kcol"><div class="kcol-head"><span class="kcol-pill" style="background:${et.bg}; color:${et.fg};">${et.ic} ${et.label} <span class="count">${cs.length}</span></span></div>
+        ${cs.map(kcardHtml).join('') || '<div style="font-size:12px; color:var(--muted); text-align:center; padding:18px 6px;">Ninguém aqui.</div>'}
+        ${id==='contato' ? '<button class="k-add" id="btnNovoManual">+ Cadastrar à mão</button>' : ''}</div>`; }).join('')}</div>`;
+}
+
+/* ---------- Ficha do creator (drawer) ---------- */
+function linha(label, valor){ return valor ? `<div style="display:flex; gap:10px; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;"><span style="color:var(--muted); width:92px; flex:none;">${label}</span><span style="min-width:0; word-break:break-word;">${valor}</span></div>` : ''; }
+function enderecoTexto(c){
+  return [ `${c.endereco_rua}, ${c.endereco_numero}${c.endereco_complemento?' - '+c.endereco_complemento:''}`, c.endereco_bairro,
+    `${c.endereco_cidade}/${c.endereco_estado}`, c.endereco_cep ? 'CEP ' + String(c.endereco_cep).replace(/(\d{5})(\d{3})/,'$1-$2') : '' ].filter(x=> x && x.trim() && x!==', ' && x!=='/').join(' · ');
+}
+function redeLink(campo, v){ const f = SOCIAL_FIELDS.find(x=>x.key===campo); return v ? `<a href="${escHtml(socialUrl(f, v))}" target="_blank" rel="noopener">${escHtml(v)}</a>` : ''; }
+function acoesEtapaHtml(c){
+  const b = (id, txt, cls)=> `<button class="btn btn-sm ${cls||'btn-ghost'}" id="${id}">${txt}</button>`;
+  switch(c.etapa){
+    case 'contato': return b('acAprovar','✓ Aprovar → Etapa 01','btn-grad') + b('acRecusar','Recusar');
+    case 'etapa1': return b('acAvancar','✓ Aprovar → Etapa 02','btn-grad') + b('acEncerrar','Não avançou');
+    case 'etapa2': return b('acOficial','⚡ Tornar Creator Oficial','btn-grad') + b('acEncerrar','Não avançou');
+    case 'oficial': return c.athlete_id ? `<a class="btn btn-sm btn-ghost" href="atletas">Ver em Atletas & parceiros → pasta Creators</a>` : '';
+    default: return b('acReabrir','Reabrir inscrição');
+  }
+}
+function semanasHtml(c){
+  const et = etapaInfo(c.etapa); if(!et.semanas) return '';
+  const pr = progressoEtapa(c);
+  return `<div class="section-title row" style="justify-content:space-between;"><span>Entregas mínimas · ${escHtml(et.curto)}</span><span style="font-size:11px; color:var(--muted); text-transform:none; letter-spacing:0;">${semanasOk(c,c.etapa)}/${et.semanas} semanas completas</span></div>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Marque o que o creator postou em cada semana (o creator vê no portal).</div>
+    <div class="sem-grid">${Array.from({length:et.semanas}, (_,i)=>{ const n = i+1, s = semanasDe(c, c.etapa).find(x=>x.semana===n), feito = (s||{}).feito || {};
+      return `<div class="sem-box ${semanaCumprida(c.etapa, feito)?'ok':''} ${pr&&pr.semanaAtual===n?'atual':''}"><div class="h"><span>Sem. ${n}</span>${semanaCumprida(c.etapa, feito)?'✓':''}</div>
+        ${et.metas.map(m=>`<div class="cnt"><span title="${escHtml(m.label)}">${escHtml(m.curto)}</span><span style="display:flex; align-items:center; gap:3px;">
+          <button data-sem="${n}" data-meta="${m.key}" data-d="-1">−</button><b>${Number(feito[m.key])||0}/${m.qtd}</b><button data-sem="${n}" data-meta="${m.key}" data-d="1">+</button></span></div>`).join('')}
+      </div>`; }).join('')}</div>`;
+}
+function enviosHtml(c){
+  const lista = enviosDe(c);
+  return `<div class="section-title row" style="justify-content:space-between;"><span>Envios de kit</span><button class="btn btn-ghost btn-sm" id="drNovoEnvio" style="padding:4px 10px;">+ Novo envio</button></div>
+    ${lista.length ? lista.map(e=>{ const st = CREATOR_ENVIO_STATUS[e.status];
+      return `<div style="padding:9px 0; border-bottom:1px solid #f3eee8; font-size:12.5px;"><div class="row" style="justify-content:space-between; gap:8px;">
+          <span><span class="badge" style="background:${st.fundo}; color:${st.cor};">${st.label}</span> <span style="color:var(--muted);">${escHtml(etapaInfo(e.etapa).curto)}</span></span>
+          <button class="btn btn-ghost btn-sm" data-envio="${e.id}" style="padding:4px 10px;">Editar</button></div>
+        <div style="margin-top:5px;">${escHtml(e.itens)}</div>
+        ${e.rastreio ? `<div style="margin-top:3px; font-family:monospace;">${escHtml(e.rastreio)}${e.transportadora?` · ${escHtml(e.transportadora)}`:''}</div>` : ''}</div>`; }).join('')
+      : '<div style="font-size:12.5px; color:var(--muted);">Nenhum envio lançado.</div>'}`;
+}
+function cuponsHtml(c){
+  if(!['etapa2','oficial'].includes(c.etapa)) return '';
+  return `<div class="section-title">Cupons · Etapa 02</div>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Crie os cupons na Yampi e registre aqui (a criação automática pela Yampi é a próxima parte do projeto).</div>
+    ${c.cupom_desconto_sugerido && !c.cupom_desconto ? `<div style="background:#fff4c9; border-radius:12px; padding:10px 12px; font-size:12.5px; margin-bottom:10px;">O creator pediu o cupom <strong>${escHtml(c.cupom_desconto_sugerido)}</strong>. <button class="btn btn-sm btn-ghost" id="drUsarSugestao" style="padding:3px 9px;">Usar</button></div>` : ''}
+    <div class="grid-2" style="gap:10px;">
+      <div class="field"><label>Cupom 10% (seguidores)</label><input id="drCupom10" value="${escHtml(c.cupom_desconto)}" placeholder="EX.: MARIA10" style="text-transform:uppercase;"></div>
+      <div class="field"><label>Comissão (%)</label><input id="drComissao" type="number" min="0" max="50" step="0.5" value="${c.comissao_pct!=null?c.comissao_pct:10}"></div>
+      <div class="field"><label>Cupom 30% (pessoal)</label><input id="drCupom30" value="${escHtml(c.cupom_pessoal)}" style="text-transform:uppercase;"></div>
+      <div class="field"><label>Usos do cupom pessoal</label><input id="drUsos" type="number" min="0" max="50" value="${c.cupom_pessoal_usos!=null?c.cupom_pessoal_usos:6}"></div>
+      <div class="field"><label>Rebate pago (R$)</label><input id="drRebate" type="number" min="0" step="0.01" value="${c.rebate_valor!=null?c.rebate_valor:''}" placeholder="ao final dos 60 dias"></div>
+      <div class="field"><label>Pago em</label><input id="drRebateData" type="date" value="${c.rebate_pago_em||''}"></div>
+    </div>
+    <button class="btn btn-dark btn-sm" id="drSalvarCupons">Salvar cupons</button>`;
+}
+function drawerHtml(c){
+  const et = etapaInfo(c.etapa), pr = progressoEtapa(c);
+  const msgs = State.mensagens;
+  return `<button class="modal-close" onclick="closeDrawer()" style="position:sticky; top:0; float:right;">&times;</button>
+    <div class="row" style="gap:12px; align-items:center;">${avatarHtml(c.nome)}
+      <div style="min-width:0;"><h3 style="margin:0; font-size:19px;">${escHtml(c.nome)}</h3>
+        <div style="margin-top:5px;"><span class="kcol-pill" style="background:${et.bg}; color:${et.fg}; padding:3px 10px; font-size:11.5px;">${et.ic} ${escHtml(et.label)}</span>
+        ${pr ? `<span style="font-size:12px; color:${pr.vencida?'var(--red)':'var(--muted)'}; margin-left:6px;">${pr.vencida ? `terminou em ${fmtDateBR(pr.fim)} · avaliar` : `dia ${pr.dia} de ${pr.dias} · até ${fmtDateBR(pr.fim)}`}</span>` : ''}</div></div></div>
+    <div class="acoes-etapa">${acoesEtapaHtml(c)}</div>
+
+    <div class="section-title">Mensagens prontas</div>
+    <div class="msg-btns">${msgs.map(m=>`<button class="btn btn-ghost btn-sm" data-msg="${escHtml(m.id)}">${escHtml(m.titulo)}</button>`).join('') || '<span style="font-size:12px; color:var(--muted);">Sem modelos: rode a migração.</span>'}</div>
+
+    <div class="section-title">Contato e dados</div>
+    ${linha('WhatsApp', c.whatsapp ? `<a href="${escHtml(linkWhatsApp(c.whatsapp,''))}" target="_blank" rel="noopener" style="color:var(--green);">${escHtml(c.whatsapp.replace(/^(\d{2})(\d{4,5})(\d{4})$/,'($1) $2-$3'))}</a>` : '')}
+    ${linha('E-mail', c.email ? `<a href="mailto:${escHtml(c.email)}">${escHtml(c.email)}</a>` : '')}
+    ${linha('CPF', c.cpf ? escHtml(fmtCPF(c.cpf)) + (cpfValido(c.cpf)?'':' <span style="color:var(--red); font-size:11px;">(confira)</span>') : '')}
+    ${linha('Endereço', escHtml(enderecoTexto(c)) + ` <button class="btn btn-ghost btn-sm" id="drCopiarEnd" style="padding:2px 8px; font-size:11px;">copiar</button>`)}
+    ${linha('Esportes', escHtml(esportesLabel(c)))}
+    ${linha('Instagram', redeLink('instagram', c.instagram))}${linha('TikTok', redeLink('tiktok', c.tiktok))}${linha('YouTube', redeLink('youtube', c.youtube))}
+    ${linha('Outras redes', escHtml(c.outras_redes))}
+    ${linha('Inscrição', new Date(c.created_at).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) + (c.origem==='manual'?' · cadastro manual':''))}
+    <button class="btn btn-ghost btn-sm" id="drEditarDados" style="margin-top:8px;">${sm(ICONS.roteiro)} Editar dados</button>
+
+    ${['etapa1','etapa2','oficial'].includes(c.etapa) || c.auth_user_id ? `<div class="section-title">Acesso ao portal /creators</div>
+      <div class="row" style="justify-content:space-between; font-size:13px;"><span>${c.username ? `Usuário: <strong>${escHtml(c.username)}</strong>` : '<span style="color:var(--red);">Sem acesso criado</span>'}</span>
+        <button class="btn btn-ghost btn-sm" id="drAcesso">${c.username ? 'Redefinir senha' : 'Criar acesso'}</button></div>` : ''}
+
+    ${['etapa1','etapa2'].includes(c.etapa) ? `<div>${semanasHtml(c)}</div>` : ''}
+    ${['etapa1','etapa2','oficial'].includes(c.etapa) || enviosDe(c).length ? `<div id="drEnvios">${enviosHtml(c)}</div>` : ''}
+    ${cuponsHtml(c)}
+
+    <div class="section-title">Histórico e anotações <span style="font-size:11px; color:var(--muted); font-weight:600; text-transform:none; letter-spacing:0;">${sm(ICONS.lock,11)} só a equipe vê</span></div>
+    <div class="row" style="gap:8px; align-items:flex-start;"><textarea id="drNota" placeholder="Anotar: conversa, combinado, avaliação do conteúdo..." style="min-height:58px; flex:1;"></textarea>
+      <button class="btn btn-dark btn-sm" id="drSalvarNota">Anotar</button></div>
+    <div class="hist" id="drHist"><div style="font-size:12px; color:var(--muted); padding:8px 0;">Carregando...</div></div>
+    <div style="margin-top:22px; text-align:right;"><button class="btn btn-danger btn-sm" id="drExcluir">${sm(ICONS.trash)} Excluir cadastro</button></div>`;
+}
+async function carregarHistorico(c){
+  const el = document.getElementById('drHist'); if(!el) return;
+  const { data, error } = await sb.from('creator_eventos').select('*').eq('creator_id', c.id).order('created_at', {ascending:false}).limit(60);
+  if(error){ el.innerHTML = '<div style="font-size:12px; color:var(--red);">Não consegui carregar o histórico.</div>'; return; }
+  const ic = {nota:'💬', etapa:'➜', mensagem:'✉', envio:'📦', acesso:'🔐', cupom:'%'};
+  el.innerHTML = (data||[]).map(e=>`<div class="ev"><span>${ic[e.tipo]||'•'}</span> <span style="white-space:pre-wrap;">${escHtml(e.texto)}</span>
+    <div class="q">${new Date(e.created_at).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'})}${e.autor?` · ${escHtml(e.autor)}`:''}</div></div>`).join('') || '<div style="font-size:12px; color:var(--muted); padding:8px 0;">Sem histórico.</div>';
+}
+function abrirCreator(id){
+  const c = creatorById(id); if(!c) return;
+  openDrawer(drawerHtml(c));
+  ligarDrawer(c);
+  carregarHistorico(c);
+}
+function reabrir(c){ render(); abrirCreator(c.id); }
+const q = (id)=> document.getElementById(id);
+function ligarDrawer(c){
+  const on = (id, fn)=>{ const el = q(id); if(el) el.onclick = fn; };
+  on('acAprovar', ()=> aprovarEtapa1(c));
+  on('acRecusar', ()=> mudarEtapa(c, 'recusado', 'Inscrição recusada.', 'recusado', 'Recusar a inscrição de ' + c.nome + '?'));
+  on('acAvancar', ()=> avancarEtapa2(c));
+  on('acEncerrar', ()=> mudarEtapa(c, 'encerrado', `Não avançou na ${etapaInfo(c.etapa).curto}.`, 'nao_avancou', `Encerrar a participação de ${c.nome}?`));
+  on('acOficial', ()=> tornarOficial(c));
+  on('acReabrir', ()=> mudarEtapa(c, 'contato', 'Inscrição reaberta.', null, 'Voltar ' + c.nome + ' para "Contato recebido"?'));
+  document.querySelectorAll('[data-msg]').forEach(b=> b.onclick = ()=> abrirMensagem(c, b.dataset.msg));
+  on('drCopiarEnd', ()=> navigator.clipboard.writeText(`${c.nome}\n${enderecoTexto(c).split(' · ').join('\n')}`).then(()=> toast('Endereço copiado')));
+  on('drEditarDados', ()=> editarDados(c));
+  on('drAcesso', ()=> abrirAcesso(c, null));
+  on('drNovoEnvio', ()=> editarEnvio(c, null));
+  document.querySelectorAll('[data-envio]').forEach(b=> b.onclick = ()=> editarEnvio(c, State.envios.find(e=>e.id===b.dataset.envio)));
+  document.querySelectorAll('[data-sem]').forEach(b=> b.onclick = ()=> marcarSemana(c, Number(b.dataset.sem), b.dataset.meta, Number(b.dataset.d)));
+  on('drUsarSugestao', ()=>{ q('drCupom10').value = c.cupom_desconto_sugerido; });
+  on('drSalvarCupons', async (ev)=>{
+    ev.target.disabled = true;
+    const antes = c.cupom_desconto;
+    try{
+      await atualizarCreator(c, { cupom_desconto:q('drCupom10').value.trim().toUpperCase(), cupom_pessoal:q('drCupom30').value.trim().toUpperCase(),
+        comissao_pct:Number(q('drComissao').value)||0, cupom_pessoal_usos:Number(q('drUsos').value)||0,
+        rebate_valor:q('drRebate').value===''?null:Number(q('drRebate').value), rebate_pago_em:q('drRebateData').value||null });
+      await registrarEvento(c.id, 'cupom', `Cupons: 10% ${c.cupom_desconto||'—'} · 30% ${c.cupom_pessoal||'—'} (${c.cupom_pessoal_usos} usos)${c.rebate_valor!=null?` · rebate ${fmtBRL(c.rebate_valor)}${c.rebate_pago_em?' pago em '+fmtDateBR(c.rebate_pago_em):''}`:''}.`);
+      toast('Cupons salvos');
+      reabrir(c);
+      if(!antes && c.cupom_desconto && c.cupom_pessoal && confirm('Cupons registrados. Abrir a mensagem "Cupons criados" pra avisar o creator?')) abrirMensagem(c, 'cupons_criados');
+    }catch(err){ erroBanco(err, MIGRACAO_CREATORS); ev.target.disabled = false; }
+  });
+  on('drSalvarNota', async ()=>{
+    const t = q('drNota').value.trim(); if(!t) return;
+    await registrarEvento(c.id, 'nota', t); q('drNota').value = ''; carregarHistorico(c);
+  });
+  on('drExcluir', async ()=>{
+    if(!confirm(`Excluir o cadastro de ${c.nome}? Some do CRM com histórico e envios. (O login do portal, se existir, continua no Supabase.)`)) return;
+    const { error } = await sb.from('creators').delete().eq('id', c.id);
+    if(error){ erroBanco(error, MIGRACAO_CREATORS); return; }
+    State.creators = State.creators.filter(x=>x.id!==c.id); closeDrawer(); toast('Cadastro excluído'); render();
+  });
+}
+
+/* ---------- Entregas semanais ---------- */
+async function marcarSemana(c, semana, meta, delta){
+  const et = etapaInfo(c.etapa);
+  let s = State.semanas.find(x=> x.creator_id===c.id && x.etapa===c.etapa && x.semana===semana);
+  const feito = { ...((s||{}).feito||{}) };
+  const max = (et.metas.find(m=>m.key===meta)||{qtd:9}).qtd + 4;   // deixa marcar um pouco acima da meta
+  feito[meta] = Math.max(0, Math.min(max, (Number(feito[meta])||0) + delta));
+  const { data, error } = await sb.from('creator_semanas').upsert({ creator_id:c.id, etapa:c.etapa, semana, feito, updated_at:new Date().toISOString() },
+    { onConflict:'creator_id,etapa,semana' }).select().single();
+  if(error){ erroBanco(error, MIGRACAO_CREATORS); return; }
+  if(s) Object.assign(s, data); else State.semanas.push(data);
+  const pos = q('drawer').scrollTop; abrirCreator(c.id); q('drawer').scrollTop = pos;
+  render();
+}
+
+/* ---------- Mudanças de etapa ---------- */
+async function mudarEtapa(c, etapa, texto, mensagemId, pergunta){
+  if(pergunta && !confirm(pergunta)) return;
+  try{
+    await atualizarCreator(c, { etapa, etapa_inicio: ['etapa1','etapa2'].includes(etapa) ? todayISO() : c.etapa_inicio });
+    await registrarEvento(c.id, 'etapa', texto);
+    toast(etapaInfo(etapa).label); reabrir(c);
+    if(mensagemId) abrirMensagem(c, mensagemId);
+  }catch(err){ erroBanco(err, MIGRACAO_CREATORS); }
+}
+function semAcento(s){ return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function sugerirUsuario(nome){
+  const p = semAcento(nome).toLowerCase().replace(/[^a-z\s]/g,'').trim().split(/\s+/).filter(Boolean);
+  return p.length > 1 ? `${p[0]}.${p[p.length-1]}` : (p[0] || 'creator');
+}
+function gerarSenha(){ const ch = 'abcdefghjkmnpqrstuvwxyz23456789'; const a = new Uint32Array(8); crypto.getRandomValues(a); return Array.from(a, n=> ch[n % ch.length]).join(''); }
+
+// Modal de acesso (criar ou redefinir). opts.aposCriar(usuario, senha) roda depois de dar certo.
+function abrirAcesso(c, opts){
+  opts = opts || {};
+  openModal(`<button class="modal-close" id="mClose">&times;</button><h3>${opts.titulo || (c.username ? 'Redefinir acesso ao portal' : 'Criar acesso ao portal')}</h3>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">${opts.texto || `O creator entra em <strong>${escHtml(LINK_PORTAL_CREATORS)}</strong> com este usuário e senha.`}</div>
+    <div class="grid-2" style="gap:12px;"><div class="field"><label>Usuário</label><input id="mUser" value="${escHtml(c.username || sugerirUsuario(c.nome))}" autocapitalize="off"></div>
+      <div class="field"><label>Senha</label><input id="mSenha" value="${gerarSenha()}"></div></div>
+    ${opts.extraHtml || ''}
+    <div id="mRes" style="font-size:13px; margin:6px 0 10px;"></div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="mOk">${opts.botao || (c.username ? 'Redefinir' : 'Criar acesso')}</button></div>`);
+  q('mClose').onclick = closeModal;
+  q('mOk').onclick = async (ev)=>{
+    const username = q('mUser').value.trim().toLowerCase(), password = q('mSenha').value.trim(), res = q('mRes');
+    if(!/^[a-z0-9._-]{3,40}$/.test(username)){ res.innerHTML = '<span style="color:var(--red);">Usuário: só letras sem acento, números, ponto, hífen ou _ (mínimo 3).</span>'; return; }
+    if(password.length < 6){ res.innerHTML = '<span style="color:var(--red);">A senha precisa ter pelo menos 6 caracteres.</span>'; return; }
+    const extra = opts.lerExtra ? opts.lerExtra() : null;
+    ev.target.disabled = true; ev.target.innerHTML = '<span class="loader"></span>'; res.innerHTML = '';
+    try{
+      const { data, error } = await invocarFuncao('criar-acesso-creator', { creatorId:c.id, username, password });
+      if(error) throw error;
+      if(data.error){ res.innerHTML = `<span style="color:var(--red);">${escHtml(data.error)}</span>`; ev.target.disabled = false; ev.target.textContent = 'Tentar de novo'; return; }
+      c.username = data.username;
+      await registrarEvento(c.id, 'acesso', `${opts.titulo ? 'Acesso criado' : 'Acesso ao portal criado/redefinido'} (usuário ${data.username}).`);
+      closeModal();
+      if(opts.aposCriar) await opts.aposCriar(data.username, password, extra);
+      else { reabrir(c); abrirMensagemTexto(c, 'Acesso ao portal', 'Seu acesso à Plataforma FourLab Creators',
+        `Oi, ${primeiroNome(c.nome)}! Seu acesso à Plataforma FourLab Creators:\n\n${LINK_PORTAL_CREATORS}\nUsuário: ${data.username}\nSenha: ${password}`); }
+    }catch(err){
+      console.error(err);
+      const semFuncao = err && (err.name==='FunctionsFetchError' || /Failed to send a request/i.test(err.message||''));
+      res.innerHTML = semFuncao ? `<div style="background:var(--red-soft); color:var(--red); border-radius:12px; padding:10px 12px;"><strong>A função de criar acesso não respondeu.</strong><br>
+        Ela precisa estar publicada no Supabase com o nome <code>criar-acesso-creator</code> (código em <code>supabase/functions/criar-acesso-creator/index.ts</code>).</div>`
+        : `<span style="color:var(--red);">Falhou: ${escHtml(err.message||err)}</span>`;
+      ev.target.disabled = false; ev.target.textContent = 'Tentar de novo';
+    }
+  };
+}
+async function criarEnvioDaEtapa(c, etapa){
+  const { data, error } = await sb.from('creator_envios').insert({ creator_id:c.id, etapa, itens:etapaInfo(etapa).kit, status:'preparando' }).select().single();
+  if(error){ erroBanco(error, MIGRACAO_CREATORS); return; }
+  State.envios.unshift(data);
+  await registrarEvento(c.id, 'envio', `Kit da ${etapaInfo(etapa).curto} lançado (preparando).`);
+}
+function aprovarEtapa1(c){
+  abrirAcesso(c, { titulo:'Aprovar → Etapa 01 (30 dias)', botao:'Aprovar e criar acesso',
+    texto:`Ao aprovar, ${escHtml(primeiroNome(c.nome))} vai pra <strong>Etapa 01</strong> (os 30 dias contam a partir de hoje) e ganha acesso ao portal <strong>/creators</strong>.`,
+    extraHtml:`<label style="display:flex; gap:8px; align-items:center; font-size:13px; cursor:pointer;"><input type="checkbox" id="mKit" checked style="width:auto;"> Lançar o envio do kit (${escHtml(etapaInfo('etapa1').kit)})</label>`,
+    lerExtra:()=> ({ kit: q('mKit').checked }),
+    aposCriar: async (usuario, senha, extra)=>{
+      try{
+        await atualizarCreator(c, { etapa:'etapa1', etapa_inicio:todayISO() });
+        await registrarEvento(c.id, 'etapa', 'Aprovado → Etapa 01 (30 dias).');
+        if(extra && extra.kit) await criarEnvioDaEtapa(c, 'etapa1');
+        toast('Aprovado na Etapa 01'); reabrir(c);
+        abrirMensagem(c, 'aprovado_etapa1', { senha, usuario });
+      }catch(err){ erroBanco(err, MIGRACAO_CREATORS); }
+    } });
+}
+function avancarEtapa2(c){
+  openModal(`<button class="modal-close" id="mClose">&times;</button><h3>Aprovar → Etapa 02 (60 dias)</h3>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">${escHtml(primeiroNome(c.nome))} cumpriu ${semanasOk(c,'etapa1')} de 4 semanas da Etapa 01. Os 60 dias contam a partir de hoje.</div>
+    <label style="display:flex; gap:8px; align-items:center; font-size:13px; cursor:pointer; margin-bottom:14px;"><input type="checkbox" id="mKit" checked style="width:auto;"> Lançar o envio do kit (${escHtml(etapaInfo('etapa2').kit)})</label>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="mOk">Aprovar</button></div>`);
+  q('mClose').onclick = closeModal;
+  q('mOk').onclick = async (ev)=>{
+    ev.target.disabled = true; const kit = q('mKit').checked;
+    try{
+      await atualizarCreator(c, { etapa:'etapa2', etapa_inicio:todayISO() });
+      await registrarEvento(c.id, 'etapa', 'Aprovado → Etapa 02 (60 dias).');
+      if(kit) await criarEnvioDaEtapa(c, 'etapa2');
+      closeModal(); toast('Avançou pra Etapa 02'); reabrir(c);
+      abrirMensagem(c, 'aprovado_etapa2');
+    }catch(err){ erroBanco(err, MIGRACAO_CREATORS); ev.target.disabled = false; }
+  };
+}
+// Creator Oficial: ganha um cadastro na pasta "Creators" de Atletas & parceiros (com cupom e comissão, como os afiliados atuais)
+async function tornarOficial(c){
+  if(!confirm(`Tornar ${c.nome} Creator Oficial?\n\nVai ser criado um cadastro na pasta "Creators" de Atletas & parceiros${c.cupom_desconto?` com o cupom ${c.cupom_desconto} e ${c.comissao_pct}% de comissão`:''}. O acesso ao painel de atleta é liberado por lá.`)) return;
+  try{
+    let athleteId = c.athlete_id;
+    if(!athleteId){
+      const payload = { name:c.nome, team:'Creators', format_pref:'Vídeo', notes:`Creator oficial do Programa Creators desde ${fmtDateBR(todayISO())}.`,
+        email:c.email, whatsapp:c.whatsapp, instagram:c.instagram, tiktok:c.tiktok, youtube:c.youtube,
+        endereco_cep:c.endereco_cep, endereco_rua:c.endereco_rua, endereco_numero:c.endereco_numero, endereco_complemento:c.endereco_complemento,
+        endereco_bairro:c.endereco_bairro, endereco_cidade:c.endereco_cidade, endereco_estado:c.endereco_estado,
+        ...(c.cupom_desconto ? { cupom_yampi:c.cupom_desconto, desconto_cupom_pct:10, comissao_pct:c.comissao_pct!=null?c.comissao_pct:10, recebe_comissao:true } : {}) };
+      const { data, error } = await sb.from('athletes').insert(payload).select().single();
+      if(error) throw error;
+      athleteId = data.id;
+      // CPF e nome completo vão pro cadastro interno (só a equipe vê). Se a tabela não existir, segue sem.
+      const r = await sb.from('atleta_cadastro').upsert({ athlete_id:athleteId, nome_completo:c.nome, cpf:c.cpf, inicio_parceria:todayISO(), updated_at:new Date().toISOString() });
+      if(r.error) console.warn('atleta_cadastro', r.error);
+    }
+    await atualizarCreator(c, { etapa:'oficial', athlete_id:athleteId, etapa_inicio:todayISO() });
+    await registrarEvento(c.id, 'etapa', 'Virou Creator Oficial: cadastro criado na pasta "Creators" de Atletas & parceiros.');
+    toast('Creator Oficial! ⚡'); reabrir(c);
+    abrirMensagem(c, 'creator_oficial');
+  }catch(err){ erroBanco(err, MIGRACAO_CREATORS); }
+}
+
+/* ---------- Mensagens (WhatsApp / e-mail) ---------- */
+function abrirMensagem(c, id, extra){
+  const m = State.mensagens.find(x=>x.id===id);
+  if(!m){ toast('Modelo de mensagem não encontrado'); return; }
+  extra = extra || {};
+  if(id==='kit_enviado' && !extra.rastreio){ const e = enviosDe(c).find(x=>x.rastreio) || enviosDe(c)[0]; if(e){ extra.rastreio = e.rastreio; extra.itens = e.itens; } }
+  abrirMensagemTexto(c, m.titulo, preencherMensagem(m.assunto, c, extra), preencherMensagem(m.corpo, c, extra));
+}
+function abrirMensagemTexto(c, titulo, assunto, texto){
+  openModal(`<button class="modal-close" id="mClose">&times;</button><h3>${escHtml(titulo)}</h3>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">Para <strong>${escHtml(c.nome)}</strong> · confira e ajuste o texto antes de enviar.</div>
+    <div class="field"><label>Assunto (e-mail)</label><input id="mAssunto" value="${escHtml(assunto)}"></div>
+    <div class="field"><label>Mensagem</label><textarea id="mTexto" style="min-height:260px; font-size:13px;">${escHtml(texto)}</textarea></div>
+    ${/\{\w+\}/.test(texto) ? '<div style="font-size:12px; color:#b5680a; margin:-4px 0 10px;">Ainda há {variáveis} sem valor no texto: confira antes de enviar.</div>' : ''}
+    <div class="row" style="justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-ghost" id="mCopiar">${sm(ICONS.copy)} Copiar</button>
+      <button class="btn btn-ghost" id="mEmail" ${c.email?'':'disabled title="Sem e-mail"'}>${sm(ICONS.mail)} E-mail</button>
+      <button class="btn btn-primary" id="mWhats" ${c.whatsapp?'':'disabled title="Sem WhatsApp"'} style="background:#1faa59; border-color:#1faa59;">${sm(ICONS.whatsapp)} WhatsApp</button></div>`, {largo:true});
+  q('mClose').onclick = closeModal;
+  const logar = (canal)=> registrarEvento(c.id, 'mensagem', `Mensagem "${titulo}" enviada por ${canal}.`);
+  q('mCopiar').onclick = ()=> navigator.clipboard.writeText(q('mTexto').value).then(()=>{ toast('Mensagem copiada'); logar('cópia (colada manualmente)'); });
+  q('mWhats').onclick = ()=>{ window.open(linkWhatsApp(c.whatsapp, q('mTexto').value), '_blank'); logar('WhatsApp'); closeModal(); setTimeout(()=> carregarHistorico(c), 400); };
+  q('mEmail').onclick = ()=>{ location.href = linkEmail(c.email, q('mAssunto').value, q('mTexto').value); logar('e-mail'); closeModal(); setTimeout(()=> carregarHistorico(c), 400); };
+}
+
+/* ---------- Envios ---------- */
+function editarEnvio(c, e){
+  const novo = !e;
+  e = e || { etapa: ['etapa1','etapa2'].includes(c.etapa) ? c.etapa : 'etapa1', itens:'', status:'preparando', transportadora:'', rastreio:'', enviado_em:'', entregue_em:'' };
+  if(novo) e.itens = etapaInfo(e.etapa).kit || '';
+  openModal(`<button class="modal-close" id="mClose">&times;</button><h3>${novo?'Novo envio':'Editar envio'} · ${escHtml(c.nome)}</h3>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Etapa</label><select id="eEtapa">${['etapa1','etapa2','oficial'].map(x=>`<option value="${x}" ${x===e.etapa?'selected':''}>${etapaInfo(x).label}</option>`).join('')}</select></div>
+      <div class="field"><label>Status</label><select id="eStatus">${Object.entries(CREATOR_ENVIO_STATUS).map(([k,v])=>`<option value="${k}" ${k===e.status?'selected':''}>${v.label}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Itens</label><textarea id="eItens" style="min-height:60px;">${escHtml(e.itens)}</textarea></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Código de rastreio</label><input id="eRastreio" value="${escHtml(e.rastreio)}" style="font-family:monospace;"></div>
+      <div class="field"><label>Transportadora</label><input id="eTransp" value="${escHtml(e.transportadora)}" placeholder="Correios, Jadlog..."></div>
+      <div class="field"><label>Enviado em</label><input id="eEnviado" type="date" value="${e.enviado_em||''}"></div>
+      <div class="field"><label>Entregue em</label><input id="eEntregue" type="date" value="${e.entregue_em||''}"></div></div>
+    <div class="row" style="justify-content:space-between; margin-top:4px;">${novo?'<span></span>':`<button class="btn btn-danger btn-sm" id="eDel">${sm(ICONS.trash)} Excluir</button>`}
+      <button class="btn btn-primary" id="eOk">Salvar</button></div>`);
+  q('mClose').onclick = closeModal;
+  q('eEtapa').onchange = ()=>{ if(novo) q('eItens').value = etapaInfo(q('eEtapa').value).kit || ''; };
+  q('eStatus').onchange = ()=>{ if(q('eStatus').value!=='preparando' && !q('eEnviado').value) q('eEnviado').value = todayISO();
+    if(q('eStatus').value==='entregue' && !q('eEntregue').value) q('eEntregue').value = todayISO(); };
+  q('eOk').onclick = async (ev)=>{
+    const row = { creator_id:c.id, etapa:q('eEtapa').value, status:q('eStatus').value, itens:q('eItens').value.trim(), rastreio:q('eRastreio').value.trim(),
+      transportadora:q('eTransp').value.trim(), enviado_em:q('eEnviado').value||null, entregue_em:q('eEntregue').value||null };
+    if(row.status!=='preparando' && !row.rastreio && !confirm('Marcar como enviado sem código de rastreio?')) return;
+    ev.target.disabled = true;
+    const statusAntes = e.status, rastreioAntes = e.rastreio;
+    const r = novo ? await sb.from('creator_envios').insert(row).select().single() : await sb.from('creator_envios').update(row).eq('id', e.id).select().single();
+    if(r.error){ erroBanco(r.error, MIGRACAO_CREATORS); ev.target.disabled = false; return; }
+    if(novo) State.envios.unshift(r.data); else Object.assign(State.envios.find(x=>x.id===e.id), r.data);
+    await registrarEvento(c.id, 'envio', `Envio ${etapaInfo(row.etapa).curto}: ${CREATOR_ENVIO_STATUS[row.status].label.toLowerCase()}${row.rastreio?` · rastreio ${row.rastreio}`:''}.`);
+    closeModal(); toast('Envio salvo'); render();
+    if(document.getElementById('drawer')?.classList.contains('active')) abrirCreator(c.id);
+    const acabouDeSair = row.status==='enviado' && row.rastreio && (statusAntes!=='enviado' || rastreioAntes!==row.rastreio);
+    if(acabouDeSair && confirm('Avisar o creator que o kit saiu (mensagem com o rastreio)?')) abrirMensagem(c, 'kit_enviado', { rastreio:row.rastreio, itens:row.itens });
+  };
+  const del = q('eDel');
+  if(del) del.onclick = async ()=>{
+    if(!confirm('Excluir este envio?')) return;
+    const { error } = await sb.from('creator_envios').delete().eq('id', e.id);
+    if(error){ erroBanco(error, MIGRACAO_CREATORS); return; }
+    State.envios = State.envios.filter(x=>x.id!==e.id); closeModal(); render();
+    if(document.getElementById('drawer')?.classList.contains('active')) abrirCreator(c.id);
+  };
+}
+function abaEnvios(){
+  const ativos = State.creators.filter(c=> c.etapa==='etapa1' || c.etapa==='etapa2');
+  const semKit = ativos.filter(c=> !enviosDe(c, c.etapa).length);
+  const lista = State.envios.slice().sort((a,b)=> ['preparando','enviado','entregue'].indexOf(a.status) - ['preparando','enviado','entregue'].indexOf(b.status) || String(b.created_at).localeCompare(String(a.created_at)));
+  return `${semKit.length ? `<div class="panel"><div class="card-head"><div><h2>Kits pra lançar</h2><div class="desc">Creators numa etapa sem envio lançado</div></div></div>
+      ${semKit.map(c=>`<div class="alert-row">${avatarHtml(c.nome,'sm')}<div style="flex:1;"><strong>${escHtml(c.nome)}</strong><div style="color:var(--muted); font-size:12px;">${escHtml(etapaInfo(c.etapa).label)} · ${escHtml(etapaInfo(c.etapa).kit)}</div></div>
+        <button class="btn btn-ghost btn-sm" data-novo-envio="${c.id}">Lançar envio</button></div>`).join('')}</div>` : ''}
+    <div class="panel" style="overflow-x:auto;"><div class="card-head"><div><h2>Todos os envios</h2><div class="desc">${lista.length} envio(s)</div></div></div>
+      <table><thead><tr><th>Creator</th><th>Etapa</th><th>Itens</th><th>Status</th><th>Rastreio</th><th>Enviado</th><th></th></tr></thead><tbody>
+      ${lista.map(e=>{ const c = creatorById(e.creator_id), st = CREATOR_ENVIO_STATUS[e.status]; if(!c) return '';
+        return `<tr><td><div class="cell-person">${avatarHtml(c.nome,'sm')}<div>${escHtml(c.nome)}<div class="sub">${escHtml(c.endereco_cidade)}/${escHtml(c.endereco_estado)}</div></div></div></td>
+          <td>${escHtml(etapaInfo(e.etapa).curto)}</td><td style="max-width:260px; font-size:12px;">${escHtml(e.itens)}</td>
+          <td><span class="badge" style="background:${st.fundo}; color:${st.cor};">${st.label}</span></td>
+          <td style="font-family:monospace; font-size:12px;">${escHtml(e.rastreio)||'—'}</td><td>${e.enviado_em?fmtDateBR(e.enviado_em):'—'}</td>
+          <td style="text-align:right; white-space:nowrap;"><button class="btn btn-ghost btn-sm" data-edit-envio="${e.id}">Editar</button> <button class="icon-btn" data-abrir="${c.id}" title="Abrir ficha">${ICONS.arrow}</button></td></tr>`; }).join('')}
+      ${!lista.length ? '<tr><td colspan="7"><div class="empty-state">Nenhum envio ainda.</div></td></tr>' : ''}</tbody></table></div>`;
+}
+
+/* ---------- Calendário ---------- */
+function abaCalendario(){
+  const hoje = todayISO();
+  const futuras = State.calendario.filter(d=> (d.data_fim||d.data) >= hoje), passadas = State.calendario.filter(d=> (d.data_fim||d.data) < hoje);
+  const tipoLbl = {data:'Data', campanha:'Campanha', prova:'Prova'};
+  const linhaData = (d)=> `<tr><td style="white-space:nowrap;"><strong>${fmtDateBR(d.data)}</strong>${d.data_fim?`<div class="sub" style="font-size:11.5px; color:var(--muted);">até ${fmtDateBR(d.data_fim)}</div>`:''}</td>
+    <td><strong>${escHtml(d.titulo)}</strong><div style="font-size:12px; color:var(--muted);">${escHtml(d.descricao)}</div></td><td><span class="chip static">${tipoLbl[d.tipo]||d.tipo}</span></td>
+    <td style="text-align:right;"><button class="btn btn-ghost btn-sm" data-cal="${d.id}">Editar</button></td></tr>`;
+  return `<div class="panel" style="overflow-x:auto;"><div class="card-head"><div><h2>Calendário de conteúdo dos creators</h2><div class="desc">Aparece no portal /creators. Datas comemorativas, campanhas e provas pra guiar os posts.</div></div>
+      <button class="btn btn-dark btn-sm" id="btnNovaData">${ICONS.plus} Nova data</button></div>
+    <table><thead><tr><th>Quando</th><th>O quê</th><th>Tipo</th><th></th></tr></thead><tbody>
+      ${futuras.map(linhaData).join('') || '<tr><td colspan="4"><div class="empty-state">Nenhuma data futura.</div></td></tr>'}</tbody></table>
+    ${passadas.length ? `<details style="margin-top:14px;"><summary style="cursor:pointer; font-size:12.5px; color:var(--muted);">Datas passadas (${passadas.length})</summary>
+      <table><tbody>${passadas.slice().reverse().map(linhaData).join('')}</tbody></table></details>` : ''}</div>`;
+}
+function editarData(d){
+  const nova = !d; d = d || { data:todayISO(), data_fim:'', titulo:'', descricao:'', tipo:'data' };
+  openModal(`<button class="modal-close" id="mClose">&times;</button><h3>${nova?'Nova data':'Editar data'}</h3>
+    <div class="field"><label>Título</label><input id="dTitulo" value="${escHtml(d.titulo)}" placeholder="Ex.: Black November, Dia do Ciclista, L'Étape..."></div>
+    <div class="grid-3" style="gap:12px;"><div class="field"><label>Data</label><input type="date" id="dData" value="${d.data||''}"></div>
+      <div class="field"><label>Até (opcional)</label><input type="date" id="dFim" value="${d.data_fim||''}"></div>
+      <div class="field"><label>Tipo</label><select id="dTipo">${[['data','Data comemorativa'],['campanha','Campanha'],['prova','Prova']].map(([v,l])=>`<option value="${v}" ${v===d.tipo?'selected':''}>${l}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Ideia de conteúdo / orientação</label><textarea id="dDesc" style="min-height:90px;">${escHtml(d.descricao)}</textarea></div>
+    <div class="row" style="justify-content:space-between;">${nova?'<span></span>':`<button class="btn btn-danger btn-sm" id="dDel">${sm(ICONS.trash)} Excluir</button>`}<button class="btn btn-primary" id="dOk">Salvar</button></div>`);
+  q('mClose').onclick = closeModal;
+  q('dOk').onclick = async ()=>{
+    const row = { titulo:q('dTitulo').value.trim(), data:q('dData').value, data_fim:q('dFim').value||null, tipo:q('dTipo').value, descricao:q('dDesc').value.trim() };
+    if(!row.titulo || !row.data){ toast('Preencha título e data'); return; }
+    const r = nova ? await sb.from('creator_calendario').insert(row).select().single() : await sb.from('creator_calendario').update(row).eq('id', d.id).select().single();
+    if(r.error){ erroBanco(r.error, MIGRACAO_CREATORS); return; }
+    if(nova) State.calendario.push(r.data); else Object.assign(State.calendario.find(x=>x.id===d.id), r.data);
+    State.calendario.sort((a,b)=> a.data.localeCompare(b.data)); closeModal(); toast('Data salva'); render();
+  };
+  const del = q('dDel');
+  if(del) del.onclick = async ()=>{ if(!confirm('Excluir esta data?')) return;
+    const { error } = await sb.from('creator_calendario').delete().eq('id', d.id); if(error){ erroBanco(error, MIGRACAO_CREATORS); return; }
+    State.calendario = State.calendario.filter(x=>x.id!==d.id); closeModal(); render(); };
+}
+
+/* ---------- Mensagens padrão (modelos) ---------- */
+function abaMensagens(){
+  return `<div class="panel"><div class="card-head"><div><h2>Mensagens padrão</h2><div class="desc">Usadas pelos botões da ficha do creator. Ao clicar, o texto já vem preenchido e abre no WhatsApp ou no e-mail.</div></div></div>
+    <div style="font-size:12.5px; color:var(--muted); margin-bottom:6px;">Variáveis (clique pra copiar): ${VARIAVEIS_MENSAGEM.map(v=>`<span class="var-chip" data-var="{${v}}">{${v}}</span>`).join(' ')}</div>
+    <div style="font-size:12px; color:var(--muted);">No WhatsApp, *texto* fica em <strong>negrito</strong>. No e-mail, os asteriscos são tirados automaticamente.</div></div>
+    ${State.mensagens.map(m=>`<div class="panel"><div class="grid-2" style="gap:12px;">
+        <div class="field"><label>Nome do botão</label><input data-m-titulo="${escHtml(m.id)}" value="${escHtml(m.titulo)}"></div>
+        <div class="field"><label>Assunto do e-mail</label><input data-m-assunto="${escHtml(m.id)}" value="${escHtml(m.assunto)}"></div></div>
+      <div class="field"><label>Texto</label><textarea data-m-corpo="${escHtml(m.id)}" style="min-height:200px; font-size:13px;">${escHtml(m.corpo)}</textarea></div>
+      <div class="row" style="justify-content:flex-end;"><button class="btn btn-dark btn-sm" data-m-salvar="${escHtml(m.id)}">Salvar</button></div></div>`).join('')
+      || `<div class="panel"><div class="empty-state">Nenhum modelo. Rode <code>${MIGRACAO_CREATORS}</code> no Supabase.</div></div>`}`;
+}
+async function salvarModelo(id, btn){
+  const sel = (attr)=> document.querySelector(`[${attr}="${CSS.escape(id)}"]`).value;
+  const row = { titulo:sel('data-m-titulo'), assunto:sel('data-m-assunto'), corpo:sel('data-m-corpo'), updated_at:new Date().toISOString() };
+  btn.disabled = true;
+  const { error } = await sb.from('creator_mensagens').update(row).eq('id', id);
+  btn.disabled = false;
+  if(error){ erroBanco(error, MIGRACAO_CREATORS); return; }
+  Object.assign(State.mensagens.find(m=>m.id===id), row); toast('Mensagem salva');
+}
+
+/* ---------- Cadastro manual / edição de dados ---------- */
+function editarDados(c){
+  const novo = !c;
+  c = c || { nome:'', cpf:'', email:'', whatsapp:'', endereco_cep:'', endereco_rua:'', endereco_numero:'', endereco_complemento:'', endereco_bairro:'', endereco_cidade:'', endereco_estado:'',
+    instagram:'', tiktok:'', youtube:'', outras_redes:'', esportes:[], esporte_outro:'' };
+  const inp = (id, label, v, extra)=> `<div class="field"><label>${label}</label><input id="${id}" value="${escHtml(v||'')}" ${extra||''}></div>`;
+  openModal(`<button class="modal-close" id="mClose">&times;</button><h3>${novo?'Cadastrar creator à mão':'Editar dados'}</h3>
+    ${novo?'<div style="font-size:12.5px; color:var(--muted); margin-bottom:10px;">Pra quem chegou por e-mail/Instagram e não preencheu o formulário. Entra em "Contato recebido".</div>':''}
+    ${inp('xNome','Nome completo',c.nome)}
+    <div class="grid-3" style="gap:12px;">${inp('xCpf','CPF',fmtCPF(c.cpf),'inputmode="numeric"')}${inp('xWhats','WhatsApp',c.whatsapp,'inputmode="tel"')}${inp('xEmail','E-mail',c.email,'type="email"')}</div>
+    <div class="grid-3" style="gap:12px;">${inp('xCep','CEP',c.endereco_cep,'inputmode="numeric"')}${inp('xRua','Rua',c.endereco_rua)}${inp('xNum','Número',c.endereco_numero)}</div>
+    <div class="grid-3" style="gap:12px;">${inp('xCompl','Complemento',c.endereco_complemento)}${inp('xBairro','Bairro',c.endereco_bairro)}${inp('xCidade','Cidade',c.endereco_cidade)}</div>
+    <div class="grid-3" style="gap:12px;">${inp('xUf','UF',c.endereco_estado,'maxlength="2"')}${inp('xInsta','Instagram',c.instagram)}${inp('xTiktok','TikTok',c.tiktok)}</div>
+    <div class="grid-2" style="gap:12px;">${inp('xYt','YouTube',c.youtube)}${inp('xOutras','Outras redes',c.outras_redes)}</div>
+    <div class="field"><label>Esportes</label><div class="row" style="gap:12px; flex-wrap:wrap;">${CREATOR_ESPORTES.map(e=>`<label style="display:flex; gap:5px; align-items:center; font-size:13px; cursor:pointer;"><input type="checkbox" class="xEsp" value="${e.id}" ${(c.esportes||[]).includes(e.id)?'checked':''} style="width:auto;"> ${e.label}</label>`).join('')}
+      <input id="xOutro" value="${escHtml(c.esporte_outro)}" placeholder="Outro: qual?" style="width:160px;"></div></div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="xOk">${novo?'Cadastrar':'Salvar'}</button></div>`, {largo:true});
+  q('mClose').onclick = closeModal;
+  q('xCep').oninput = async (e)=>{ const d = soDigitos(e.target.value); if(d.length!==8) return;
+    try{ const r = await (await fetch(`https://viacep.com.br/ws/${d}/json/`)).json(); if(r.erro) return;
+      q('xRua').value = r.logradouro||q('xRua').value; q('xBairro').value = r.bairro||q('xBairro').value; q('xCidade').value = r.localidade||''; q('xUf').value = r.uf||''; }catch(err){} };
+  q('xOk').onclick = async (ev)=>{
+    const v = (id)=> q(id).value.trim();
+    const row = { nome:v('xNome'), cpf:soDigitos(v('xCpf')), whatsapp:soDigitos(v('xWhats')), email:v('xEmail').toLowerCase(), endereco_cep:soDigitos(v('xCep')),
+      endereco_rua:v('xRua'), endereco_numero:v('xNum'), endereco_complemento:v('xCompl'), endereco_bairro:v('xBairro'), endereco_cidade:v('xCidade'),
+      endereco_estado:v('xUf').toUpperCase(), instagram:v('xInsta'), tiktok:v('xTiktok'), youtube:v('xYt'), outras_redes:v('xOutras'),
+      esportes:[...document.querySelectorAll('.xEsp:checked')].map(i=>i.value), esporte_outro:v('xOutro') };
+    if(!row.nome){ toast('Informe o nome'); return; }
+    ev.target.disabled = true;
+    try{
+      if(novo){
+        const { data, error } = await sb.from('creators').insert({ ...row, origem:'manual' }).select().single(); if(error) throw error;
+        State.creators.unshift(data); await registrarEvento(data.id, 'etapa', 'Cadastrado à mão pela equipe.');
+        closeModal(); render(); abrirCreator(data.id);
+      }else{ await atualizarCreator(c, row); closeModal(); toast('Dados salvos'); reabrir(c); }
+    }catch(err){ erroBanco(err, MIGRACAO_CREATORS); ev.target.disabled = false; }
+  };
+}
+
+/* ---------- Render ---------- */
+function render(){
+  const main = document.getElementById('main');
+  if(!State.tabelaOk){
+    main.innerHTML = `<div class="page-head"><div><h1>Programa Creators</h1></div></div><div class="panel"><div class="empty-state"><div class="big">🛠️</div>
+      <strong>As tabelas do Programa Creators ainda não existem no Supabase.</strong><br>Rode <code>${MIGRACAO_CREATORS}</code> no SQL Editor do Supabase e recarregue a página.<br>
+      Depois publique a Edge Function <code>criar-acesso-creator</code>.</div></div>`;
+    return;
+  }
+  const abas = { geral:abaGeral, funil:abaFunil, envios:abaEnvios, calendario:abaCalendario, mensagens:abaMensagens };
+  main.innerHTML = heroHtml() + (abas[State.aba] || abaGeral)();
+  document.querySelectorAll('[data-aba]').forEach(b=> b.onclick = ()=>{ State.aba = b.dataset.aba; history.replaceState(null, '', '#' + State.aba); render(); });
+  q('btnCopiarLp').onclick = (e)=>{ e.preventDefault(); navigator.clipboard.writeText(LINK_LP_CREATORS).then(()=> toast('Link do formulário copiado')); };
+  document.querySelectorAll('[data-abrir]').forEach(b=> b.onclick = ()=> abrirCreator(b.dataset.abrir));
+  document.querySelectorAll('.kcard[data-card]').forEach(el=> el.onclick = ()=> abrirCreator(el.dataset.card));
+  document.querySelectorAll('[data-esporte]').forEach(b=> b.onclick = ()=>{ State.esporte = b.dataset.esporte; render(); });
+  const arq = q('crArquivados'); if(arq) arq.onchange = ()=>{ State.verArquivados = arq.checked; render(); };
+  const busca = q('crBusca');
+  if(busca) busca.oninput = ()=>{ State.busca = busca.value; const pos = busca.selectionStart; render(); const b2 = q('crBusca'); b2.focus(); b2.setSelectionRange(pos,pos); };
+  const nm = q('btnNovoManual'); if(nm) nm.onclick = ()=> editarDados(null);
+  document.querySelectorAll('[data-novo-envio]').forEach(b=> b.onclick = ()=> editarEnvio(creatorById(b.dataset.novoEnvio), null));
+  document.querySelectorAll('[data-edit-envio]').forEach(b=> b.onclick = ()=>{ const e = State.envios.find(x=>x.id===b.dataset.editEnvio); editarEnvio(creatorById(e.creator_id), e); });
+  const nd = q('btnNovaData'); if(nd) nd.onclick = ()=> editarData(null);
+  document.querySelectorAll('[data-cal]').forEach(b=> b.onclick = ()=> editarData(State.calendario.find(d=>d.id===b.dataset.cal)));
+  document.querySelectorAll('[data-var]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(b.dataset.var).then(()=> toast(`${b.dataset.var} copiado`)));
+  document.querySelectorAll('[data-m-salvar]').forEach(b=> b.onclick = ()=> salvarModelo(b.dataset.mSalvar, b));
+}
+
+(async function start(){
+  const auth = await guardStaff('creators'); if(!auth) return;
+  State.profile = auth.profile;
+  const h = location.hash.slice(1); if(ABAS.some(a=>a.id===h)) State.aba = h;
+  await carregarTudo();
+  render();
+})();
+</script></body></html>

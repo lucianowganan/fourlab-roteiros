@@ -1,0 +1,358 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plataforma Creators · FourLab</title>
+<meta name="description" content="Plataforma FourLab Creators: sua etapa, entregas da semana, kit, cupons e calendário de conteúdo.">
+<meta name="theme-color" content="#0a0709">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:title" content="Plataforma FourLab Creators">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
+<link rel="stylesheet" href="creators.css">
+<style>
+  /* ---------- Login ---------- */
+  .login-wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px 16px; }
+  .login-card{ width:min(420px, 100%); padding:34px 28px; text-align:center; position:relative; }
+  .login-card .logo-creators{ width:100%; max-width:300px; margin:8px auto 4px; display:block; }
+  .login-card .sub{ color:var(--c-muted); font-size:14px; margin:0 0 22px; }
+  .login-card .fld{ text-align:left; margin-bottom:14px; }
+  .login-erro{ display:none; color:#ffb0b0; background:rgba(255,90,90,0.12); border:1px solid rgba(255,90,90,0.35); border-radius:12px; padding:10px 12px; font-size:13.5px; margin-top:14px; }
+  .login-card .rodape{ margin-top:22px; font-size:13px; color:var(--c-muted); }
+
+  /* ---------- Portal ---------- */
+  .p-top{ position:sticky; top:0; z-index:40; background:rgba(10,7,9,0.72); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .p-top .wrap{ display:flex; align-items:center; gap:14px; height:64px; }
+  .p-top .quem{ margin-left:auto; text-align:right; font-size:12.5px; line-height:1.3; color:var(--c-muted); }
+  .p-top .quem strong{ color:var(--c-text); display:block; font-size:13.5px; }
+  .p-top .sair{ background:none; border:1px solid var(--c-line-2); color:var(--c-text); border-radius:10px; padding:7px 11px; font:inherit; font-size:12.5px; cursor:pointer; }
+  .tabs{ display:flex; gap:6px; overflow-x:auto; padding:14px 0 4px; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tabs a{ flex:none; text-decoration:none; color:var(--c-muted); font-weight:700; font-size:13.5px; padding:9px 15px; border-radius:999px; border:1px solid transparent; }
+  .tabs a.active{ color:#fff; background:var(--c-glass-2); border-color:var(--c-line-2); }
+  @media (max-width:720px){
+    .tabs{ position:fixed; left:0; right:0; bottom:0; z-index:45; background:rgba(14,9,12,0.94); backdrop-filter:blur(14px); border-top:1px solid var(--c-line);
+      padding:8px 8px calc(8px + env(safe-area-inset-bottom)); justify-content:space-around; gap:2px; }
+    .tabs a{ display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10.5px; padding:6px 8px; border-radius:12px; }
+    .tabs a .t-ic{ font-size:17px; line-height:1; }
+    body.cr.portal{ padding-bottom:84px; }
+    .p-top .quem span{ display:none; }
+  }
+  @media (min-width:721px){ .tabs a .t-ic{ display:none; } }
+  .p-main{ padding:18px 0 60px; }
+  .p-grid{ display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:16px; }
+  .p-grid > *{ grid-column:span 12; }
+  @media (min-width:900px){ .p-grid > .c7{ grid-column:span 7; } .p-grid > .c5{ grid-column:span 5; } .p-grid > .c6{ grid-column:span 6; } }
+  .card-c{ padding:clamp(18px, 3vw, 26px); }
+  .card-c h2{ font-size:19px; font-weight:800; }
+  .card-c .desc{ color:var(--c-muted); font-size:13.5px; margin-top:4px; }
+  .sec-h{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; }
+
+  .hero-etapa{ position:relative; overflow:hidden; padding:clamp(22px, 4vw, 34px); }
+  .hero-etapa::before{ content:''; position:absolute; left:6%; right:6%; top:0; height:3px; border-radius:3px; background:var(--c-grad-line); }
+  .hero-etapa .tag{ margin-bottom:12px; }
+  .hero-etapa h1{ font-size:clamp(28px, 5vw, 44px); font-weight:800; max-width:70%; }
+  .hero-etapa .ic3d{ position:absolute; right:clamp(10px, 4vw, 34px); top:clamp(14px, 3vw, 26px); width:clamp(84px, 14vw, 140px); height:auto; filter:drop-shadow(0 14px 34px rgba(255,59,107,0.45)); }
+  .hero-etapa p{ color:var(--c-muted); margin:10px 0 0; max-width:620px; }
+  .barra{ height:12px; border-radius:999px; background:rgba(255,255,255,0.08); overflow:hidden; margin-top:18px; border:1px solid var(--c-line); }
+  .barra > div{ height:100%; border-radius:999px; background:var(--c-grad); }
+  .barra-leg{ display:flex; justify-content:space-between; font-size:12.5px; color:var(--c-muted); margin-top:7px; }
+
+  .meta-linha{ display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); }
+  .meta-linha:last-child{ border-bottom:none; }
+  .meta-linha .qtd{ font-family:var(--c-font-title); font-weight:800; font-size:20px; min-width:54px; }
+  .meta-linha .lbl{ flex:1; font-weight:600; font-size:14px; }
+  .dots{ display:flex; gap:5px; }
+  .dots i{ width:12px; height:12px; border-radius:50%; background:rgba(255,255,255,0.12); display:block; }
+  .dots i.on{ background:var(--c-grad); }
+
+  .semanas{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+  .sem{ border:1px solid var(--c-line); border-radius:16px; padding:12px 14px; background:rgba(0,0,0,0.3); }
+  .sem.atual{ border-color:var(--c-coral); box-shadow:0 0 0 3px rgba(255,106,77,0.15); }
+  .sem .h{ display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:13.5px; }
+  .sem .m{ font-size:12px; color:var(--c-muted); margin-top:6px; line-height:1.5; }
+
+  .lista-c .it{ display:flex; gap:14px; align-items:flex-start; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.07); }
+  .lista-c .it:last-child{ border-bottom:none; }
+  .lista-c .data{ flex:none; width:58px; text-align:center; border-radius:14px; padding:8px 4px; background:rgba(255,255,255,0.06); border:1px solid var(--c-line); }
+  .lista-c .data b{ display:block; font-family:var(--c-font-title); font-size:22px; line-height:1; }
+  .lista-c .data span{ font-size:10.5px; text-transform:uppercase; letter-spacing:1px; color:var(--c-muted); font-weight:700; }
+  .lista-c .tt{ font-weight:800; font-size:15px; }
+  .lista-c .dd{ font-size:13.5px; color:var(--c-muted); margin-top:3px; }
+
+  .cupom{ border-radius:20px; padding:20px; position:relative; overflow:hidden; background:linear-gradient(135deg, #2a1220, #1a0d14); border:1px solid var(--c-line-2); }
+  .cupom::after{ content:''; position:absolute; right:-40px; top:-40px; width:160px; height:160px; border-radius:50%; background:radial-gradient(circle, rgba(255,106,77,0.45), transparent 70%); }
+  .cupom .pct{ font-family:var(--c-font-title); font-weight:900; font-size:34px; }
+  .cupom .cod{ font-family:ui-monospace, monospace; font-size:20px; letter-spacing:2px; font-weight:700; margin-top:8px; }
+  .cupom .ob{ font-size:12.5px; color:var(--c-muted); margin-top:6px; }
+
+  .manual h3{ font-size:17px; font-weight:800; margin:0 0 10px; display:flex; align-items:center; gap:10px; }
+  .manual ul{ margin:0; padding-left:20px; } .manual li{ margin:5px 0; font-size:14.5px; }
+  .manual .destaque{ margin-top:14px; border:1px solid rgba(255,106,77,0.35); background:rgba(255,106,77,0.08); color:#ffc0a8; border-radius:14px; padding:11px 14px; font-size:13.5px; font-weight:600; }
+  .vazio{ color:var(--c-muted); font-size:14px; padding:6px 0; }
+</style></head>
+<body class="cr">
+<div id="app"><div class="login-wrap"><span class="loader-c"></span></div></div>
+<div class="toast-c" id="toastC"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script src="creators-shared.js"></script>
+<script>
+/* Plataforma FourLab Creators — login e portal do creator (/creators).
+   O login é criado pela equipe ao aprovar a inscrição (Edge Function criar-acesso-creator).
+   O creator só lê os PRÓPRIOS dados: o banco filtra (policies "creator ve os proprios ..."). */
+const $ = (id)=> document.getElementById(id);
+function toastC(msg){ const t = $('toastC'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastC._h); toastC._h = setTimeout(()=> t.classList.remove('show'), 2600); }
+const P = { creator:null, envios:[], semanas:[], calendario:[], aba:'inicio' };
+
+/* ---------- Login ---------- */
+function telaLogin(){
+  $('app').innerHTML = `<div class="login-wrap"><form class="glass login-card" id="formLogin">
+    <a class="fl-logo" href="lpcreators" style="justify-content:center;"><img src="${LOGO_SIMBOLO_BRANCO}" alt=""><span class="nm">FourLab<small>nutrition</small></span></a>
+    <img class="logo-creators" src="assets/creators/logo-creators.webp" alt="Creators">
+    <p class="sub">Plataforma do creator. Entre com o usuário e a senha que o time FourLab te enviou.</p>
+    <div class="fld"><label for="lUser">Usuário</label><input id="lUser" autocomplete="username" autocapitalize="off" placeholder="seu usuário"></div>
+    <div class="fld"><label for="lSenha">Senha</label><input id="lSenha" type="password" autocomplete="current-password"></div>
+    <button class="btn-c" type="submit" id="btnEntrar" style="width:100%; margin-top:6px;">Entrar</button>
+    <div class="login-erro" id="loginErro"></div>
+    <div class="rodape">Ainda não é creator? <a href="lpcreators">Conheça o programa</a></div>
+  </form></div>`;
+  $('formLogin').onsubmit = async (ev)=>{
+    ev.preventDefault();
+    const raw = $('lUser').value.trim(), senha = $('lSenha').value, erro = $('loginErro');
+    erro.style.display = 'none';
+    if(!raw || !senha){ erro.textContent = 'Preencha usuário e senha.'; erro.style.display = 'block'; return; }
+    const email = raw.includes('@') ? raw : `${raw.toLowerCase()}@${DOMINIO_LOGIN_CREATORS}`;
+    const btn = $('btnEntrar'); btn.disabled = true; btn.innerHTML = '<span class="loader-c"></span> Entrando...';
+    const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+    btn.disabled = false; btn.textContent = 'Entrar';
+    if(error){ erro.textContent = 'Usuário ou senha incorretos.'; erro.style.display = 'block'; return; }
+    iniciar();
+  };
+}
+async function sair(){ await sb.auth.signOut(); P.creator = null; telaLogin(); }
+
+/* ---------- Dados ---------- */
+async function carregar(user){
+  const { data: c, error } = await sb.from('creators').select('*').eq('auth_user_id', user.id).maybeSingle();
+  if(error || !c) return false;
+  P.creator = c;
+  const [env, sem, cal] = await Promise.all([
+    sb.from('creator_envios').select('*').eq('creator_id', c.id).order('created_at', {ascending:false}),
+    sb.from('creator_semanas').select('*').eq('creator_id', c.id),
+    sb.from('creator_calendario').select('*').gte('data', new Date(Date.now() - 31*86400000).toISOString().slice(0,10)).order('data'),
+  ]);
+  P.envios = env.data || []; P.semanas = sem.data || []; P.calendario = cal.data || [];
+  return true;
+}
+
+/* ---------- Portal ---------- */
+const ABAS = [
+  {id:'inicio', label:'Início', ic:'⌂'}, {id:'entregas', label:'Entregas', ic:'✓'}, {id:'envios', label:'Meu kit', ic:'📦'},
+  {id:'cupons', label:'Cupons', ic:'%'}, {id:'calendario', label:'Calendário', ic:'📅'}, {id:'manual', label:'Manual', ic:'📘'},
+];
+function shell(conteudo){
+  const c = P.creator;
+  return `<header class="p-top"><div class="wrap">
+      <span class="fl-logo"><img src="${LOGO_SIMBOLO_BRANCO}" alt=""><span class="nm">FourLab<small>creators</small></span></span>
+      <div class="quem"><strong>${escHtml(primeiroNome(c.nome))}</strong><span>${escHtml(etapaInfo(c.etapa).label)}</span></div>
+      <button class="sair" id="btnSair">Sair</button></div></header>
+    <div class="wrap"><nav class="tabs">${ABAS.map(a=>`<a href="#${a.id}" class="${P.aba===a.id?'active':''}"><span class="t-ic">${a.ic}</span>${a.label}</a>`).join('')}</nav></div>
+    <main class="wrap p-main">${conteudo}</main>`;
+}
+const ICONE_ETAPA = { etapa1:'cadeado', etapa2:'coracao', oficial:'cartao', contato:'f', recusado:'f', encerrado:'f' };
+
+function semanaDe(etapa, n){ return P.semanas.find(s=> s.etapa===etapa && s.semana===n); }
+function metasSemanaHtml(etapa, n){
+  const et = etapaInfo(etapa), feito = (semanaDe(etapa, n)||{}).feito || {};
+  return (et.metas||[]).map(m=>{ const f = Math.min(Number(feito[m.key])||0, m.qtd);
+    return `<div class="meta-linha"><span class="qtd grad-text">${m.qtd}x</span><span class="lbl">${escHtml(m.label)}</span>
+      <span class="dots" title="${f} de ${m.qtd}">${Array.from({length:m.qtd}, (_,i)=>`<i class="${i<f?'on':''}"></i>`).join('')}</span></div>`; }).join('');
+}
+
+function abaInicio(){
+  const c = P.creator, et = etapaInfo(c.etapa), pr = progressoEtapa(c);
+  const ativa = c.etapa === 'etapa1' || c.etapa === 'etapa2';
+  const textos = {
+    etapa1: 'A proposta é que você experimente os produtos dentro da sua rotina real de treinos, provas e preparação, criando conteúdos com a sua linguagem.',
+    etapa2: 'O foco desta etapa é conteúdo + comunidade + resultado. Mais liberdade pra criar, com mais atenção à qualidade, frequência e clareza.',
+    oficial: 'A parceria agora é recorrente: campanhas mensais, metas, bonificações por performance e recompensas exclusivas. Em breve você recebe seu novo acesso.',
+    contato: 'Sua inscrição está com o time de marketing. Em breve você recebe um retorno.',
+    recusado: 'Obrigado por ter participado do processo do FourLab Creators. Seguimos acompanhando o seu trabalho!',
+    encerrado: 'Sua participação no programa foi encerrada. Obrigado por todo o conteúdo que você criou com a gente!',
+  };
+  const titulo = { etapa1:'Experimente: 30 dias', etapa2:'Evolução: 60 dias', oficial:'Você é um Creator Oficial', contato:'Inscrição em análise', recusado:'Obrigado por participar', encerrado:'Participação encerrada' }[c.etapa];
+  const ultimoEnvio = P.envios.find(e=> e.etapa === c.etapa);   // só o kit da etapa atual
+  return `<div class="p-grid">
+    <section class="glass hero-etapa">
+      <img class="ic3d" src="assets/creators/${ICONE_ETAPA[c.etapa]||'f'}.webp" alt="">
+      <span class="tag hot">${escHtml(et.label)}</span>
+      <h1>${c.etapa==='oficial' ? `<span class="grad-text">${titulo}</span>` : `Olá, ${escHtml(primeiroNome(c.nome))}!<br><span class="grad-text">${titulo}</span>`}</h1>
+      <p>${textos[c.etapa]||''}</p>
+      ${pr ? `<div class="barra"><div style="width:${Math.min(100, Math.round(pr.dia/pr.dias*100))}%"></div></div>
+        <div class="barra-leg"><span>Dia ${Math.min(pr.dia, pr.dias)} de ${pr.dias} · semana ${pr.semanaAtual}</span><span>${pr.vencida ? 'Etapa em avaliação' : `termina em ${fmtDateBR(pr.fim)}`}</span></div>` : ''}
+      ${ativa ? `<div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;"><a class="btn-c sm" href="${et.guia}" target="_blank" rel="noopener">📘 Abrir guia da etapa</a>
+        <a class="btn-c sm ghost" href="#manual">O que falar / não falar</a></div>` : ''}
+    </section>
+    ${ativa ? `<section class="glass card-c c7"><div class="sec-h"><div><h2>Entregas desta semana</h2><div class="desc">Semana ${pr?pr.semanaAtual:1} de ${et.semanas} · o time marca conforme acompanha seus posts</div></div></div>
+        ${metasSemanaHtml(c.etapa, pr?pr.semanaAtual:1)}
+        <div class="desc" style="margin-top:10px;">Use <strong style="color:var(--c-text);">#creatorFourLab</strong> e <strong style="color:var(--c-text);">#FourLabNutri</strong> e identifique a parceria.</div></section>
+      <section class="glass card-c c5"><div class="sec-h"><div><h2>Seu kit</h2><div class="desc">${escHtml(et.kit||'')}</div></div><span style="font-size:24px;">📦</span></div>
+        ${ultimoEnvio ? envioHtml(ultimoEnvio) : '<div class="vazio">Estamos separando seu kit. Assim que sair, o código de rastreio aparece aqui.</div>'}</section>` : ''}
+    ${proximasDatasHtml(3)}
+  </div>`;
+}
+function envioHtml(e){
+  const st = CREATOR_ENVIO_STATUS[e.status] || CREATOR_ENVIO_STATUS.preparando;
+  return `<div style="padding:4px 0;">
+    <span class="tag ${e.status==='entregue'?'ok':e.status==='enviado'?'':'warn'}">${st.label}</span>
+    <div style="font-weight:700; margin-top:10px;">${escHtml(e.itens||etapaInfo(e.etapa).kit||'')}</div>
+    ${e.rastreio ? `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <span style="font-family:ui-monospace,monospace; font-size:16px; letter-spacing:1px; font-weight:700;">${escHtml(e.rastreio)}</span>
+        <button class="btn-c sm ghost" data-copiar="${escHtml(e.rastreio)}">Copiar</button></div>
+      <div class="desc" style="margin-top:6px;">${e.transportadora ? escHtml(e.transportadora) + ' · ' : ''}${e.enviado_em ? `enviado em ${fmtDateBR(e.enviado_em)}` : ''}${e.entregue_em ? ` · entregue em ${fmtDateBR(e.entregue_em)}` : ''}</div>` : ''}
+  </div>`;
+}
+function proximasDatasHtml(n){
+  const hoje = todayISO();
+  const lista = P.calendario.filter(d=> (d.data_fim||d.data) >= hoje).slice(0, n);
+  return `<section class="glass card-c"><div class="sec-h"><div><h2>Próximas datas de conteúdo</h2><div class="desc">Use como guia pra planejar seus posts</div></div><a class="btn-c sm ghost" href="#calendario">Ver calendário</a></div>
+    <div class="lista-c">${lista.length ? lista.map(dataHtml).join('') : '<div class="vazio">Nenhuma data cadastrada por enquanto.</div>'}</div></section>`;
+}
+const MESES_CURTOS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+function dataHtml(d){
+  const [, m, dia] = d.data.split('-');
+  const tipo = {campanha:'Campanha', prova:'Prova', data:'Data'}[d.tipo] || '';
+  return `<div class="it"><div class="data"><b>${Number(dia)}</b><span>${MESES_CURTOS[Number(m)-1]}</span></div>
+    <div><div class="tt">${escHtml(d.titulo)} <span class="tag" style="margin-left:6px; font-size:10.5px; padding:2px 8px;">${tipo}</span></div>
+      ${d.data_fim ? `<div class="dd">até ${fmtDateBR(d.data_fim)}</div>` : ''}
+      ${d.descricao ? `<div class="dd">${escHtml(d.descricao)}</div>` : ''}</div></div>`;
+}
+
+function abaEntregas(){
+  const c = P.creator;
+  const etapas = ['etapa1','etapa2'].filter(e=> e===c.etapa || P.semanas.some(s=>s.etapa===e));
+  if(!etapas.length) return `<section class="glass card-c"><h2>Entregas</h2><div class="vazio" style="margin-top:8px;">As entregas aparecem aqui quando você estiver em uma etapa do programa.</div></section>`;
+  const pr = progressoEtapa(c);
+  return etapas.map(eid=>{ const et = etapaInfo(eid);
+    const ok = Array.from({length:et.semanas}, (_,i)=> semanaCumprida(eid, (semanaDe(eid, i+1)||{}).feito)).filter(Boolean).length;
+    return `<section class="glass card-c" style="margin-bottom:16px;">
+      <div class="sec-h"><div><h2>${escHtml(et.label)}</h2><div class="desc">${ok} de ${et.semanas} semanas com as entregas mínimas completas</div></div>
+        <a class="btn-c sm ghost" href="${et.guia}" target="_blank" rel="noopener">Guia</a></div>
+      <div class="desc" style="margin-bottom:12px;">Por semana: ${(et.metas||[]).map(m=>`${m.qtd}x ${escHtml(m.label)}`).join(' · ')}</div>
+      <div class="semanas">${Array.from({length:et.semanas}, (_,i)=>{ const n = i+1, s = semanaDe(eid, n), feito = (s||{}).feito || {};
+        const atual = eid===c.etapa && pr && pr.semanaAtual===n, cumpriu = semanaCumprida(eid, feito);
+        const futura = eid===c.etapa && pr && n > pr.semanaAtual;
+        return `<div class="sem ${atual?'atual':''}"><div class="h"><span>Semana ${n}</span>${cumpriu ? '<span class="tag ok">✓</span>' : futura ? '' : s ? '<span class="tag warn">parcial</span>' : ''}</div>
+          <div class="m">${(et.metas||[]).map(m=>`${Math.min(Number(feito[m.key])||0, m.qtd)}/${m.qtd} ${escHtml(m.curto)}`).join('<br>')}</div>
+          ${s && s.obs ? `<div class="m" style="color:var(--c-text);">💬 ${escHtml(s.obs)}</div>` : ''}</div>`; }).join('')}</div>
+    </section>`; }).join('');
+}
+function abaEnvios(){
+  return `<section class="glass card-c"><div class="sec-h"><div><h2>Meu kit</h2><div class="desc">Envios do time FourLab pra você, com código de rastreio</div></div></div>
+    ${P.envios.length ? P.envios.map(e=>`<div style="border-bottom:1px solid rgba(255,255,255,0.07); padding:12px 0;"><div class="desc" style="margin:0 0 4px;">${escHtml(etapaInfo(e.etapa).label)}</div>${envioHtml(e)}</div>`).join('')
+      : '<div class="vazio">Nenhum envio ainda. Assim que seu kit sair, ele aparece aqui.</div>'}</section>`;
+}
+function abaCupons(){
+  const c = P.creator;
+  if(!['etapa2','oficial'].includes(c.etapa)) return `<section class="glass card-c"><h2>Cupons</h2>
+    <div class="vazio" style="margin-top:8px;">Na <strong style="color:var(--c-text);">Etapa 02</strong> você ganha um cupom de <strong style="color:var(--c-text);">30% OFF</strong> pra uso pessoal e um cupom de <strong style="color:var(--c-text);">10% OFF</strong> pros seus seguidores, com comissão nas vendas.</div></section>`;
+  return `<div class="p-grid">
+    <section class="glass card-c c6"><div class="sec-h"><div><h2>Cupom dos seguidores</h2><div class="desc">10% OFF pra quem te segue + ${c.comissao_pct!=null?c.comissao_pct:10}% de comissão pra você (paga ao final da etapa)</div></div></div>
+      ${c.cupom_desconto ? `<div class="cupom"><div class="pct grad-text">10% OFF</div><div class="cod">${escHtml(c.cupom_desconto)}</div>
+          <div style="margin-top:12px;"><button class="btn-c sm" data-copiar="${escHtml(c.cupom_desconto)}">Copiar cupom</button></div></div>`
+        : `<div class="desc" style="color:var(--c-text); margin-bottom:12px;">Escolha o nome do seu cupom (ex.: seu nome ou @). O time confere e ativa no site.</div>
+          ${c.cupom_desconto_sugerido ? `<div class="tag warn" style="margin-bottom:12px;">Pedido enviado: ${escHtml(c.cupom_desconto_sugerido)} · aguardando ativação</div>` : ''}
+          <form id="formCupom" style="display:flex; gap:10px; flex-wrap:wrap;"><div class="fld" style="flex:1; min-width:180px;"><input id="cupomNome" maxlength="20" placeholder="EX.: MARIA10" style="text-transform:uppercase;" value="${escHtml(c.cupom_desconto_sugerido||'')}"></div>
+            <button class="btn-c sm" type="submit">${c.cupom_desconto_sugerido ? 'Trocar pedido' : 'Pedir este cupom'}</button></form>
+          <div class="desc" style="margin-top:8px;">De 4 a 20 letras ou números, sem espaço.</div>`}
+    </section>
+    <section class="glass card-c c6"><div class="sec-h"><div><h2>Cupom pessoal</h2><div class="desc">30% OFF pras suas compras · ${c.cupom_pessoal_usos!=null?c.cupom_pessoal_usos:6} usos</div></div></div>
+      ${c.cupom_pessoal ? `<div class="cupom"><div class="pct grad-text">30% OFF</div><div class="cod">${escHtml(c.cupom_pessoal)}</div>
+          <div class="ob">Uso pessoal: não divulgue este cupom.</div>
+          <div style="margin-top:12px;"><button class="btn-c sm" data-copiar="${escHtml(c.cupom_pessoal)}">Copiar cupom</button></div></div>`
+        : '<div class="vazio">Seu cupom pessoal está sendo criado pelo time. Ele aparece aqui quando estiver ativo.</div>'}
+    </section>
+    <section class="glass card-c"><div class="desc" style="margin:0;">⚠️ Não publique preços, descontos, condições ou comissões sem confirmar com o time FourLab.</div></section>
+  </div>`;
+}
+function abaCalendario(){
+  const hoje = todayISO();
+  const futuras = P.calendario.filter(d=> (d.data_fim||d.data) >= hoje);
+  const porMes = {}; futuras.forEach(d=>{ const k = d.data.slice(0,7); (porMes[k] = porMes[k] || []).push(d); });
+  return `<section class="glass card-c"><div class="sec-h"><div><h2>Calendário de conteúdo</h2><div class="desc">Datas e campanhas pra guiar seus posts</div></div></div>
+    ${Object.keys(porMes).length ? Object.keys(porMes).map(k=>`<div style="margin-top:8px;"><div class="tag" style="margin:8px 0 2px;">${escHtml(fmtMonthLabel(k))}</div>
+      <div class="lista-c">${porMes[k].map(dataHtml).join('')}</div></div>`).join('') : '<div class="vazio">Nenhuma data cadastrada por enquanto.</div>'}</section>`;
+}
+function abaManual(){
+  const c = P.creator;
+  return `<div class="p-grid manual">
+    <section class="glass card-c c6"><h3>🎥 O que mostrar</h3>
+      <ul><li>Preparação para os treinos</li><li>O que leva para uma prova</li><li>Organização da mochila, bike ou equipamentos</li>
+        <li>Uso dos produtos antes, durante ou depois do treino</li><li>Sua experiência com os sabores, praticidade e preparo</li>
+        <li>Bastidores e dúvidas da sua comunidade</li><li>Como organiza sua estratégia de hidratação e carboidratos</li></ul>
+      <div class="destaque">Não queremos transformar o seu perfil em um catálogo da FourLab. Queremos ver o seu esporte, a sua rotina inserida naturalmente na sua história.</div></section>
+    <section class="glass card-c c6"><h3>⚠️ Termos proibidos</h3>
+      <ul><li>Não faça promessas de resultados que o produto não oferece.</li><li>Não diga que o produto garante melhora de performance.</li>
+        <li>Não invente benefícios.</li><li>Não altere informações nutricionais ou técnicas.</li>
+        <li>Não atribua ao produto prevenção, tratamento ou cura de doenças.</li><li>Não crie protocolos ou recomendações técnicas sem respaldo.</li>
+        <li>Não recomende o produto para tratar sintomas ou condições de saúde.</li><li>Não apresente como experiência própria algo que você não viveu.</li>
+        <li>Não compare a FourLab com concorrentes sem autorização.</li><li>Não publique preços, descontos, condições ou comissões sem confirmar.</li></ul>
+      <div class="destaque">Se tiver dúvida sobre uma informação, pergunte ao time FourLab antes de publicar.</div></section>
+    <section class="glass card-c c6"><h3>📱 Padrão das gravações</h3>
+      <ul><li>Grave preferencialmente em formato vertical 9:16.</li><li>Priorize boa iluminação.</li><li>Utilize áudio claro.</li>
+        <li>Evite vento e ruídos excessivos.</li><li>Mostre a embalagem corretamente.</li><li>Deixe a marca visível quando o produto estiver em destaque.</li>
+        <li>Adicione na edição legendas quando houver fala.</li><li>Evite filtros que alterem as cores da embalagem.</li>
+        <li>Não utilize marca d'água de outra plataforma.</li><li>Preserve o seu estilo de conteúdo.</li></ul></section>
+    <section class="glass card-c c6"><h3>🤝 Identificação da parceria</h3>
+      <p style="margin:0 0 10px; font-size:14.5px;">Quando o conteúdo envolver recebimento de produto, comissão, cupom ou qualquer benefício, siga as orientações de identificação publicitária da plataforma e do time FourLab.</p>
+      <p style="margin:0; font-size:14.5px;">Quando aplicável, use as ferramentas de parceria paga e as hashtags:</p>
+      <div style="font-family:var(--c-font-title); font-weight:800; font-size:18px; margin-top:10px;"><span class="grad-text">#creatorFourLab</span> &nbsp; <span class="grad-text">#FourLabNutri</span></div>
+      <div class="destaque">A recomendação deve ser transparente para a sua comunidade.</div></section>
+    ${c.etapa==='etapa2' || P.semanas.some(s=>s.etapa==='etapa2') ? `<section class="glass card-c"><h3>💬 Conteúdo de comunidade (Etapa 02)</h3>
+      <ul><li>Caixa de perguntas</li><li>Enquete sobre sabores</li><li>Resposta a uma dúvida real</li><li>Comentário sobre o produto depois do treino</li>
+        <li>Demonstração do preparo</li><li>Recomendação baseada na sua própria experiência</li><li>Lembrete do seu cupom quando fizer sentido</li></ul>
+      <div class="destaque">Em vez de dizer "esse produto vai melhorar sua performance", explique como ele entrou na sua rotina e qual foi a sua experiência pessoal.</div></section>` : ''}
+    <section class="glass card-c"><h3>📘 Guias em PDF</h3><div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <a class="btn-c sm ghost" href="assets/creators/programa-creators.pdf" target="_blank" rel="noopener">Programa Creators</a>
+      <a class="btn-c sm ghost" href="assets/creators/guia-etapa-01.pdf" target="_blank" rel="noopener">Guia Etapa 01</a>
+      ${['etapa2','oficial'].includes(c.etapa) ? '<a class="btn-c sm ghost" href="assets/creators/guia-etapa-02.pdf" target="_blank" rel="noopener">Guia Etapa 02</a>' : ''}</div></section>
+  </div>`;
+}
+
+function render(){
+  const abas = {inicio:abaInicio, entregas:abaEntregas, envios:abaEnvios, cupons:abaCupons, calendario:abaCalendario, manual:abaManual};
+  document.body.classList.add('portal');
+  $('app').innerHTML = shell((abas[P.aba]||abaInicio)());
+  $('btnSair').onclick = sair;
+  document.querySelectorAll('[data-copiar]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(b.dataset.copiar).then(()=> toastC('Copiado!')));
+  const fc = $('formCupom');
+  if(fc) fc.onsubmit = async (ev)=>{
+    ev.preventDefault();
+    const nome = $('cupomNome').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(nome.length < 4 || nome.length > 20){ toastC('Use de 4 a 20 letras ou números.'); return; }
+    const { error } = await sb.rpc('sugerir_meu_cupom', { p_cupom: nome });
+    if(error){ toastC(error.message || 'Não foi possível enviar.'); return; }
+    P.creator.cupom_desconto_sugerido = nome; toastC('Pedido enviado! O time vai ativar seu cupom.'); render();
+  };
+  window.scrollTo(0, 0);
+}
+window.addEventListener('hashchange', ()=>{ if(!P.creator) return; P.aba = location.hash.slice(1) || 'inicio'; render(); });
+
+async function iniciar(){
+  const user = await getSessionUser();
+  if(!user){ telaLogin(); return; }
+  const profile = await loadProfile(user.id);
+  if(profile.role !== 'creator'){ location.href = paginaInicialDoPerfil(profile); return; }
+  if(!(await carregar(user))){
+    $('app').innerHTML = `<div class="login-wrap"><div class="glass login-card"><h2 style="font-size:22px;">Acesso sem cadastro</h2>
+      <p class="sub" style="margin-top:10px;">Seu login existe, mas não está ligado a um cadastro do Programa Creators. Fale com o time FourLab.</p>
+      <button class="btn-c ghost" id="btnSair2">Sair</button></div></div>`;
+    $('btnSair2').onclick = sair; return;
+  }
+  P.aba = (location.hash.slice(1) && ABAS.some(a=>a.id===location.hash.slice(1))) ? location.hash.slice(1) : 'inicio';
+  render();
+}
+iniciar();
+</script>
+</body></html>

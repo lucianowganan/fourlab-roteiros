@@ -1,0 +1,390 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programa Creators · FourLab Nutrition</title>
+<meta name="description" content="FourLab Creators: o programa da FourLab Nutrition para descobrir e desenvolver novos parceiros da marca. Inscreva-se.">
+<meta name="theme-color" content="#0a0709">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Programa FourLab Creators">
+<meta property="og:description" content="Você entrega. A parceria evolui. Inscreva-se no programa de creators da FourLab Nutrition.">
+<meta property="og:url" content="https://atleta.fourlabnutrition.com.br/lpcreators">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="creators.css">
+<style>
+  /* ---------- Topo ---------- */
+  .top{ position:sticky; top:0; z-index:50; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); background:rgba(10,7,9,0.6); border-bottom:1px solid rgba(255,255,255,0.06); }
+  .top .wrap{ display:flex; align-items:center; justify-content:space-between; height:66px; gap:12px; }
+  .top .entrar{ color:var(--c-text); text-decoration:none; font-weight:700; font-size:13.5px; border:1px solid var(--c-line-2); border-radius:999px; padding:8px 16px; white-space:nowrap; }
+  .top .entrar:hover{ border-color:var(--c-orange); }
+
+  /* ---------- Hero ---------- */
+  .hero{ position:relative; text-align:center; padding:clamp(40px, 8vw, 90px) 0 clamp(40px, 7vw, 80px); overflow:hidden; }
+  .hero .logo-creators{ width:min(820px, 100%); height:auto; display:block; margin:0 auto; filter:drop-shadow(0 18px 60px rgba(255,110,60,0.35)); }
+  .hero .pill{ display:inline-block; margin-top:clamp(8px, 2vw, 18px); font-size:clamp(14px, 2.2vw, 18px); max-width:100%; }
+  .hero .lead{ max-width:620px; margin:22px auto 30px; color:var(--c-muted); font-size:clamp(15px, 2vw, 17px); }
+  .hero .anel{ position:absolute; width:clamp(220px, 32vw, 420px); right:-9%; top:8%; opacity:0.85; pointer-events:none; z-index:-1; }
+  .hero .anel.esq{ left:-12%; right:auto; top:auto; bottom:-14%; width:clamp(180px, 26vw, 340px); opacity:0.6; }
+  .hero .arrow-down{ display:inline-flex; width:46px; height:46px; border-radius:50%; border:2px solid var(--c-coral); color:var(--c-coral); align-items:center; justify-content:center; margin-top:28px; text-decoration:none; }
+
+  /* ---------- Seções ---------- */
+  section.bloco{ padding:clamp(30px, 6vw, 60px) 0; }
+  .titulo-xl{ font-size:clamp(40px, 8.5vw, 92px); font-weight:900; text-transform:uppercase; letter-spacing:-1.5px; }
+  .titulo-xl .seta{ display:inline-block; font-weight:300; font-size:0.55em; vertical-align:middle; margin-left:8px; }
+  .texto-card{ padding:clamp(20px, 4vw, 34px); margin-top:22px; font-size:clamp(15px, 1.9vw, 17.5px); }
+  .texto-card p{ margin:0 0 14px; } .texto-card p:last-child{ margin:0; }
+  .hl-pink{ color:var(--c-pink); font-weight:700; } .hl-orange{ color:var(--c-orange); font-weight:700; }
+
+  /* Como funciona: 3 cards com ícone 3D */
+  .como-head{ display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; }
+  .como-head .pill{ font-size:12px; letter-spacing:5px; font-weight:700; padding:7px 16px; margin-bottom:10px; }
+  .passos{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:18px; margin-top:58px; }
+  .passo{ position:relative; padding:58px 22px 24px; text-align:left; }
+  .passo img{ position:absolute; top:-46px; right:18px; height:92px; width:auto; filter:drop-shadow(0 12px 26px rgba(255,59,107,0.45)); }
+  .passo .num{ font-family:var(--c-font-title); font-weight:900; font-size:72px; line-height:0.8; float:left; margin:4px 12px 0 0; }
+  .passo h3{ font-size:18px; font-weight:800; }
+  .passo p{ margin:8px 0 0; color:var(--c-muted); font-size:14px; }
+  @media (max-width:760px){ .passos{ grid-template-columns:1fr; gap:56px; } }
+
+  /* Etapas */
+  .etapa{ padding:clamp(22px, 4vw, 36px); margin-top:26px; position:relative; overflow:hidden; }
+  .etapa::before{ content:''; position:absolute; left:8%; right:8%; top:0; height:3px; background:var(--c-grad-line); border-radius:3px; }
+  .etapa .eh{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .etapa .eh .lbl{ font-size:clamp(15px, 2vw, 19px); color:var(--c-muted); }
+  .etapa .eh .dias{ font-family:var(--c-font-title); font-weight:800; font-size:clamp(34px, 6vw, 52px); color:#d9d2d5; }
+  .etapa h4{ font-family:var(--c-font-title); font-size:clamp(17px, 2.4vw, 22px); font-weight:800; margin:18px 0 10px; letter-spacing:0.3px; }
+  .itens{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+  .item{ background:rgba(0,0,0,0.45); border:1px solid var(--c-line); border-radius:14px; padding:11px 16px; font-family:var(--c-font-title); font-weight:800; font-size:clamp(15px, 2.2vw, 20px); }
+  .item small{ font-size:0.6em; font-weight:700; color:var(--c-muted); }
+  .item .q{ font-size:0.75em; margin-right:4px; }
+  .item.meta{ color:#fff; } .item.meta .grad-text{ font-size:0.75em; }
+  .etapa .nota{ color:var(--c-muted); font-size:14px; margin:14px 0 0; }
+  @media (max-width:640px){ .itens{ grid-template-columns:1fr; } }
+  .oficial{ display:grid; grid-template-columns:1.4fr 1fr; gap:20px; align-items:center; }
+  .oficial h3{ font-size:clamp(30px, 5.5vw, 52px); font-weight:800; }
+  .oficial img{ width:100%; max-width:300px; justify-self:center; filter:drop-shadow(0 18px 40px rgba(255,59,107,0.35)); }
+  .beneficios{ display:grid; grid-template-columns:1fr 1fr; gap:6px 22px; margin:14px 0 0; padding:0; list-style:none; font-weight:700; font-size:14.5px; }
+  .beneficios li::before{ content:'•'; color:var(--c-orange); margin-right:8px; }
+  @media (max-width:760px){ .oficial{ grid-template-columns:1fr; } .oficial img{ max-width:200px; grid-row:1; } .beneficios{ grid-template-columns:1fr; } }
+
+  /* Inscrição */
+  #inscricao{ scroll-margin-top:80px; }
+  .form-card{ padding:clamp(20px, 4.5vw, 40px); margin-top:24px; }
+  .form-foot{ display:flex; flex-direction:column; align-items:center; gap:14px; margin-top:26px; text-align:center; }
+  .form-foot .aviso{ font-size:12.5px; color:var(--c-muted); max-width:520px; }
+  .erro-geral{ display:none; background:rgba(255,90,90,0.12); border:1px solid rgba(255,90,90,0.4); color:#ffb0b0; border-radius:14px; padding:12px 14px; font-size:14px; margin-top:18px; }
+  .hp{ position:absolute !important; left:-9999px !important; width:1px; height:1px; overflow:hidden; }
+  .sucesso{ text-align:center; padding:clamp(30px, 6vw, 56px) clamp(20px, 4vw, 40px); }
+  .sucesso .ok-ic{ width:76px; height:76px; border-radius:24px; background:var(--c-grad); display:inline-flex; align-items:center; justify-content:center; box-shadow:0 14px 40px rgba(255,90,70,0.45); margin-bottom:22px; }
+  .sucesso h2{ font-size:clamp(26px, 4.6vw, 38px); font-weight:800; }
+  .sucesso p{ color:var(--c-muted); max-width:520px; margin:14px auto 0; font-size:16px; }
+
+  footer{ padding:50px 0 60px; text-align:center; }
+  footer .redes{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px 28px; margin-top:26px; font-family:var(--c-font-title); font-weight:700; font-size:clamp(16px, 2.6vw, 21px); }
+  footer .redes a{ color:#fff; text-decoration:none; display:inline-flex; align-items:center; gap:10px; }
+  footer .redes .bx{ width:38px; height:38px; border-radius:11px; background:var(--c-grad); display:inline-flex; align-items:center; justify-content:center; }
+</style></head>
+<body class="cr">
+
+<header class="top"><div class="wrap">
+  <a class="fl-logo" href="#" aria-label="FourLab Nutrition"><img class="logoSimbolo" alt=""><span class="nm">FourLab<small>nutrition</small></span></a>
+  <a class="entrar" href="creators">Já sou creator · Entrar</a>
+</div></header>
+
+<main>
+  <section class="hero">
+    <img class="anel" src="assets/creators/anel.webp" alt="">
+    <img class="anel esq" src="assets/creators/anel.webp" alt="">
+    <div class="wrap">
+      <h1 style="margin:0;"><img class="logo-creators" src="assets/creators/logo-creators.webp" alt="Programa Creators"></h1>
+      <div class="pill">Conheça o programa de creators da <strong>FourLab Nutrition</strong></div>
+      <p class="lead">Queremos construir com quem vive o esporte de verdade. Você entrega, a parceria evolui.</p>
+      <a class="btn-c lg" href="#inscricao">Quero ser creator</a><br>
+      <a class="arrow-down" href="#quem-somos" aria-label="Saiba mais"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg></a>
+    </div>
+  </section>
+
+  <section class="bloco" id="quem-somos"><div class="wrap-sm">
+    <hr class="line-grad">
+    <h2 class="titulo-xl" style="text-align:center; margin-top:26px;">Quem somos?</h2>
+    <div class="glass texto-card">
+      <p>A <strong>FourLab nasceu com 4 pilares</strong> bem definidos e isso nos guia diariamente em cada tomada de ação. São eles: <strong>Pessoas, Produtos, Acessibilidade e Experiência</strong>.</p>
+      <p>Revolucionar a performance esportiva através da ciência e da nutrição: <span class="hl-pink">esse é o nosso desafio!</span></p>
+      <p>A jornada da <strong>FourLab</strong> é marcada por inovação e comprometimento. Desde nossos primeiros passos, nos destacamos ao trazer suplementos formulados para realmente fazer a diferença na vida e no bolso dos atletas.</p>
+      <p>A missão era clara: <span class="hl-orange">não apenas criar produtos, mas transformar a maneira como a nutrição esportiva é percebida e acessada.</span></p>
+    </div>
+  </div></section>
+
+  <section class="bloco"><div class="wrap-sm">
+    <hr class="line-grad">
+    <h2 class="titulo-xl" style="margin-top:26px;">Programa<br>Creators<span class="seta">↘</span></h2>
+    <div class="glass texto-card">
+      <p>Queremos construir com quem vive isso de verdade!</p>
+      <p><strong>O FourLab Creators é o nosso programa para <span class="hl-pink">descobrir e desenvolver novos parceiros da marca.</span></strong></p>
+      <p><strong>Não estamos procurando apenas grandes números.</strong></p>
+      <p>Buscamos pessoas que produzam bons conteúdos, tenham conexão verdadeira com sua comunidade e consigam inserir a <strong>FourLab naturalmente na sua rotina esportiva.</strong></p>
+      <p>O programa começa com um <span class="hl-orange">período de avaliação</span> e evolui conforme a sua performance.</p>
+      <p><strong>Você entrega. A parceria evolui.</strong></p>
+    </div>
+  </div></section>
+
+  <section class="bloco"><div class="wrap">
+    <div class="como-head"><h2 class="titulo-xl">Como<br>funciona?</h2><span class="pill">PLANOS</span></div>
+    <div class="passos">
+      <div class="glass passo"><img src="assets/creators/cadeado.webp" alt=""><span class="num grad-text">1</span>
+        <h3>Desbloqueie a experiência</h3><p>30 dias para conhecermos seu trabalho.</p></div>
+      <div class="glass passo"><img src="assets/creators/coracao.webp" alt=""><span class="num grad-text">2</span>
+        <h3>Evolução da parceria</h3><p>60 dias para elevar a parceria a outro nível.</p></div>
+      <div class="glass passo"><img src="assets/creators/f.webp" alt=""><span class="num grad-text">3</span>
+        <h3>Se torne um Creator Oficial</h3><p>Parceria recorrente com campanhas, metas, benefícios e recompensas.</p></div>
+    </div>
+
+    <div class="glass etapa">
+      <div class="eh"><span class="lbl">Etapa 01 | Experiência</span><span class="dias">30 Dias</span></div>
+      <h4>VOCÊ RECEBE:</h4>
+      <div class="itens">
+        <div class="item"><span class="grad-text"><span class="q">1x</span> Display Energy Gel</span></div>
+        <div class="item"><span class="grad-text"><span class="q">1x</span> Caixa Na.K+ Hidratação</span></div>
+      </div>
+      <p class="nota">Durante 30 dias, você terá acesso aos produtos e deverá inseri-los na sua rotina de treinos e conteúdos.</p>
+      <h4 class="grad-text">ENTREGAS MÍNIMAS:</h4>
+      <div class="itens">
+        <div class="item meta"><span class="q">1x</span> Vídeo semanal <small>(TikTok e Instagram)</small></div>
+        <div class="item meta"><span class="q">3x</span> Stories semanais <small>(TikTok e Instagram)</small></div>
+      </div>
+      <p class="nota">Ao final da etapa, nosso time avaliará seu trabalho para definir quem avança no programa.</p>
+    </div>
+
+    <div class="glass etapa">
+      <div class="eh"><span class="lbl">Etapa 02 | Evolução</span><span class="dias">60 Dias</span></div>
+      <h4>VOCÊ RECEBE:</h4>
+      <div class="itens">
+        <div class="item"><span class="grad-text"><span class="q">1x</span> Display Energy Gel</span></div>
+        <div class="item"><span class="grad-text"><span class="q">1x</span> Energy Gel Refil <small>500g</small></span></div>
+        <div class="item"><span class="grad-text"><span class="q">1x</span> Squeeze FourLab Go</span></div>
+        <div class="item"><span class="grad-text">Cupom 30% OFF</span> <small>(uso pessoal)</small></div>
+        <div class="item"><span class="grad-text"><span class="q">2x</span> Caixa Na.K+ Hidratação</span></div>
+        <div class="item"><span class="grad-text">Cupom 10% OFF</span> <small>(seus seguidores) + comissão em vendas</small></div>
+      </div>
+      <p class="nota">Nesta fase, aumentamos a frequência das entregas e começamos a avaliar também sua capacidade de gerar influência e resultado para a marca.</p>
+      <h4 class="grad-text">ENTREGAS MÍNIMAS:</h4>
+      <div class="itens">
+        <div class="item meta"><span class="q">3x</span> Vídeos semanais <small>(TikTok · Carrinho Laranja)</small></div>
+        <div class="item meta"><span class="q">1x</span> Vídeo semanal <small>(Instagram)</small></div>
+        <div class="item meta"><span class="q">3x</span> Stories semanais <small>(TikTok e Instagram)</small></div>
+      </div>
+      <p class="nota">Após os 60 dias, você será avaliado para prosseguir para a próxima fase.</p>
+    </div>
+
+    <div class="glass etapa">
+      <div class="eh"><span class="lbl">Etapa 03 | <strong style="color:var(--c-text);">Creator Oficial</strong></span></div>
+      <div class="oficial">
+        <div>
+          <h3 class="grad-text" style="margin-top:10px;">Você se tornou um Creator Oficial</h3>
+          <p class="nota" style="font-size:15px; color:var(--c-text);">Após a avaliação durante os primeiros <strong>90 dias</strong>, você será convidado para se tornar oficialmente um <strong>FourLab Creator</strong>. A partir daqui, a parceria passa a ser recorrente.</p>
+          <p class="nota" style="margin-top:12px;">Você poderá ter acesso a:</p>
+          <ul class="beneficios">
+            <li>Voucher para compras pessoais</li><li>Cupom + comissão sobre vendas</li>
+            <li>Campanhas mensais</li><li>Metas de conteúdo e vendas</li>
+            <li>Bonificações por performance</li><li>Desafios e gamificação</li>
+            <li>Produtos e lançamentos antecipados</li><li>Recompensas e itens exclusivos</li>
+          </ul>
+        </div>
+        <img src="assets/creators/cartao.webp" alt="">
+      </div>
+    </div>
+  </div></section>
+
+  <section class="bloco" id="inscricao"><div class="wrap-sm">
+    <h2 class="titulo-xl" style="font-size:clamp(34px, 6.5vw, 64px);">Pronto para começar?</h2>
+    <div class="glass texto-card">
+      <p>Se você chegou até aqui, já sabe o que buscamos.</p>
+      <p>Pessoas que vivem o esporte. Que gostam de criar. Que respeitam sua comunidade.</p>
+      <p>E que querem crescer junto com uma marca que <span class="hl-orange">também vive performance todos os dias.</span></p>
+      <p><strong><span class="hl-orange">Preencha o formulário</span> abaixo para participar do processo de seleção!</strong></p>
+    </div>
+
+    <div id="formArea"></div>
+  </div></section>
+</main>
+
+<footer><div class="wrap">
+  <hr class="line-grad" style="max-width:760px; margin:0 auto 40px;">
+  <a class="fl-logo" href="#" aria-label="FourLab Nutrition" style="transform:scale(1.4);"><img class="logoSimbolo" alt=""><span class="nm">FourLab<small>nutrition</small></span></a>
+  <div class="redes">
+    <a href="https://instagram.com/fourlabnutri" target="_blank" rel="noopener"><span class="bx" id="icIg"></span>@fourlabnutri</a>
+    <a href="https://tiktok.com/@fourlabnutri" target="_blank" rel="noopener"><span class="bx" id="icTt"></span>@fourlabnutri</a>
+    <a href="https://www.fourlabnutri.com.br" target="_blank" rel="noopener"><span class="bx"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>www.fourlabnutri.com.br</a>
+  </div>
+</div></footer>
+<div class="toast-c" id="toastC"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script src="creators-shared.js"></script>
+<script>
+/* Landing pública do Programa Creators + formulário de inscrição.
+   Quem preenche não tem login: a inscrição vai pela função inscrever_creator() do banco
+   e cai na coluna "Contato recebido" do Programa Creators (equipe). */
+document.querySelectorAll('.logoSimbolo').forEach(i=> i.src = LOGO_SIMBOLO_BRANCO);
+const icBranco = (svg)=> svg.replace('stroke="currentColor"','stroke="#fff"').replace(/width="18" height="18"/,'width="20" height="20"');
+document.getElementById('icIg').innerHTML = icBranco(ICONS.instagram);
+document.getElementById('icTt').innerHTML = icBranco(ICONS.tiktok);
+
+const ic = (nome)=> ICONS[nome].replace(/width="18" height="18"/,'width="17" height="17"');
+function campo(id, label, opts){
+  opts = opts || {};
+  return `<div class="fld ${opts.cls||''}" id="w_${id}"><label for="${id}">${label}${opts.opt?' <span class="opt">(opcional)</span>':''}</label>
+    ${opts.icone ? `<div class="net-ic">${ic(opts.icone)}` : ''}<input id="${id}" ${opts.attrs||''} placeholder="${opts.ph||''}">${opts.icone?'</div>':''}
+    <div class="msg-erro">${opts.erro||'Preencha este campo.'}</div></div>`;
+}
+function formHtml(){
+  return `<form class="glass form-card" id="formCreator" novalidate>
+    <div class="f-section" style="margin-top:0;"><span class="n">1</span> Seus dados</div>
+    <div class="f-grid">
+      ${campo('fNome','Nome completo',{cls:'s6', attrs:'autocomplete="name" maxlength="160"', ph:'Seu nome e sobrenome', erro:'Informe nome e sobrenome.'})}
+      ${campo('fCpf','CPF',{cls:'s3 full-sm', attrs:'inputmode="numeric" maxlength="14"', ph:'000.000.000-00', erro:'CPF inválido.'})}
+      ${campo('fWhats','Telefone / WhatsApp',{cls:'s3 full-sm', attrs:'type="tel" inputmode="tel" autocomplete="tel" maxlength="16"', ph:'(11) 99999-9999', erro:'Informe um telefone com DDD.'})}
+      ${campo('fEmail','E-mail',{cls:'s6', attrs:'type="email" autocomplete="email" maxlength="160"', ph:'voce@email.com', erro:'Informe um e-mail válido.'})}
+    </div>
+
+    <div class="f-section"><span class="n">2</span> Endereço completo <span style="font-weight:500; font-size:12.5px; color:var(--c-muted);">· pra onde enviamos o kit</span></div>
+    <div class="f-grid">
+      ${campo('fCep','CEP',{cls:'s2', attrs:'inputmode="numeric" autocomplete="postal-code" maxlength="9"', ph:'00000-000', erro:'CEP inválido.'})}
+      ${campo('fRua','Rua / avenida',{cls:'s4', attrs:'autocomplete="address-line1" maxlength="200"'})}
+      ${campo('fNumero','Número',{cls:'s2', attrs:'maxlength="20"'})}
+      ${campo('fCompl','Complemento',{cls:'s4', opt:true, attrs:'autocomplete="address-line2" maxlength="120"', ph:'Apto, bloco...'})}
+      ${campo('fBairro','Bairro',{cls:'s2', attrs:'maxlength="120"'})}
+      ${campo('fCidade','Cidade',{cls:'s3', attrs:'autocomplete="address-level2" maxlength="120"'})}
+      ${campo('fUf','UF',{cls:'s1', attrs:'autocomplete="address-level1" maxlength="2" style="text-transform:uppercase;"'})}
+    </div>
+
+    <div class="f-section"><span class="n">3</span> Redes sociais <span style="font-weight:500; font-size:12.5px; color:var(--c-muted);">· pelo menos uma</span></div>
+    <div class="f-grid">
+      ${campo('fInsta','Instagram',{cls:'s3 full-sm', icone:'instagram', ph:'@seuperfil', attrs:'maxlength="120" autocapitalize="off"'})}
+      ${campo('fTiktok','TikTok',{cls:'s3 full-sm', icone:'tiktok', ph:'@seuperfil', attrs:'maxlength="120" autocapitalize="off"'})}
+      ${campo('fYoutube','YouTube',{cls:'s3 full-sm', icone:'youtube', opt:true, ph:'@seucanal', attrs:'maxlength="160" autocapitalize="off"'})}
+      ${campo('fOutras','Outras redes',{cls:'s3 full-sm', opt:true, ph:'Strava, Facebook, site...', attrs:'maxlength="300"'})}
+    </div>
+    <div class="msg-erro" id="erroRedes" style="font-size:12px; color:var(--c-red); margin:8px 0 0 2px; display:none;">Informe pelo menos Instagram, TikTok ou YouTube.</div>
+
+    <div class="f-section"><span class="n">4</span> Qual esporte você pratica? <span style="font-weight:500; font-size:12.5px; color:var(--c-muted);">· pode marcar mais de um</span></div>
+    <div class="chips" id="chipsEsporte">${CREATOR_ESPORTES.map(e=>`<label class="chip-c"><input type="checkbox" name="esporte" value="${e.id}"><span>${e.label}</span></label>`).join('')}</div>
+    <div class="fld" id="w_fOutroEsporte" style="display:none; margin-top:12px; max-width:360px;"><label for="fOutroEsporte">Qual?</label><input id="fOutroEsporte" maxlength="80" placeholder="Ex.: triathlon, natação..."><div class="msg-erro">Conta pra gente qual esporte.</div></div>
+    <div class="msg-erro" id="erroEsporte" style="font-size:12px; color:var(--c-red); margin:8px 0 0 2px; display:none;">Escolha pelo menos um esporte.</div>
+
+    <div class="hp" aria-hidden="true"><label>Não preencha<input id="fSite" tabindex="-1" autocomplete="off"></label></div>
+
+    <div style="margin-top:26px;">
+      <label class="check-line"><input type="checkbox" id="fAceite"><span>Autorizo a FourLab Nutrition a usar estes dados para avaliar minha inscrição no Programa Creators e entrar em contato comigo por WhatsApp e e-mail. Os dados não são compartilhados com terceiros.</span></label>
+      <div class="msg-erro" id="erroAceite" style="font-size:12px; color:var(--c-red); margin:8px 0 0 32px; display:none;">Marque a autorização para enviar.</div>
+    </div>
+    <div class="erro-geral" id="erroGeral"></div>
+
+    <div class="form-foot">
+      <button class="btn-c lg" type="submit" id="btnEnviar">Enviar inscrição</button>
+      <div class="aviso">O preenchimento do formulário não garante a entrada no programa. <strong>Os perfis serão avaliados pelo time FourLab</strong> e os selecionados receberão as próximas orientações.</div>
+    </div>
+  </form>`;
+}
+function sucessoHtml(duplicado){
+  return `<div class="glass sucesso" style="margin-top:24px;">
+    <div class="ok-ic"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h2>${duplicado ? 'Já recebemos sua inscrição!' : 'Inscrição enviada!'}</h2>
+    <p>${duplicado ? 'Sua inscrição já está com o <strong>time de marketing responsável</strong>. Em breve você recebe um retorno.'
+      : 'Seu pedido foi enviado ao <strong>time de marketing responsável</strong> pelo Programa FourLab Creators. Em breve você recebe um retorno por WhatsApp ou e-mail.'}</p>
+    <p style="margin-top:22px;">Enquanto isso, acompanhe a gente: <a href="https://instagram.com/fourlabnutri" target="_blank" rel="noopener">@fourlabnutri</a></p>
+  </div>`;
+}
+
+const $ = (id)=> document.getElementById(id);
+function marcarErro(id, erro){ const w = $('w_'+id); if(w) w.classList.toggle('erro', !!erro); return !erro; }
+function mascaraTelefone(v){ const d = soDigitos(v).slice(0,11); if(d.length <= 2) return d; if(d.length <= 6) return `(${d.slice(0,2)}) ${d.slice(2)}`;
+  return d.length <= 10 ? `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}` : `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; }
+
+function ligarForm(){
+  $('fCpf').addEventListener('input', e=>{ e.target.value = fmtCPF(e.target.value); });
+  $('fWhats').addEventListener('input', e=>{ e.target.value = mascaraTelefone(e.target.value); });
+  $('fCep').addEventListener('input', async e=>{
+    const d = soDigitos(e.target.value).slice(0,8);
+    e.target.value = d.length > 5 ? d.slice(0,5) + '-' + d.slice(5) : d;
+    if(d.length !== 8) return;
+    try{
+      const r = await (await fetch(`https://viacep.com.br/ws/${d}/json/`)).json();
+      if(r.erro){ marcarErro('fCep', true); return; }
+      marcarErro('fCep', false);
+      if(r.logradouro) $('fRua').value = r.logradouro;
+      if(r.bairro) $('fBairro').value = r.bairro;
+      if(r.localidade) $('fCidade').value = r.localidade;
+      if(r.uf) $('fUf').value = r.uf;
+      (r.logradouro ? $('fNumero') : $('fRua')).focus();
+    }catch(err){ /* sem internet pro ViaCEP: a pessoa preenche à mão */ }
+  });
+  document.querySelectorAll('#chipsEsporte input').forEach(i=> i.addEventListener('change', ()=>{
+    $('w_fOutroEsporte').style.display = document.querySelector('#chipsEsporte input[value="outro"]').checked ? 'block' : 'none';
+    $('erroEsporte').style.display = 'none';
+  }));
+  // tira o vermelho assim que a pessoa corrige
+  document.querySelectorAll('#formCreator input').forEach(i=> i.addEventListener('input', ()=>{ const w = i.closest('.fld'); if(w) w.classList.remove('erro'); }));
+  $('formCreator').addEventListener('submit', enviar);
+}
+
+function validar(){
+  const v = (id)=> $(id).value.trim();
+  const esportes = [...document.querySelectorAll('#chipsEsporte input:checked')].map(i=>i.value);
+  const ok = [
+    marcarErro('fNome', v('fNome').length < 5 || !/\S+\s+\S+/.test(v('fNome'))),
+    marcarErro('fCpf', !cpfValido(v('fCpf'))),
+    marcarErro('fWhats', soDigitos(v('fWhats')).length < 10),
+    marcarErro('fEmail', !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('fEmail'))),
+    marcarErro('fCep', soDigitos(v('fCep')).length !== 8),
+    marcarErro('fRua', !v('fRua')), marcarErro('fNumero', !v('fNumero')), marcarErro('fBairro', !v('fBairro')),
+    marcarErro('fCidade', !v('fCidade')), marcarErro('fUf', v('fUf').length !== 2),
+  ];
+  const temRede = !!(v('fInsta') || v('fTiktok') || v('fYoutube'));
+  $('erroRedes').style.display = temRede ? 'none' : 'block';
+  $('erroEsporte').style.display = esportes.length ? 'none' : 'block';
+  const outroOk = !esportes.includes('outro') || !!v('fOutroEsporte');
+  marcarErro('fOutroEsporte', !outroOk);
+  $('erroAceite').style.display = $('fAceite').checked ? 'none' : 'block';
+  const tudoOk = ok.every(Boolean) && temRede && esportes.length && outroOk && $('fAceite').checked;
+  if(!tudoOk){ const primeiro = document.querySelector('#formCreator .fld.erro, #formCreator .msg-erro[style*="block"]'); if(primeiro) primeiro.scrollIntoView({behavior:'smooth', block:'center'}); }
+  return tudoOk ? esportes : null;
+}
+
+async function enviar(ev){
+  ev.preventDefault();
+  $('erroGeral').style.display = 'none';
+  if($('fSite').value) { $('formArea').innerHTML = sucessoHtml(false); return; }   // robô
+  const esportes = validar(); if(!esportes) return;
+  const v = (id)=> $(id).value.trim();
+  const dados = {
+    nome:v('fNome'), cpf:soDigitos(v('fCpf')), email:v('fEmail'), whatsapp:soDigitos(v('fWhats')),
+    endereco_cep:soDigitos(v('fCep')), endereco_rua:v('fRua'), endereco_numero:v('fNumero'), endereco_complemento:v('fCompl'),
+    endereco_bairro:v('fBairro'), endereco_cidade:v('fCidade'), endereco_estado:v('fUf').toUpperCase(),
+    instagram:v('fInsta'), tiktok:v('fTiktok'), youtube:v('fYoutube'), outras_redes:v('fOutras'),
+    esportes, esporte_outro:v('fOutroEsporte'), consentimento:true,
+  };
+  const btn = $('btnEnviar'); btn.disabled = true; btn.innerHTML = '<span class="loader-c"></span> Enviando...';
+  const { data, error } = await sb.rpc('inscrever_creator', { dados });
+  if(error){
+    console.error(error);
+    btn.disabled = false; btn.textContent = 'Enviar inscrição';
+    const msg = String(error.message||'');
+    $('erroGeral').innerHTML = /function|schema cache|does not exist/i.test(msg)
+      ? 'As inscrições ainda não estão abertas. Tente de novo mais tarde.'
+      : escHtml(msg.length < 140 ? msg : 'Não foi possível enviar agora. Tente de novo em instantes.');
+    $('erroGeral').style.display = 'block';
+    return;
+  }
+  $('formArea').innerHTML = sucessoHtml(data === 'duplicado');
+  $('inscricao').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+$('formArea').innerHTML = formHtml();
+ligarForm();
+</script>
+</body></html>
