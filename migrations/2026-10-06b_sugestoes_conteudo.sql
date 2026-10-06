@@ -1,35 +1,9 @@
 -- ============================================================
--- 1) Cadastro interno dos atletas e parceiros (CPF, nascimento...)
--- 2) Sugestões de conteúdo (reels, stories, carrosséis...) + quem gravou
---
--- Rodar uma vez no SQL Editor do Supabase. É idempotente.
--- Depende de eh_equipe() / meu_cadastro_id() / minha_categoria()
--- (migrations/2026-09-28_blog_avisos.sql e 2026-09-29_corrige_permissoes_equipe.sql).
+-- PARTE 2 de 2 — Sugestões de conteúdo (reels, stories, carrosséis...),
+-- quem gravou cada uma e a pasta de imagens no Storage.
+-- Rodar no SQL Editor do Supabase. É idempotente (pode rodar de novo).
 -- ============================================================
 
--- ---------- 1) Cadastro interno ----------
--- Fica numa tabela separada de `athletes` de propósito: só a equipe FourLab lê e edita.
--- O atleta/parceiro NÃO vê estes dados no portal dele.
-create table if not exists public.atleta_cadastro (
-  athlete_id uuid primary key references public.athletes(id) on delete cascade,
-  nome_completo text not null default '',
-  cpf text not null default '',
-  rg text not null default '',
-  cnpj text not null default '',
-  data_nascimento date,
-  tamanho_camiseta text not null default '',
-  inicio_parceria date,
-  fim_contrato date,
-  observacoes text not null default '',
-  updated_at timestamptz not null default now()
-);
-
-alter table public.atleta_cadastro enable row level security;
-drop policy if exists "equipe gerencia cadastro" on public.atleta_cadastro;
-create policy "equipe gerencia cadastro" on public.atleta_cadastro for all to authenticated
-  using (public.eh_equipe()) with check (public.eh_equipe());
-
--- ---------- 2) Sugestões de conteúdo ----------
 create table if not exists public.sugestoes_conteudo (
   id uuid primary key default gen_random_uuid(),
   titulo text not null default '',

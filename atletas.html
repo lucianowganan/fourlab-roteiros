@@ -28,7 +28,7 @@
 <script>
 // categoria: 'equipe' (atletas) ou 'profissional' (profissionais parceiros)
 const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true };
-const MIGRACAO_CADASTRO = 'migrations/2026-10-06_cadastro_sugestoes.sql';
+const MIGRACAO_CADASTRO = 'migrations/2026-10-06a_cadastro_interno.sql';
 const cadastroDe = (id)=> State.cadastros[id] || mapCadastroFromDB(null);
 const CATEGORIAS = {
   equipe:{label:'Atletas', singular:'atleta', pasta:'equipe'},
