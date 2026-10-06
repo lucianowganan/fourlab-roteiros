@@ -13,13 +13,13 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:title" content="Painel dos atletas FourLab">
 <meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
-<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
-<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:url" content="https://atleta.fourlabnutrition.com.br/">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Painel dos atletas FourLab">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
+<meta name="twitter:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
 <div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
@@ -69,7 +69,7 @@ function blocoComissoesHtml(){
   const linhas = comissionados.map(a=>({a, h:saldos[a.id]})).sort((x,y)=> (y.h?.saldoAtual||0) - (x.h?.saldoAtual||0));
   const liberados = linhas.filter(l=> l.h && l.h.saldoAtual >= META_PAGAMENTO_COMISSAO).length;
   return `<div class="panel"><div class="card-head"><div><h2>Comissões e pagamentos</h2>
-      <div class="desc">Saldo acumulado de quem recebe comissão (últimos ${MESES_HISTORICO} meses). O pagamento libera a partir de ${fmtBRL(META_PAGAMENTO_COMISSAO)}; abaixo disso, soma com o mês seguinte.
+      <div class="desc">Saldo acumulado de quem recebe comissão, contando a partir de ${fmtMonthLabel(INICIO_COMISSOES).toLowerCase()}. O pagamento libera a partir de ${fmtBRL(META_PAGAMENTO_COMISSAO)}; abaixo disso, soma com o mês seguinte.
       ${liberados ? ` <strong style="color:var(--orange);">${liberados} liberado(s) pra pagar.</strong>` : ''}</div></div><span class="ic-bubble">${ICONS.pix}</span></div>
     ${!tabelaPagamentosOk ? '<div style="font-size:12.5px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Pra registrar pagamentos, rode <code>migrations/2026-09-29_pagamentos_comissao.sql</code> no Supabase.</div>' : ''}
     <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Chave PIX</th><th>Último pagamento</th><th>Situação</th><th style="text-align:right;">Saldo</th><th></th></tr></thead><tbody>
@@ -89,15 +89,29 @@ function atualizarBlocoComissoes(){
 }
 function abrirPagamento(a){
   const h = saldos[a.id];
+  // mês a mês desde o início das comissões (o mês atual ainda está em andamento)
+  const mesAtualYM = monthKey(todayISO());
+  const meses = h.linhas.filter(l=> !l.antes).slice().reverse();
+  const fechado = Math.max(0, h.saldoMesesFechados || 0);
+  const ultimoFechado = addMonths(mesAtualYM, -1);
+  const valorInicial = fechado > 0 ? fechado : h.saldoAtual;
   openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Registrar pagamento — ${escHtml(a.name)}</h3>
     <div style="font-size:13px; color:var(--ink-2); margin-bottom:14px;">Saldo atual: <strong>${fmtBRL(h.saldoAtual)}</strong>${a.pixKey?` · PIX: <strong>${escHtml(a.pixKey)}</strong>`:' · <span style="color:var(--red);">sem chave PIX cadastrada</span>'}</div>
+    <div style="overflow-x:auto; margin-bottom:12px;"><table><thead><tr><th>Mês</th><th>Vendido</th><th>Comissão</th><th>Pago</th><th style="text-align:right;">Saldo</th></tr></thead><tbody>
+      ${meses.map(l=>`<tr><td><strong>${fmtMonthLabel(l.ym)}</strong>${l.ym===mesAtualYM?' <span style="font-size:11px; color:var(--muted);">(em andamento)</span>':''}</td>
+        <td>${fmtBRL(l.valor_vendido)}</td><td style="font-weight:700; color:var(--orange);">${fmtBRL(l.comissao_mes)}</td><td>${l.pago_valor?fmtBRL(l.pago_valor):'—'}</td><td style="text-align:right;">${fmtBRL(l.saldo_total)}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row" style="gap:8px; margin-bottom:12px;">
+      ${fechado > 0 ? `<button type="button" class="btn btn-ghost btn-sm" data-valor-pg="${fechado.toFixed(2)}">Até ${fmtMonthLabel(ultimoFechado).toLowerCase()}: ${fmtBRL(fechado)}</button>` : ''}
+      <button type="button" class="btn btn-ghost btn-sm" data-valor-pg="${h.saldoAtual.toFixed(2)}">Tudo, com o mês atual: ${fmtBRL(h.saldoAtual)}</button></div>
     <div class="grid-2" style="gap:12px;">
-      <div class="field"><label>Valor pago (R$)</label><input id="pgValor" type="number" step="0.01" min="0" value="${h.saldoAtual.toFixed(2)}"></div>
+      <div class="field"><label>Valor pago (R$)</label><input id="pgValor" type="number" step="0.01" min="0" value="${valorInicial.toFixed(2)}"></div>
       <div class="field"><label>Data do pagamento</label><input id="pgData" type="date" value="${todayISO()}"></div></div>
     <div class="field"><label>Observação (opcional)</label><input id="pgObs" placeholder="Ex: PIX enviado, comprovante no drive"></div>
     <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">O valor é descontado do saldo do atleta, e o mês aparece como "Pago" no extrato dele.</div>
     <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnSalvarPg">Registrar pagamento</button></div>`);
   document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.querySelectorAll('[data-valor-pg]').forEach(b=> b.onclick = ()=>{ document.getElementById('pgValor').value = b.dataset.valorPg; });
   document.getElementById('btnSalvarPg').onclick = async (ev)=>{
     const valor = Number(document.getElementById('pgValor').value), data = document.getElementById('pgData').value;
     if(!(valor > 0) || !data){ toast('Preencha valor e data'); return; }

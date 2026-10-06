@@ -13,13 +13,13 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:title" content="Painel dos atletas FourLab">
 <meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
-<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
-<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:url" content="https://atleta.fourlabnutrition.com.br/">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Painel dos atletas FourLab">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
+<meta name="twitter:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg"><link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
 <div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
@@ -74,7 +74,7 @@ function heroVendasHtml(){
       <div class="card-head" style="margin-bottom:4px;"><div>
         <div class="kpi"><div class="kpi-value" style="margin:0;">${fmtNum(pedidos)} pedido${pedidos===1?'':'s'}</div></div>
         <div class="desc" style="margin-top:4px;">com seu cupom em ${fmtMonthLabel(mesAtual).split('/')[0].toLowerCase()} ${!carregandoAoVivo?'':'<span class="loader" style="width:10px;height:10px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>'}</div></div>
-        <a class="icon-btn" href="atleta-vendas.html" title="Ver minhas vendas">${ICONS.arrow}</a></div>
+        <a class="icon-btn" href="atleta-vendas" title="Ver minhas vendas">${ICONS.arrow}</a></div>
       ${areaChartHtml(histQ, {axis:true, height:150, ariaLabel:'Pedidos dos últimos 6 meses'})}
     </div>
     <div class="span-7 tiles-3">
@@ -97,7 +97,7 @@ function heroVendasHtml(){
       <div class="card-head" style="margin-bottom:4px;"><div>
         <div class="kpi"><div class="kpi-value" style="margin:0;">${fmtBRLSplit(vendido)}</div></div>
         <div class="desc" style="margin-top:4px;">Vendido com seu cupom em ${fmtMonthLabel(mesAtual).split('/')[0].toLowerCase()} ${!carregandoAoVivo?'':'<span class="loader" style="width:10px;height:10px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>'}</div></div>
-        <a class="icon-btn" href="atleta-vendas.html" title="Ver minhas vendas">${ICONS.arrow}</a></div>
+        <a class="icon-btn" href="atleta-vendas" title="Ver minhas vendas">${ICONS.arrow}</a></div>
       ${areaChartHtml(hist, {axis:true, height:150, ariaLabel:'Vendas dos últimos 6 meses'})}
     </div>
     <div class="span-7 tiles-3">
@@ -124,13 +124,13 @@ function blogCardHtml(){
   const p = pautaAtual();
   return `<div class="card span-8">
     <div class="card-head"><div><h2 style="font-size:16px;">Seu texto do blog</h2><div class="desc">${p ? `Pauta de ${fmtMonthLabel(p.ym)}` : 'Sem pauta no momento'}</div></div>
-      <a class="btn btn-ghost btn-sm" href="parceiro-blog.html">Abrir meus textos ${ICONS.arrow}</a></div>
+      <a class="btn btn-ghost btn-sm" href="parceiro-blog">Abrir meus textos ${ICONS.arrow}</a></div>
     ${p ? `<div style="background:var(--ink); color:#fff; border-radius:18px; padding:20px;">
         <div style="font-size:11px; font-weight:800; letter-spacing:1px; text-transform:uppercase; opacity:0.7;">Tema</div>
         <div style="font-family:var(--font-title); font-size:21px; font-weight:700; margin-top:6px;">${escHtml(blogTema(p))}</div>
         <div class="row" style="margin-top:14px; gap:10px;">${blogStatusHtml(p.status)}${p.prazo?`<span style="font-size:12.5px; opacity:0.8;">Prazo: ${fmtDateBR(p.prazo)}</span>`:''}</div></div>
       ${p.status==='ajustes' && p.feedback ? `<div style="background:var(--red-soft); color:#8c2a20; border-radius:14px; padding:12px 14px; margin-top:14px; font-size:13px;"><strong>Ajustes pedidos:</strong> ${escHtml(p.feedback)}</div>` : ''}
-      <a class="btn btn-primary" href="parceiro-blog.html" style="margin-top:16px;">${['pendente'].includes(p.status)?'Começar a escrever':['rascunho','ajustes'].includes(p.status)?'Continuar o texto':'Ver meu texto'}</a>`
+      <a class="btn btn-primary" href="parceiro-blog" style="margin-top:16px;">${['pendente'].includes(p.status)?'Começar a escrever':['rascunho','ajustes'].includes(p.status)?'Continuar o texto':'Ver meu texto'}</a>`
       : '<div class="empty-state"><div class="big">📝</div>Quando a FourLab liberar o tema do mês, ele aparece aqui.</div>'}
   </div>`;
 }
@@ -140,7 +140,7 @@ function avisosTopoHtml(){
   if(!avisosTopo.length) return '';
   return `<div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
     ${avisosTopo.map(av=> avisoCardHtml(av, {novo:!av.fixado})).join('')}
-    <a href="atleta-avisos.html" style="font-size:12.5px; color:var(--orange); font-weight:700; text-decoration:none;">Ver todos os avisos →</a></div>`;
+    <a href="atleta-avisos" style="font-size:12.5px; color:var(--orange); font-weight:700; text-decoration:none;">Ver todos os avisos →</a></div>`;
 }
 
 function viewHome(){
@@ -157,14 +157,14 @@ function viewHome(){
   <div class="page-head">
     <div><h1>Olá, <span class="soft">${escHtml(primeiroNome)}</span> 👋</h1>
       <div class="sub">${isProfissional(athlete) ? subtituloBlog() : proximo ? `Seu próximo post é ${d===0?'<strong>hoje</strong>':d===1?'<strong>amanhã</strong>':`em <strong>${d} dias</strong>`} (${fmtDateBR(proximo.date)} · ${escHtml(proximo.product)}).` : 'Nenhum post agendado pra você no momento.'}</div></div>
-    <a href="atleta-perfil.html" class="row" style="text-decoration:none; color:var(--ink); background:#fff; border-radius:999px; padding:5px 14px 5px 5px; box-shadow:var(--shadow);">
+    <a href="atleta-perfil" class="row" style="text-decoration:none; color:var(--ink); background:#fff; border-radius:999px; padding:5px 14px 5px 5px; box-shadow:var(--shadow);">
       ${avatarHtml(athlete.name,'sm')}<span style="font-size:12.5px; font-weight:700;">${escHtml(athlete.name)}</span><span class="badge team-${escHtml((athlete.team||'').replace(/\s/g,''))}">${escHtml(athlete.team||'')}</span></a>
   </div>
 
   ${faltando.length ? `<div class="panel" style="display:flex; align-items:center; gap:14px; padding:14px 18px; background:var(--orange-soft); border-color:#f8d6ba;">
     <span class="ic-bubble" style="background:#fff; color:var(--orange); border-color:#f8d6ba;">${ICONS.perfil}</span>
     <div style="flex:1; font-size:13px;"><strong>Complete seu perfil</strong> — falta: ${faltando.join(', ')}.</div>
-    <a class="btn btn-primary btn-sm" href="atleta-perfil.html">Completar</a></div>` : ''}
+    <a class="btn btn-primary btn-sm" href="atleta-perfil">Completar</a></div>` : ''}
 
   ${temAcessoVendas(athlete) ? `<div id="heroVendas">${heroVendasHtml()}</div>` : ''}
 
@@ -174,7 +174,7 @@ function viewHome(){
     ${isProfissional(athlete) ? blogCardHtml() : `<div class="card span-8">
       <div class="card-head">
         <div><h2 style="font-size:16px;">Seus conteúdos</h2><div class="desc">${doMes.length} post(s) em ${fmtMonthLabel(mesAtual).split('/')[0].toLowerCase()} · ${postadosMes} postado(s)</div></div>
-        <a class="btn btn-ghost btn-sm" href="atleta-roteiros.html">Ver todos os roteiros ${ICONS.arrow}</a>
+        <a class="btn btn-ghost btn-sm" href="atleta-roteiros">Ver todos os roteiros ${ICONS.arrow}</a>
       </div>
       ${lista.length ? `<div style="overflow-x:auto;"><table><thead><tr><th>Data</th><th>Produto</th><th>Formato</th><th>Status</th><th></th></tr></thead><tbody>
         ${lista.map(e=>{ const st = statusPost(e); const dd = diasAte(e.date);
@@ -182,7 +182,7 @@ function viewHome(){
             <div><strong>${fmtDateBR(e.date)}</strong><div class="sub">${dd===0?'hoje':dd>0?`em ${dd} dia(s)`:`há ${-dd} dia(s)`}</div></div></div></td>
             <td><strong>${escHtml(e.product)}</strong></td><td style="color:var(--muted);">${escHtml(e.format)}</td>
             <td><span class="status-dot ${st.cls}" ${st.cls?'':'style="color:var(--muted);"'}>${st.txt}</span></td>
-            <td style="text-align:right;">${e.roteiro && e.roteiro.trim() ? `<a class="icon-btn" href="atleta-roteiros.html#${e.id}" title="Abrir roteiro">${ICONS.arrow}</a>` : ''}</td></tr>`; }).join('')}
+            <td style="text-align:right;">${e.roteiro && e.roteiro.trim() ? `<a class="icon-btn" href="atleta-roteiros#${e.id}" title="Abrir roteiro">${ICONS.arrow}</a>` : ''}</td></tr>`; }).join('')}
         </tbody></table></div>` : '<div class="empty-state"><div class="big">📝</div>Nenhum conteúdo agendado ainda.</div>'}
     </div>`}
     <div class="span-4" style="display:flex; flex-direction:column; gap:18px;">

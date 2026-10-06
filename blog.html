@@ -13,13 +13,13 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:title" content="Painel dos atletas FourLab">
 <meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
-<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
-<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:url" content="https://atleta.fourlabnutrition.com.br/">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Painel dos atletas FourLab">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta name="twitter:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
@@ -67,7 +67,7 @@ function view(){
     <span class="ic-bubble" style="color:var(--orange);">${ICONS.blog}</span>
     <div style="flex:1; min-width:220px;"><div style="font-size:12px; color:var(--muted); font-weight:600;">Tema do mês · ${fmtMonthLabel(State.ym)} (o mesmo dos atletas)</div>
       <div style="font-size:17px; font-weight:700; font-family:var(--font-title); margin-top:2px;">${State.temaMes ? escHtml(State.temaMes) : '<span style="color:var(--muted); font-weight:500;">Ainda sem tema — defina em Mês / Roteiros</span>'}</div></div>
-    <a class="btn btn-ghost btn-sm" href="ciclo.html">Editar tema em Mês / Roteiros</a>
+    <a class="btn btn-ghost btn-sm" href="ciclo">Editar tema em Mês / Roteiros</a>
     ${State.pautas.some(p=> !p.tema_especifico && (p.tema_mes||'') !== State.temaMes) ? `<button class="btn btn-ghost btn-sm" id="btnSyncTema">Atualizar pautas com este tema</button>` : ''}
   </div>
 
@@ -82,7 +82,7 @@ function view(){
     <span class="ic-bubble" style="color:var(--orange);">${ICONS.plus}</span>
     <div style="flex:1; font-size:13px;"><strong>${semPauta.length} profissional(is)</strong> ainda sem pauta em ${fmtMonthLabel(State.ym)}: ${semPauta.slice(0,4).map(a=>escHtml(a.name)).join(', ')}${semPauta.length>4?'…':''}</div>
     <button class="btn btn-primary btn-sm" id="btnCriarPautas">Criar pautas com o tema do mês</button></div>` : ''}
-  ${!State.profissionais.length ? `<div class="panel"><div class="empty-state">Nenhum profissional parceiro cadastrado. Cadastre em <a href="atletas.html" style="color:var(--orange);">Atletas & parceiros → Profissionais parceiros</a>.</div></div>` : ''}
+  ${!State.profissionais.length ? `<div class="panel"><div class="empty-state">Nenhum profissional parceiro cadastrado. Cadastre em <a href="atletas" style="color:var(--orange);">Atletas & parceiros → Profissionais parceiros</a>.</div></div>` : ''}
 
   ${State.pautas.length ? `
   <div class="filter-pills" style="margin-bottom:14px;">${filtros.map(([k,l,n])=>`<button class="fpill ${State.filtro===k?'active':''}" data-filtro="${k}">${l} <span class="count">${n}</span></button>`).join('')}</div>

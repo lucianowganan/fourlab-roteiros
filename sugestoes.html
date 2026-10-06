@@ -13,13 +13,13 @@
 <meta property="og:locale" content="pt_BR">
 <meta property="og:title" content="Painel dos atletas FourLab">
 <meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
-<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
-<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:url" content="https://atleta.fourlabnutrition.com.br/">
+<meta property="og:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Painel dos atletas FourLab">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta name="twitter:image" content="https://atleta.fourlabnutrition.com.br/assets/og-image.jpg">
 <link rel="stylesheet" href="shared.css"></head><body>
 <div class="shell" id="appShell"><div id="sidebarMount"></div>
 <main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
@@ -105,7 +105,7 @@ function viewIA(){
   <div class="grid-4" style="margin-bottom:18px;">
     ${kpi(mes.length, 'Pedidos à IA este mês', `${mes.filter(p=>p.status==='recusado').length} fora do escopo`)}
     ${kpi(fmtNum(tokens), 'Tokens este mês', 'entrada + saída')}
-    ${kpi(liberados.length, 'Pessoas com acesso', '<a href="atletas.html" style="color:var(--orange); font-weight:600;">liberar em Atletas</a>')}
+    ${kpi(liberados.length, 'Pessoas com acesso', '<a href="atletas" style="color:var(--orange); font-weight:600;">liberar em Atletas</a>')}
     ${kpi(`${bons.length} · ${ruins.length}`, 'Exemplos 👍 · 👎', 'ensinam a IA')}
   </div>
   <div class="panel">
@@ -131,7 +131,7 @@ function viewIA(){
     <div class="panel"><h2>👍 Exemplos bons</h2><div class="desc" style="margin-bottom:6px;">Além destes, as sugestões publicadas também contam como bons exemplos.</div>${bons.length?bons.map(exemploLinha).join(''):'<div class="empty-state" style="padding:20px;">Nenhum ainda.</div>'}</div>
     <div class="panel"><h2>👎 Exemplos ruins</h2><div class="desc" style="margin-bottom:6px;">A IA lê o motivo e evita repetir o problema.</div>${ruins.length?ruins.map(exemploLinha).join(''):'<div class="empty-state" style="padding:20px;">Nenhum ainda.</div>'}</div>
   </div>
-  <div class="panel"><h2>Quem pode pedir ideias à IA</h2><div class="desc" style="margin-bottom:8px;">Libere ou mude o limite na ficha de cada pessoa, em <a href="atletas.html" style="color:var(--orange); font-weight:600;">Atletas & parceiros</a> → Editar.</div>
+  <div class="panel"><h2>Quem pode pedir ideias à IA</h2><div class="desc" style="margin-bottom:8px;">Libere ou mude o limite na ficha de cada pessoa, em <a href="atletas" style="color:var(--orange); font-weight:600;">Atletas & parceiros</a> → Editar.</div>
     ${liberados.length ? liberados.map(a=>{ const usados = State.pedidos.filter(p=>p.athlete_id===a.athlete_id && doMes(p.created_at) && p.status!=='erro').length;
       return `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;">
         <div class="row" style="gap:8px;">${avatarHtml(a.athletes?.name||'?','sm')}<strong>${escHtml(a.athletes?.name||'—')}</strong><span style="color:var(--muted);">· ${escHtml(a.athletes?.team||'')}</span></div>
