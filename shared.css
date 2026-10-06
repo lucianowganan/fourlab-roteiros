@@ -280,8 +280,10 @@
     border-radius:18px; padding:16px; min-height:120px; display:flex; flex-direction:column; justify-content:space-between;
     border:1px solid transparent;
   }
-  .tile .t-value{ font-size:20px; font-weight:700; letter-spacing:-0.3px; font-variant-numeric:tabular-nums; }
-  .tile .t-label{ font-size:12px; color:var(--ink-2); opacity:0.8; margin-top:2px; }
+  .tile .t-value{ font-family:var(--font-title); font-size:clamp(28px, 2.5vw, 40px); font-weight:800; line-height:1.05; letter-spacing:-1px;
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .tile .t-value .cents{ font-size:0.6em; letter-spacing:-0.3px; }
+  .tile .t-label{ font-size:13.5px; font-weight:600; color:var(--ink-2); margin-top:6px; }
   .tile .t-foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:14px; }
   .tile .t-ic{ width:36px; height:36px; border-radius:10px; background:#fff; display:flex; align-items:center; justify-content:center; }
   .tile.t-orange{ background:#fdebdc; border-color:#f8d6ba; }
