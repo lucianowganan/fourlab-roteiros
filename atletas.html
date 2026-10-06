@@ -27,7 +27,9 @@
 <script src="shared.js"></script>
 <script>
 // categoria: 'equipe' (atletas) ou 'profissional' (profissionais parceiros)
-const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true };
+const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true };
+const MIGRACAO_CADASTRO = 'migrations/2026-10-06a_cadastro_interno.sql';
+const cadastroDe = (id)=> State.cadastros[id] || mapCadastroFromDB(null);
 const CATEGORIAS = {
   equipe:{label:'Atletas', singular:'atleta', pasta:'equipe'},
   profissional:{label:'Profissionais parceiros', singular:'profissional', pasta:'especialidade'},
@@ -51,9 +53,18 @@ async function saveOneAthlete(a){
   const payload = { name:a.name, team:a.team, format_pref:a.formatPref, notes:a.notes,
     dificuldade_gravacao:a.dificuldadeGravacao||'', estilo_fala:a.estiloFala||'', estilo_video:a.estiloVideo||'', videos_transcritos:a.videosTranscritos||'',
     cupom_yampi:a.cupomYampi||'', desconto_cupom_pct:a.descontoCupomPct!=null?a.descontoCupomPct:10, comissao_pct:a.comissaoPct!=null?a.comissaoPct:10,
-    recebe_comissao:!!a.recebeComissao, ver_vendas:!!a.verVendas, profissao:a.profissao||'' };
+    recebe_comissao:!!a.recebeComissao, ver_vendas:!!a.verVendas, profissao:a.profissao||'',
+    email:a.email||'', whatsapp:a.whatsapp||'', endereco_cep:a.enderecoCep||'', endereco_rua:a.enderecoRua||'', endereco_numero:a.enderecoNumero||'',
+    endereco_complemento:a.enderecoComplemento||'', endereco_bairro:a.enderecoBairro||'', endereco_cidade:a.enderecoCidade||'', endereco_estado:a.enderecoEstado||'' };
   if(a.id){ const { error } = await sb.from('athletes').update(payload).eq('id', a.id); if(error) throw error; }
   else { const { data, error } = await sb.from('athletes').insert(payload).select().single(); if(error) throw error; if(data) a.id = data.id; }
+}
+// Cadastro interno (tabela atleta_cadastro — só a equipe lê). Data vazia vira null.
+async function salvarCadastro(athleteId, c){
+  const row = { athlete_id:athleteId, nome_completo:c.nomeCompleto, cpf:c.cpf, rg:c.rg, cnpj:c.cnpj, data_nascimento:c.dataNascimento||null,
+    tamanho_camiseta:c.tamanhoCamiseta, inicio_parceria:c.inicioParceria||null, fim_contrato:c.fimContrato||null, observacoes:c.observacoes, updated_at:new Date().toISOString() };
+  const { error } = await sb.from('atleta_cadastro').upsert(row); if(error) throw error;
+  State.cadastros[athleteId] = {...c};
 }
 async function deleteOneAthlete(id){ await sb.from('athletes').delete().eq('id', id); }
 
@@ -113,6 +124,8 @@ function viewAtletas(){
         ${a.recebeComissao ? `<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">${a.comissaoPct??10}% comissão</span>` : a.verVendas ? '<span class="chip static">vê volume de vendas</span>' : ''}
         ${!isProfissional(a) ? (last ? `<span class="chip static">${escHtml(last.product)} · ${shortMonth(last.ym)}</span>` : '<span class="chip static" style="color:var(--muted);">nunca postou</span>') : ''}
         ${a.dificuldadeGravacao==='sim' && !isProfissional(a) ? '<span class="chip static" style="color:#b5680a;">trava na câmera</span>' : ''}
+        ${aniversarioNoMes(cadastroDe(a.id).dataNascimento) ? `<span class="chip static" style="color:var(--purple);">🎂 aniversário dia ${cadastroDe(a.id).dataNascimento.slice(8,10)}</span>` : ''}
+        ${alertaContrato(cadastroDe(a.id))}
       </div>
     </div>`; }).join('');
 
@@ -122,6 +135,7 @@ function viewAtletas(){
     <div><h1>${cat.label}</h1><div class="sub">Organize por pasta e abra a ficha completa de cada ${cat.singular}.</div></div>
     <div class="row" style="gap:26px;">
       ${stat(pessoas.length, cat.label)}${stat(pastas.length, State.categoria==='equipe'?'Equipes':'Especialidades')}${stat(comComissao, 'Com comissão')}
+      <button class="btn btn-ghost" id="btnExportar" title="Baixar planilha com o cadastro completo (abre no Excel / Google Planilhas)">⬇ Planilha</button>
       <button class="btn btn-dark" id="btnNovoAtleta">${ICONS.plus} Novo ${cat.singular}</button>
     </div>
   </div>
@@ -130,6 +144,7 @@ function viewAtletas(){
     <button class="${State.categoria==='equipe'?'active':''}" data-categoria="equipe">${ICONS.atletas.replace('width="18" height="18"','width="14" height="14"')} Atletas <span style="opacity:0.7;">${State.athletes.length-nProf}</span></button>
     <button class="${State.categoria==='profissional'?'active':''}" data-categoria="profissional">${ICONS.perfil.replace('width="18" height="18"','width="14" height="14"')} Profissionais parceiros <span style="opacity:0.7;">${nProf}</span></button>
   </div>
+  ${!State.cadastroTabela ? `<div class="panel" style="padding:12px 16px; font-size:12.5px; background:var(--orange-soft); border-color:#f8d6ba;">Pra guardar CPF, nascimento e o resto do cadastro interno, rode <code>${MIGRACAO_CADASTRO}</code> no Supabase.</div>` : ''}
   ${!State.teamsTabela ? `<div class="panel" style="padding:12px 16px; font-size:12.5px; background:var(--orange-soft); border-color:#f8d6ba;">Pra criar pastas e trocar cores, rode <code>migrations/2026-09-27_equipes_comissao.sql</code> no Supabase.</div>` : ''}
 
   <div class="section-title" style="font-size:12px;">Pastas · ${State.categoria==='equipe'?'equipes':'especialidades (médicos, nutricionistas...)'}</div>
@@ -241,6 +256,8 @@ function athleteDrawerHtml(a){
     ${linhaInfo(ICONS.whatsapp, 'WhatsApp', a.whatsapp ? `<a href="${escHtml(socialUrl(SOCIAL_FIELDS.find(f=>f.key==='whatsapp'), a.whatsapp))}" target="_blank" style="color:var(--green);">${escHtml(a.whatsapp)}</a>` : '')}
     ${linhaInfo(ICONS.endereco, 'Endereço de envio', end)}
 
+    ${cadastroDrawerHtml(a)}
+
     <div class="section-title">Cupom e comissão</div>
     ${a.cupomYampi ? `<div class="coupon-card ${a.recebeComissao?'purple':''}" style="min-height:130px; ${a.recebeComissao?'':'background:linear-gradient(135deg,#6b6166,#3d3539); box-shadow:none;'}"><div class="cc-top"><span>Cupom Yampi</span><span>${a.descontoCupomPct??10}% OFF${a.recebeComissao?` · ${a.comissaoPct??10}% comissão`:''}</span></div>
       <div class="cc-value" style="font-family:monospace; letter-spacing:1px; font-size:26px;">${escHtml(a.cupomYampi.toUpperCase())}</div>
@@ -263,6 +280,29 @@ function athleteDrawerHtml(a){
       <span class="status-dot ${e.postou==='sim'?'status-ok':e.postou==='nao'?'status-bad':'status-wait'}">${e.postou==='sim'?'Postou':e.postou==='nao'?'Não postou':'Pendente'}</span></div>`).join('')
       : '<div style="font-size:12.5px; color:var(--muted);">Nenhum post ainda.</div>'}`}`;
 }
+function alertaContrato(c){
+  if(!c.fimContrato) return '';
+  const dias = Math.round((new Date(c.fimContrato+'T12:00:00') - new Date()) / 86400000);
+  if(dias < 0) return `<span class="chip static" style="color:var(--red);">contrato venceu ${fmtDateBR(c.fimContrato)}</span>`;
+  if(dias <= 30) return `<span class="chip static" style="color:#b5680a;">contrato vence ${fmtDateBR(c.fimContrato)}</span>`;
+  return '';
+}
+function cadastroDrawerHtml(a){
+  const c = cadastroDe(a.id), idade = idadeDe(c.dataNascimento);
+  const nasc = c.dataNascimento ? `${fmtDateBR(c.dataNascimento)} · ${idade} anos${aniversarioNoMes(c.dataNascimento) ? ' · 🎂 faz aniversário este mês' : ''}` : '';
+  const parceria = [c.inicioParceria && `desde ${fmtDateBR(c.inicioParceria)}`, c.fimContrato && `contrato até ${fmtDateBR(c.fimContrato)}`].filter(Boolean).join(' · ');
+  const vazio = !Object.values(c).some(Boolean);
+  return `<div class="section-title row" style="justify-content:space-between;"><span>Cadastro interno</span>
+      <span style="font-size:11px; color:var(--muted); font-weight:600; text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:4px;">${ICONS.lock.replace('width="18" height="18"','width="11" height="11"')} só a equipe vê</span></div>
+    ${vazio ? `<div style="font-size:12.5px; color:var(--muted); background:var(--surface-2); border-radius:12px; padding:12px;">CPF, nascimento e outros dados ainda não preenchidos. Toque em <strong>Editar</strong>.</div>` : `
+    ${linhaInfo(ICONS.idcard, 'Nome completo', escHtml(c.nomeCompleto))}
+    ${linhaInfo(ICONS.idcard, 'CPF', c.cpf ? `${escHtml(fmtCPF(c.cpf))}${cpfValido(c.cpf)?'':' <span style="color:var(--red); font-size:11px;">(confira — parece inválido)</span>'}` : '')}
+    ${c.rg || c.cnpj ? linhaInfo(ICONS.idcard, c.cnpj ? 'RG · CNPJ' : 'RG', [c.rg, c.cnpj && fmtCNPJ(c.cnpj)].filter(Boolean).map(escHtml).join(' · ')) : ''}
+    ${linhaInfo(ICONS.calendar, 'Nascimento', nasc)}
+    ${c.tamanhoCamiseta ? linhaInfo(ICONS.produtos, 'Camiseta', escHtml(c.tamanhoCamiseta)) : ''}
+    ${parceria ? linhaInfo(ICONS.flag, 'Parceria', escHtml(parceria) + (alertaContrato(c) ? ' ' + alertaContrato(c) : '')) : ''}
+    ${c.observacoes ? `<div style="font-size:12.5px; background:var(--surface-2); border-radius:12px; padding:12px; margin-top:10px; white-space:pre-wrap;">${escHtml(c.observacoes)}</div>` : ''}`}`;
+}
 function openAthleteDrawer(a){
   openDrawer(athleteDrawerHtml(a));
   document.getElementById('drEditar').onclick = ()=>{ closeDrawer(); openAthleteModal(a); };
@@ -280,6 +320,53 @@ function toggleHtml(id, checked, titulo, sub){
     <input type="checkbox" id="${id}" ${checked?'checked':''} style="width:20px; height:20px;">
     <span><strong style="font-size:13.5px;">${titulo}</strong><br><span style="font-size:12px; color:var(--muted); font-weight:500;">${sub}</span></span></label>`;
 }
+function cadastroFormHtml(a){
+  const c = a.id ? cadastroDe(a.id) : mapCadastroFromDB(null);
+  return `<div class="section-title row" style="justify-content:space-between;"><span>Dados cadastrais</span>
+      <span style="font-size:11px; color:var(--muted); font-weight:600; text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:4px;">${ICONS.lock.replace('width="18" height="18"','width="11" height="11"')} cadastro interno — a pessoa não vê</span></div>
+    ${!State.cadastroTabela ? `<div style="font-size:12px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Rode <code>${MIGRACAO_CADASTRO}</code> no Supabase pra salvar CPF, nascimento etc. E-mail, WhatsApp e endereço já salvam.</div>` : ''}
+    <div class="field"><label>Nome completo (como no documento)</label><input id="cNomeCompleto" value="${escHtml(c.nomeCompleto)}" autocomplete="off"></div>
+    <div class="grid-3" style="gap:12px;">
+      <div class="field"><label>CPF</label><input id="cCpf" value="${escHtml(fmtCPF(c.cpf))}" inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"><div id="cCpfAviso" style="font-size:11px; color:var(--red); margin-top:3px;"></div></div>
+      <div class="field"><label>Data de nascimento</label><input id="cNascimento" type="date" value="${escHtml(c.dataNascimento)}" max="${todayISO()}"></div>
+      <div class="field"><label>Tamanho de camiseta</label><select id="cCamiseta"><option value="">—</option>${TAMANHOS_CAMISETA.map(t=>`<option ${t===c.tamanhoCamiseta?'selected':''}>${t}</option>`).join('')}</select></div></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>RG</label><input id="cRg" value="${escHtml(c.rg)}" autocomplete="off"></div>
+      <div class="field"><label>CNPJ (se emitir nota)</label><input id="cCnpj" value="${escHtml(fmtCNPJ(c.cnpj))}" inputmode="numeric" placeholder="00.000.000/0000-00" autocomplete="off"></div></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>E-mail</label><input id="fEmail" type="email" value="${escHtml(a.email||'')}" placeholder="nome@email.com"></div>
+      <div class="field"><label>WhatsApp</label><input id="fWhatsapp" value="${escHtml(a.whatsapp||'')}" inputmode="tel" placeholder="(11) 99999-9999"></div></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Início da parceria</label><input id="cInicio" type="date" value="${escHtml(c.inicioParceria)}"></div>
+      <div class="field"><label>Fim do contrato</label><input id="cFim" type="date" value="${escHtml(c.fimContrato)}"></div></div>
+    <div class="addr-grid">
+      <div class="field" style="grid-column:span 2;"><label>CEP</label><input id="fCep" value="${escHtml(a.enderecoCep||'')}" inputmode="numeric" placeholder="00000-000"></div>
+      <div class="field" style="grid-column:span 4;"><label>Rua</label><input id="fRua" value="${escHtml(a.enderecoRua||'')}"></div>
+      <div class="field" style="grid-column:span 2;"><label>Número</label><input id="fNumero" value="${escHtml(a.enderecoNumero||'')}"></div>
+      <div class="field" style="grid-column:span 4;"><label>Complemento</label><input id="fComplemento" value="${escHtml(a.enderecoComplemento||'')}"></div>
+      <div class="field" style="grid-column:span 2;"><label>Bairro</label><input id="fBairro" value="${escHtml(a.enderecoBairro||'')}"></div>
+      <div class="field" style="grid-column:span 3;"><label>Cidade</label><input id="fCidade" value="${escHtml(a.enderecoCidade||'')}"></div>
+      <div class="field" style="grid-column:span 1;"><label>UF</label><input id="fEstado" value="${escHtml(a.enderecoEstado||'')}" maxlength="2" style="text-transform:uppercase;"></div></div>
+    <div class="field"><label>Observações do cadastro</label><textarea id="cObs" style="min-height:60px;" placeholder="Ex: contrato assinado em PDF no Drive, kit enviado em 10/09...">${escHtml(c.observacoes)}</textarea></div>
+    <div style="font-size:11.5px; color:var(--muted); margin:-4px 0 6px;">E-mail, WhatsApp e endereço também aparecem no perfil da pessoa, que pode atualizar por lá.</div>`;
+}
+function lerCadastroForm(){
+  const v = (id)=> (document.getElementById(id)?.value || '').trim();
+  return { nomeCompleto:v('cNomeCompleto'), cpf:soDigitos(v('cCpf')), rg:v('cRg'), cnpj:soDigitos(v('cCnpj')), dataNascimento:v('cNascimento'),
+    tamanhoCamiseta:v('cCamiseta'), inicioParceria:v('cInicio'), fimContrato:v('cFim'), observacoes:v('cObs') };
+}
+async function buscarCepForm(){
+  const el = document.getElementById('fCep'), cep = soDigitos(el.value);
+  if(cep.length !== 8) return;
+  el.value = cep.slice(0,5)+'-'+cep.slice(5);
+  try{
+    const d = await (await fetch(`https://viacep.com.br/ws/${cep}/json/`)).json();
+    if(d.erro){ toast('CEP não encontrado'); return; }
+    const set = (id, val)=>{ const i = document.getElementById(id); if(val && !i.value) i.value = val; };
+    set('fRua', d.logradouro); set('fBairro', d.bairro); set('fCidade', d.localidade); set('fEstado', d.uf);
+    document.getElementById('fNumero').focus();
+  }catch(err){ console.error(err); }
+}
 function athleteFormHtml(a){
   const isNew = !a;
   a = a || {id:'', name:'', team: pastasDaCategoria()[0]?.name || 'Avulsos', formatPref:'Vídeo', notes:'', dificuldadeGravacao:'', estiloFala:'', estiloVideo:'', videosTranscritos:'', recebeComissao:false, profissao:''};
@@ -294,6 +381,7 @@ function athleteFormHtml(a){
       <div class="field" id="fProfissaoWrap"><label>Profissão / especialidade</label><input id="fProfissao" value="${escHtml(a.profissao||'')}" placeholder="Ex: Nutricionista esportivo, Médico do esporte"></div>
       <div class="field" id="fFormatWrap"><label>Formato preferido</label><select id="fFormat">
         <option ${a.formatPref==='Vídeo'?'selected':''}>Vídeo</option><option ${a.formatPref==='Carrossel'?'selected':''}>Carrossel</option><option ${a.formatPref==='Os dois'?'selected':''}>Os dois</option></select></div></div>
+    ${cadastroFormHtml(a)}
     <div id="fConteudoWrap">
     <div class="grid-2" style="gap:12px;">
       <div class="field"><label>Dificuldade pra gravar?</label><select id="fDificuldade">
@@ -364,6 +452,11 @@ function wireAthleteModalHandlers(){
     document.getElementById('fVerVendasWrap').style.display = comissao.checked ? 'none' : '';
   };
   teamSel.onchange = sync; comissao.onchange = sync; sync();
+  const cpf = document.getElementById('cCpf'), cnpj = document.getElementById('cCnpj'), cpfAviso = document.getElementById('cCpfAviso');
+  const checaCpf = ()=>{ const d = soDigitos(cpf.value); cpfAviso.textContent = d.length===11 && !cpfValido(d) ? 'CPF inválido — confira os números' : ''; };
+  cpf.oninput = ()=>{ cpf.value = fmtCPF(cpf.value); checaCpf(); };
+  cnpj.oninput = ()=>{ cnpj.value = fmtCNPJ(cnpj.value); };
+  document.getElementById('fCep').addEventListener('input', buscarCepForm);
 
   const btnCriarAcesso = document.getElementById('btnCriarAcesso');
   if(btnCriarAcesso){
@@ -409,14 +502,26 @@ function wireAthleteModalHandlers(){
       estiloFala: document.getElementById('fEstiloFala').value.trim(), estiloVideo: document.getElementById('fEstiloVideo').value.trim(),
       videosTranscritos: document.getElementById('fVideosTranscritos').value.trim(), cupomYampi: document.getElementById('fCupomYampi').value.trim(),
       descontoCupomPct: Number(document.getElementById('fDescontoCupom').value) || 10, comissaoPct: Number(document.getElementById('fComissaoPct').value) || 10,
-      recebeComissao: comissao.checked, verVendas: !comissao.checked && document.getElementById('fVerVendas').checked };
+      recebeComissao: comissao.checked, verVendas: !comissao.checked && document.getElementById('fVerVendas').checked,
+      email: document.getElementById('fEmail').value.trim(), whatsapp: document.getElementById('fWhatsapp').value.trim(),
+      enderecoCep: document.getElementById('fCep').value.trim(), enderecoRua: document.getElementById('fRua').value.trim(),
+      enderecoNumero: document.getElementById('fNumero').value.trim(), enderecoComplemento: document.getElementById('fComplemento').value.trim(),
+      enderecoBairro: document.getElementById('fBairro').value.trim(), enderecoCidade: document.getElementById('fCidade').value.trim(),
+      enderecoEstado: document.getElementById('fEstado').value.trim().toUpperCase() };
+    const cadastro = lerCadastroForm();
+    if(cadastro.cpf && !cpfValido(cadastro.cpf) && !confirm('O CPF parece inválido. Salvar mesmo assim?')) return;
     const id = document.getElementById('fId').value;
     saveBtn.disabled = true; saveBtn.innerHTML = '<span class="loader"></span>';
     try{
       let athleteObj;
       if(id){ const idx = State.athletes.findIndex(x=>x.id===id); athleteObj = {...State.athletes[idx], name, ...fields}; await saveOneAthlete(athleteObj); State.athletes[idx] = athleteObj; }
       else{ athleteObj = {id:null, name, ...fields}; await saveOneAthlete(athleteObj); State.athletes.push(athleteObj); }
-      closeModal(); toast('Salvo'); render();
+      const mudouCadastro = JSON.stringify(cadastro) !== JSON.stringify(cadastroDe(athleteObj.id));
+      if(mudouCadastro && State.cadastroTabela){
+        try{ await salvarCadastro(athleteObj.id, cadastro); }
+        catch(err){ closeModal(); render(); erroBanco(err, MIGRACAO_CADASTRO); return; }
+      }
+      closeModal(); toast(mudouCadastro && !State.cadastroTabela ? 'Salvo (sem CPF/nascimento — falta a migração)' : 'Salvo'); render();
     }catch(err){ erroBanco(err, 'migrations/2026-09-28_volume_vendas.sql'); saveBtn.disabled = false; saveBtn.textContent = 'Salvar'; }
   };
   const delBtn = document.getElementById('btnDeleteAthlete');
@@ -431,9 +536,29 @@ function wireAthleteModalHandlers(){
 }
 function openAthleteModal(athlete){ openModal(athleteFormHtml(athlete)); wireAthleteModalHandlers(); }
 
+// Planilha (CSV com ; — abre direto no Excel em português) com o cadastro completo da categoria aberta
+function exportarPlanilha(){
+  const pessoas = filtrados();
+  const cols = [['Nome','name'],['Pasta','team'],['Nome completo',a=>cadastroDe(a.id).nomeCompleto],['CPF',a=>fmtCPF(cadastroDe(a.id).cpf)],['RG',a=>cadastroDe(a.id).rg],
+    ['CNPJ',a=>fmtCNPJ(cadastroDe(a.id).cnpj)],['Nascimento',a=>cadastroDe(a.id).dataNascimento?fmtDateBR(cadastroDe(a.id).dataNascimento):''],['Idade',a=>idadeDe(cadastroDe(a.id).dataNascimento)??''],
+    ['E-mail','email'],['WhatsApp','whatsapp'],['Instagram','instagram'],['Camiseta',a=>cadastroDe(a.id).tamanhoCamiseta],
+    ['CEP','enderecoCep'],['Rua','enderecoRua'],['Número','enderecoNumero'],['Complemento','enderecoComplemento'],['Bairro','enderecoBairro'],['Cidade','enderecoCidade'],['UF','enderecoEstado'],
+    ['Cupom','cupomYampi'],['Recebe comissão',a=>a.recebeComissao?'sim':'não'],['Chave PIX','pixKey'],
+    ['Início parceria',a=>cadastroDe(a.id).inicioParceria?fmtDateBR(cadastroDe(a.id).inicioParceria):''],['Fim contrato',a=>cadastroDe(a.id).fimContrato?fmtDateBR(cadastroDe(a.id).fimContrato):''],
+    ['Observações',a=>cadastroDe(a.id).observacoes]];
+  const cel = (v)=>{ v = String(v ?? ''); if(/^[=+\-@]/.test(v)) v = "'" + v; return /[;"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+  const linhas = [cols.map(c=>c[0]).join(';'), ...pessoas.map(a=> cols.map(([,k])=> cel(typeof k==='function' ? k(a) : a[k])).join(';'))];
+  const blob = new Blob(['\ufeff' + linhas.join('\r\n')], {type:'text/csv;charset=utf-8'});
+  const link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+  link.download = `cadastro-${State.categoria==='equipe'?'atletas':'profissionais'}-${todayISO()}.csv`; link.click();
+  setTimeout(()=> URL.revokeObjectURL(link.href), 2000);
+  toast(`${pessoas.length} cadastro(s) exportado(s)`);
+}
+
 function render(){
   document.getElementById('main').innerHTML = viewAtletas();
   document.getElementById('btnNovoAtleta').onclick = ()=> openAthleteModal(null);
+  document.getElementById('btnExportar').onclick = exportarPlanilha;
   document.getElementById('btnNovaPasta').onclick = ()=> openPastaModal(null);
   document.querySelectorAll('[data-edit-team]').forEach(b=> b.onclick = (ev)=>{ ev.stopPropagation(); openPastaModal(b.dataset.editTeam); });
   document.querySelectorAll('[data-categoria]').forEach(b=> b.onclick = ()=>{ State.categoria = b.dataset.categoria; State.teamFilter = 'Todas'; render(); });
@@ -449,11 +574,14 @@ function render(){
 
 (async function start(){
   const auth = await guardStaff('atletas'); if(!auth) return;
-  const [{ data }, teamsCheck] = await Promise.all([
+  const [{ data }, teamsCheck, cad] = await Promise.all([
     sb.from('athletes').select('*').order('team').order('name'),
     sb.from('teams').select('id').limit(1),
+    sb.from('atleta_cadastro').select('*'),
   ]);
   State.teamsTabela = !teamsCheck.error;
+  State.cadastroTabela = !cad.error;
+  (cad.data||[]).forEach(r=> State.cadastros[r.athlete_id] = mapCadastroFromDB(r));
   State.athletes = (data||[]).map(mapAthleteFromDB);
   await carregarHistorico();
   render();

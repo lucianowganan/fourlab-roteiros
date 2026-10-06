@@ -1,0 +1,139 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ideias pra gravar · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<script>
+/* Ideias pra gravar: sugestões de conteúdo que a FourLab publica (reels, stories, carrosséis...).
+   O banco só devolve as publicadas pro público da pessoa (atletas / profissionais / todos).
+   A pessoa marca "quero gravar" e "já gravei" (com o link do post) — base da futura gamificação. */
+const MIGRACAO = 'migrations/2026-10-06b_sugestoes_conteudo.sql';
+const State = { athlete:null, sugestoes:[], minhas:{}, filtro:'todas', tabelaOk:true };
+
+async function carregar(){
+  const [sug, grav] = await Promise.all([
+    sb.from('sugestoes_conteudo').select('*').eq('publicada', true).order('fixada', {ascending:false}).order('created_at', {ascending:false}),
+    sb.from('sugestao_gravacoes').select('*').eq('athlete_id', State.athlete.id),
+  ]);
+  State.tabelaOk = !sug.error; State.sugestoes = sug.data || [];
+  State.minhas = {}; (grav.data||[]).forEach(g=> State.minhas[g.sugestao_id] = g);
+}
+
+function seloMinha(s){
+  const g = State.minhas[s.id]; if(!g) return '';
+  return g.status==='gravei' ? '<div class="sug-selo" style="background:var(--green-soft); color:var(--green);">✅ Você gravou</div>'
+                             : '<div class="sug-selo" style="background:var(--orange-soft); color:#b5480a;">🙋 Na sua lista</div>';
+}
+
+function view(){
+  if(!State.tabelaOk) return `<div class="page-head"><div><h1>Ideias pra gravar</h1></div></div><div class="panel"><div class="empty-state"><div class="big">🛠️</div>Esta área ainda está sendo preparada pela FourLab. Volte em breve!</div></div>`;
+  const gravei = State.sugestoes.filter(s=> State.minhas[s.id]?.status==='gravei').length;
+  const quero = State.sugestoes.filter(s=> State.minhas[s.id]?.status==='quero').length;
+  const filtros = [['todas','Todas', State.sugestoes.length], ['quero','🙋 Minha lista', quero], ['gravei','✅ Já gravei', gravei],
+    ...Object.entries(SUGESTAO_TIPOS).map(([k,t])=>[k, `${t.emoji} ${t.curto||t.label}`, State.sugestoes.filter(s=>s.tipo===k).length]).filter(f=>f[2])];
+  const lista = State.sugestoes.filter(s=> State.filtro==='todas' ? true : State.filtro==='quero' || State.filtro==='gravei' ? State.minhas[s.id]?.status===State.filtro : s.tipo===State.filtro);
+  return `
+  <div class="page-head"><div><h1>Ideias pra gravar</h1><div class="sub">Sugestões da FourLab além dos seus roteiros do mês. Escolha uma, grave do seu jeito e marque aqui quando postar.</div></div>
+    ${State.sugestoes.length ? `<div class="card" style="padding:14px 18px; display:flex; gap:22px; align-items:center;">
+      <div><div style="font-size:26px; font-weight:700; font-family:var(--font-title);">${gravei}</div><div style="font-size:11.5px; color:var(--muted);">gravadas</div></div>
+      <div><div style="font-size:26px; font-weight:700; font-family:var(--font-title);">${quero}</div><div style="font-size:11.5px; color:var(--muted);">na sua lista</div></div></div>` : ''}</div>
+  ${State.sugestoes.length ? `<div class="filter-pills" style="margin-bottom:16px;">${filtros.map(([k,l,n])=>`<button class="fpill ${State.filtro===k?'active':''}" data-filtro="${k}">${l} <span class="count">${n}</span></button>`).join('')}</div>` : ''}
+  ${lista.length ? `<div class="sug-grid">${lista.map(s=> sugestaoCardHtml(s, {extra: seloMinha(s)})).join('')}</div>`
+    : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? (State.filtro==='quero' ? 'Abra uma ideia e toque em "Quero gravar" pra guardar aqui.' : State.filtro==='gravei' ? 'Quando gravar uma ideia, marque "Já gravei" nela.' : 'Nada aqui.') : 'Nenhuma ideia publicada ainda. Logo chegam sugestões novas!'}</div></div>`}`;
+}
+
+function render(){
+  document.getElementById('main').innerHTML = view();
+  document.querySelectorAll('[data-filtro]').forEach(b=> b.onclick = ()=>{ State.filtro = b.dataset.filtro; render(); });
+  document.querySelectorAll('[data-abrir-sugestao]').forEach(el=>{
+    el.onclick = ()=> abrirDetalhe(el.dataset.abrirSugestao);
+    el.onkeydown = (e)=>{ if(e.key==='Enter') abrirDetalhe(el.dataset.abrirSugestao); };
+  });
+}
+
+function acoesHtml(s){
+  const g = State.minhas[s.id];
+  if(g?.status==='gravei') return `<div style="background:var(--green-soft); border-radius:14px; padding:12px 14px; font-size:13px; color:var(--green);">
+      ✅ <strong>Você gravou esta ideia.</strong>${g.link?` <a href="${escHtml(g.link)}" target="_blank" rel="noopener" style="color:var(--green); word-break:break-all;">Ver post</a>`:''}
+      <div class="row" style="gap:8px; margin-top:8px;"><button class="btn btn-ghost btn-sm" id="btnEditarLink">${g.link?'Trocar link':'Adicionar link do post'}</button><button class="btn btn-ghost btn-sm" id="btnDesmarcar">Desmarcar</button></div></div>`;
+  return `<div id="boxGravei" style="display:none; margin-bottom:10px;">
+      <div class="field" style="margin-bottom:8px;"><label>Link do post (opcional)</label><input id="linkPost" inputmode="url" placeholder="https://www.instagram.com/..."></div>
+      <button class="btn btn-primary" id="btnConfirmarGravei" style="width:100%;">Confirmar que gravei</button></div>
+    <div class="row" style="gap:8px;" id="boxBotoes">
+      <button class="btn ${g?'btn-outline':'btn-ghost'}" id="btnQuero" style="flex:1;">${g ? '🙋 Na sua lista · tirar' : '🙋 Quero gravar'}</button>
+      <button class="btn btn-primary" id="btnGravei" style="flex:1;">✅ Já gravei</button></div>`;
+}
+
+async function marcar(s, status, link){
+  const atual = State.minhas[s.id];
+  const row = { sugestao_id:s.id, athlete_id:State.athlete.id, status, link: link ?? atual?.link ?? '', updated_at:new Date().toISOString() };
+  const res = atual ? await sb.from('sugestao_gravacoes').update(row).eq('id', atual.id).select().single()
+                    : await sb.from('sugestao_gravacoes').insert(row).select().single();
+  if(res.error){ erroBanco(res.error, MIGRACAO); return false; }
+  State.minhas[s.id] = res.data; return true;
+}
+async function desmarcar(s){
+  const atual = State.minhas[s.id]; if(!atual) return true;
+  const { error } = await sb.from('sugestao_gravacoes').delete().eq('id', atual.id);
+  if(error){ erroBanco(error, MIGRACAO); return false; }
+  delete State.minhas[s.id]; return true;
+}
+
+function abrirDetalhe(id){
+  const s = State.sugestoes.find(x=>x.id===id); if(!s) return;
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button>
+    ${sugestaoDetalheHtml(s)}
+    <div style="margin-top:20px; border-top:1px solid #f3eee8; padding-top:16px;" id="acoesSug">${acoesHtml(s)}</div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.querySelectorAll('[data-copiar-roteiro-sug]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(s.roteiro||'').then(()=> toast('Roteiro copiado')));
+  ligarAcoes(s);
+}
+function ligarAcoes(s){
+  const atualizar = ()=>{ document.getElementById('acoesSug').innerHTML = acoesHtml(s); ligarAcoes(s); render(); };
+  const ocupado = (btn)=>{ btn.disabled = true; btn.innerHTML = '<span class="loader"></span>'; };
+  const q = document.getElementById('btnQuero');
+  if(q) q.onclick = async ()=>{ ocupado(q); const ok = State.minhas[s.id] ? await desmarcar(s) : await marcar(s, 'quero');
+    if(ok) toast(State.minhas[s.id] ? 'Guardada na sua lista' : 'Tirada da sua lista'); atualizar(); };
+  const g = document.getElementById('btnGravei');
+  if(g) g.onclick = ()=>{ document.getElementById('boxGravei').style.display = ''; document.getElementById('boxBotoes').style.display = 'none'; document.getElementById('linkPost').focus(); };
+  const c = document.getElementById('btnConfirmarGravei');
+  if(c) c.onclick = async ()=>{ const link = document.getElementById('linkPost').value.trim(); ocupado(c);
+    if(await marcar(s, 'gravei', link)) toast('Boa! Marcado como gravado 🎉'); atualizar(); };
+  const d = document.getElementById('btnDesmarcar');
+  if(d) d.onclick = async ()=>{ ocupado(d); if(await desmarcar(s)) toast('Desmarcado'); atualizar(); };
+  const e = document.getElementById('btnEditarLink');
+  if(e) e.onclick = async ()=>{ const link = prompt('Link do post:', State.minhas[s.id]?.link || ''); if(link===null) return;
+    ocupado(e); if(await marcar(s, 'gravei', link.trim())) toast('Link salvo'); atualizar(); };
+}
+
+(async function start(){
+  const auth = await guardAthlete('ideias'); if(!auth) return;
+  State.athlete = auth.athlete;
+  if(!State.athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum cadastro vinculado a este login.</div>'; return; }
+  await carregar();
+  render();
+})();
+</script></body></html>

@@ -62,6 +62,8 @@ const ICONS = {
   like: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v10H4.5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"/><path d="M7 10l4-6.5a1.8 1.8 0 0 1 3.3 1.2L13.5 9h5.2a2 2 0 0 1 2 2.3l-1.2 7a2 2 0 0 1-2 1.7H7"/></svg>`,
   blog: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z"/><path d="M14 3.5v5h5M8.5 12.5h7M8.5 16h5"/></svg>`,
   avisos: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>`,
+  ideia: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1.1 1.3 1.1 2.2h5c0-.9.5-1.7 1.1-2.2A6 6 0 0 0 12 3z"/></svg>`,
+  idcard: `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="11" r="2"/><path d="M6 16c.6-1.3 1.7-2 3-2s2.4.7 3 2"/><path d="M15 10h3M15 13h3"/></svg>`,
   menu: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>`,
   sair: `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4M16 17l4-5-4-5M20 12H9"/></svg>`,
 };
@@ -71,6 +73,7 @@ const STAFF_NAV = [
   {id:'home', label:'Home', ic:ICONS.home, href:'home.html'},
   {id:'briefing', label:'Briefing', ic:ICONS.briefing, href:'briefing.html'},
   {id:'ciclo', label:'Mês / Roteiros', ic:ICONS.roteiro, href:'ciclo.html'},
+  {id:'sugestoes', label:'Sugestões de conteúdo', ic:ICONS.ideia, href:'sugestoes.html'},
   {id:'acompanhamento', label:'Acompanhamento', ic:ICONS.acompanhamento, href:'acompanhamento.html'},
   {id:'crm', label:'Pipeline / CRM', ic:ICONS.kanban, href:'crm.html'},
   {id:'blog', label:'Blog (parceiros)', ic:ICONS.blog, href:'blog.html'},
@@ -86,6 +89,7 @@ const ATLETA_NAV = [
   {id:'inicio', label:'Início', curto:'Início', ic:ICONS.inicio, href:'atleta-home.html'},
   {id:'roteiros', label:'Meus Roteiros', curto:'Roteiros', ic:ICONS.roteiro, href:'atleta-roteiros.html', so:'equipe'},
   {id:'blog', label:'Meus textos (blog)', curto:'Textos', ic:ICONS.blog, href:'parceiro-blog.html', so:'profissional'},
+  {id:'ideias', label:'Ideias pra gravar', curto:'Ideias', ic:ICONS.ideia, href:'atleta-ideias.html'},
   {id:'avisos', label:'Avisos', curto:'Avisos', ic:ICONS.avisos, href:'atleta-avisos.html'},
   {id:'vendas', label:'Minhas Vendas', curto:'Vendas', ic:ICONS.vendas, href:'atleta-vendas.html'},
   {id:'perfil', label:'Meu Perfil', curto:'Perfil', ic:ICONS.perfil, href:'atleta-perfil.html'},
@@ -115,11 +119,14 @@ function toast(msg){
   toast._h = setTimeout(()=> t.classList.remove('show'), 2400);
 }
 
-function openModal(html){
+// openModal(html, {largo:true}) = janela mais larga (editores com muito conteúdo)
+function openModal(html, opts){
+  document.getElementById('modalBox').classList.toggle('largo', !!(opts && opts.largo));
   document.getElementById('modalBox').innerHTML = html;
   document.getElementById('modalBg').classList.add('active');
 }
 function closeModal(){
+  document.getElementById('modalBox').classList.remove('largo');
   document.getElementById('modalBg').classList.remove('active');
   document.getElementById('modalBox').innerHTML = '';
 }
@@ -781,4 +788,134 @@ function barrasMensaisHtml(rows, ateYM, n, campo){
       badge: pct==null ? (qtd ? fmtNum(v) : `R$ ${compactNum(v)}`) : `${pct>=0?'+':''}${pct.toFixed(1).replace('.',',')}%`});
   }
   return pillBarChartHtml(data, {ariaLabel: campo==='numero_pedidos' ? 'Pedidos por mês' : 'Vendas por mês'});
+}
+
+/* ---------- Cadastro interno (CPF, nascimento...) ---------- */
+const soDigitos = (v)=> String(v||'').replace(/\D/g,'');
+function fmtCPF(v){ const d = soDigitos(v).slice(0,11); return d.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2'); }
+function fmtCNPJ(v){ const d = soDigitos(v).slice(0,14); return d.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d{1,2})$/,'$1-$2'); }
+function cpfValido(v){
+  const d = soDigitos(v); if(d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  const dig = (n)=>{ let s = 0; for(let i=0; i<n; i++) s += Number(d[i]) * (n+1-i); const r = (s*10) % 11; return r===10 ? 0 : r; };
+  return dig(9) === Number(d[9]) && dig(10) === Number(d[10]);
+}
+function idadeDe(nascISO){
+  if(!nascISO) return null;
+  const [y,m,d] = nascISO.split('-').map(Number), h = new Date();
+  return h.getFullYear() - y - ((h.getMonth()+1 < m || (h.getMonth()+1 === m && h.getDate() < d)) ? 1 : 0);
+}
+function aniversarioNoMes(nascISO, ref){ ref = ref || new Date(); return !!nascISO && Number(nascISO.slice(5,7)) === ref.getMonth()+1; }
+function mapCadastroFromDB(r){
+  r = r || {};
+  return { nomeCompleto:r.nome_completo||'', cpf:r.cpf||'', rg:r.rg||'', cnpj:r.cnpj||'', dataNascimento:r.data_nascimento||'',
+    tamanhoCamiseta:r.tamanho_camiseta||'', inicioParceria:r.inicio_parceria||'', fimContrato:r.fim_contrato||'', observacoes:r.observacoes||'' };
+}
+const TAMANHOS_CAMISETA = ['PP','P','M','G','GG','XGG'];
+
+/* ---------- Sugestões de conteúdo (reels, stories, carrosséis...) ---------- */
+// passo = como chamar cada tela; proporcao = formato da tela na prévia visual
+const SUGESTAO_TIPOS = {
+  reels:{label:'Reels', emoji:'🎬', passo:'Cena', plural:'cenas', proporcao:'9 / 16'},
+  stories:{label:'Sequência de stories', curto:'Stories', emoji:'📱', passo:'Story', plural:'stories', proporcao:'9 / 16'},
+  carrossel:{label:'Carrossel', emoji:'🖼️', passo:'Slide', plural:'slides', proporcao:'4 / 5'},
+  post:{label:'Post', emoji:'📸', passo:'Imagem', plural:'imagens', proporcao:'4 / 5'},
+  tiktok:{label:'TikTok', emoji:'🎵', passo:'Cena', plural:'cenas', proporcao:'9 / 16'},
+  outro:{label:'Outro', emoji:'✨', passo:'Parte', plural:'partes', proporcao:'1 / 1'},
+};
+const SUGESTAO_DIFICULDADE = { facil:{label:'Fácil', cor:'var(--green)', fundo:'var(--green-soft)'}, medio:{label:'Médio', cor:'#b5680a', fundo:'#fdf1dc'}, avancado:{label:'Avançado', cor:'var(--red)', fundo:'var(--red-soft)'} };
+const SUGESTAO_PUBLICO = { todos:'Atletas e profissionais', atletas:'Só atletas', profissionais:'Só profissionais parceiros' };
+function tipoSugestao(t){ return SUGESTAO_TIPOS[t] || SUGESTAO_TIPOS.outro; }
+function passosDaSugestao(s){ return Array.isArray(s && s.passos) ? s.passos.filter(p=> p && (p.texto || p.dica || p.imagem)) : []; }
+function capaDaSugestao(s){ return s.capa_url || (passosDaSugestao(s).find(p=>p.imagem)||{}).imagem || ''; }
+
+// Texto com **negrito**, listas com "-" e links clicáveis
+function textoRicoHtml(t){
+  const linhas = String(t||'').split('\n'); let html = '', lista = false;
+  const inline = (x)=> escHtml(x).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--orange); font-weight:600; word-break:break-all;">$1</a>');
+  linhas.forEach(l=>{ const m = l.trim().match(/^[-*•]\s+(.*)/);
+    if(m){ if(!lista){ html += '<ul style="margin:4px 0 8px 18px;">'; lista = true; } html += `<li>${inline(m[1])}</li>`; return; }
+    if(lista){ html += '</ul>'; lista = false; }
+    html += l.trim() ? `<p style="margin:0 0 6px;">${inline(l)}</p>` : '<div style="height:6px;"></div>';
+  });
+  return html + (lista ? '</ul>' : '');
+}
+
+// opts: {extra (html no rodapé), rascunho}
+function sugestaoCardHtml(s, opts){
+  opts = opts || {};
+  const tipo = tipoSugestao(s.tipo), dif = SUGESTAO_DIFICULDADE[s.dificuldade] || SUGESTAO_DIFICULDADE.facil, capa = capaDaSugestao(s), n = passosDaSugestao(s).length;
+  return `<div class="sug-card" data-abrir-sugestao="${s.id}" tabindex="0">
+    <div class="sug-capa" style="${capa ? `background-image:url('${escHtml(capa)}');` : ''}">
+      ${capa ? '' : `<span class="sug-emoji">${tipo.emoji}</span>`}
+      <div class="sug-capa-top">
+        <span class="badge" style="background:rgba(255,255,255,0.92); color:var(--ink);">${tipo.emoji} ${escHtml(tipo.curto||tipo.label)}</span>
+        ${s.fixada ? '<span class="badge" style="background:var(--grad-accent); color:#fff;">📌 Destaque</span>' : ''}
+        ${opts.rascunho ? '<span class="badge" style="background:var(--ink); color:#fff;">Rascunho</span>' : ''}
+      </div>
+    </div>
+    <div class="sug-corpo">
+      <div class="sug-titulo">${escHtml(s.titulo || 'Sem título')}</div>
+      ${s.objetivo ? `<div class="sug-desc">${escHtml(s.objetivo)}</div>` : ''}
+      <div class="row" style="gap:6px; margin-top:auto; padding-top:12px;">
+        <span class="badge" style="background:${dif.fundo}; color:${dif.cor};">${dif.label}</span>
+        ${n ? `<span class="chip static">${n} ${n===1 ? tipo.passo.toLowerCase() : tipo.plural}</span>` : ''}
+        ${s.produto ? `<span class="chip static">${escHtml(s.produto)}</span>` : ''}
+        ${Number(s.pontos) > 0 ? `<span class="chip static" style="color:#b5680a;">⭐ ${Number(s.pontos)} pts</span>` : ''}
+      </div>
+      ${opts.extra || ''}
+    </div>
+  </div>`;
+}
+
+// Prévia visual: as telas lado a lado no formato do tipo (9:16 stories/reels, 4:5 carrossel)
+function sugestaoTelasHtml(s){
+  const tipo = tipoSugestao(s.tipo), passos = passosDaSugestao(s);
+  if(!passos.length) return '';
+  return `<div class="sug-telas">${passos.map((p,i)=>`
+    <div class="sug-tela">
+      <div class="sug-tela-img" style="aspect-ratio:${tipo.proporcao}; ${p.imagem ? `background-image:url('${escHtml(p.imagem)}');` : ''}">
+        <span class="sug-tela-num">${tipo.passo} ${i+1}</span>
+        ${p.imagem ? `<a href="${escHtml(p.imagem)}" target="_blank" rel="noopener" class="sug-tela-zoom" title="Abrir imagem">⤢</a>` : `<div class="sug-tela-texto">${escHtml(p.texto || '')}</div>`}
+      </div>
+      ${p.texto && p.imagem ? `<div class="sug-tela-legenda">${escHtml(p.texto)}</div>` : ''}
+      ${p.dica ? `<div class="sug-tela-dica">💡 ${escHtml(p.dica)}</div>` : ''}
+    </div>`).join('')}</div>`;
+}
+
+function sugestaoDetalheHtml(s){
+  const tipo = tipoSugestao(s.tipo), dif = SUGESTAO_DIFICULDADE[s.dificuldade] || SUGESTAO_DIFICULDADE.facil;
+  const refs = String(s.referencias||'').split('\n').map(l=>l.trim()).filter(Boolean);
+  return `
+    <div class="row" style="gap:6px; margin-bottom:8px;">
+      <span class="badge" style="background:var(--orange-soft); color:#b5480a;">${tipo.emoji} ${escHtml(tipo.label)}</span>
+      <span class="badge" style="background:${dif.fundo}; color:${dif.cor};">${dif.label}</span>
+      ${s.produto ? `<span class="chip static">${escHtml(s.produto)}</span>` : ''}
+      ${Number(s.pontos) > 0 ? `<span class="chip static" style="color:#b5680a;">⭐ ${Number(s.pontos)} pts</span>` : ''}
+    </div>
+    <h3 style="font-family:var(--font-title); font-size:22px; margin:0 0 6px;">${escHtml(s.titulo || 'Sem título')}</h3>
+    ${s.objetivo ? `<div style="font-size:13.5px; color:var(--ink-2); line-height:1.55;">${escHtml(s.objetivo)}</div>` : ''}
+    ${sugestaoTelasHtml(s) ? `<div class="section-title">Passo a passo visual</div>${sugestaoTelasHtml(s)}` : ''}
+    ${s.roteiro ? `<div class="section-title row" style="justify-content:space-between;"><span>Roteiro / texto</span><button class="btn btn-ghost btn-sm" data-copiar-roteiro-sug="${s.id}">${ICONS.copy.replace('width="18" height="18"','width="13" height="13"')} Copiar</button></div>
+      <div style="font-size:13.5px; line-height:1.6; background:var(--surface-2); border-radius:14px; padding:14px 16px;">${textoRicoHtml(s.roteiro)}</div>` : ''}
+    ${refs.length ? `<div class="section-title">Inspirações</div><div style="display:flex; flex-direction:column; gap:6px;">${refs.map(r=> /^https?:\/\//.test(r)
+      ? `<a href="${escHtml(r)}" target="_blank" rel="noopener" class="chip" style="justify-content:flex-start; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${escHtml(r.replace(/^https?:\/\/(www\.)?/,''))}</a>`
+      : `<div style="font-size:13px;">• ${escHtml(r)}</div>`).join('')}</div>` : ''}`;
+}
+
+// Diminui a foto antes de enviar (máx. 1440px, JPEG) e sobe pro Storage "sugestoes". Devolve a URL pública.
+async function enviarImagemSugestao(file){
+  let blob = file, ext = (file.name.split('.').pop()||'jpg').toLowerCase();
+  if(/^image\/(jpeg|png|webp|heic|heif)$/.test(file.type)){
+    try{
+      const bmp = await createImageBitmap(file);
+      const esc = Math.min(1, 1440 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width*esc); c.height = Math.round(bmp.height*esc);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      blob = await new Promise(r=> c.toBlob(r, 'image/jpeg', 0.85)); ext = 'jpg';
+    }catch(e){ console.warn('sem compressão', e); blob = file; }
+  }
+  const path = `${new Date().toISOString().slice(0,7)}/${Date.now()}_${uid()}.${ext}`;
+  const { error } = await sb.storage.from('sugestoes').upload(path, blob, { contentType: blob.type || file.type || 'image/jpeg' });
+  if(error) throw error;
+  return sb.storage.from('sugestoes').getPublicUrl(path).data.publicUrl;
 }
