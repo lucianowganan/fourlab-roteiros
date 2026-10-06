@@ -30,7 +30,8 @@ const State = { currentCycleYM: monthKey(todayISO()), cycle: null };
 function mapEntryFromDB(r){
   return { id:r.id, athleteId:r.athlete_id, team:r.team, product:r.product, theme:r.theme, format:r.format, date:r.post_date, roteiro:r.roteiro||'',
     status:{ postou:r.postou, collab:r.collab, obs:r.obs||'',
-      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} } };
+      metrics:{views:r.metric_views||0, likes:r.metric_likes||0, comments:r.metric_comments||0, shares:r.metric_shares||0, saves:r.metric_saves||0} },
+    ...camposEnvioDeLinha(r) };
 }
 async function carregarMes(ym){
   const { data: cycleRow } = await sb.from('cycles').select('*').eq('ym', ym).maybeSingle();
@@ -46,18 +47,30 @@ async function persistOneEntry(entry){
 }
 function athleteName(id){ const a = State.athletes.find(x=>x.id===id); return a?a.name:'(removido)'; }
 
+function celulaRoteiroHtml(e){
+  return `<div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">${tagsRoteiroHtml(e)}
+    ${e.roteiro ? `<button class="btn btn-ghost btn-sm" data-abrir-roteiro="${e.id}" style="padding:5px 10px;">Abrir</button>` : ''}</div>`;
+}
+function ligarBotoesRoteiro(raiz){
+  raiz.querySelectorAll('[data-abrir-roteiro]').forEach(b=> b.onclick = ()=>{
+    const e = State.cycle.entries.find(x=>x.id===b.dataset.abrirRoteiro);
+    // atualiza só a célula, pra não perder métricas digitadas e ainda não salvas
+    abrirRoteiroDaEquipe(e, athleteName(e.athleteId), ()=>{ const td = document.querySelector(`[data-celula-roteiro="${e.id}"]`); if(td){ td.innerHTML = celulaRoteiroHtml(e); ligarBotoesRoteiro(td); } });
+  });
+}
 function viewAcompanhamento(){
   const ym = State.currentCycleYM, cycle = State.cycle;
   if(!cycle.entries.length) return `<div class="panel"><div class="empty-state"><div class="big">📋</div>Nenhum post gerado para ${fmtMonthLabel(ym)} ainda.<br>Vá em "Mês / Roteiros" pra montar o calendário primeiro.</div></div>`;
   return `<div class="panel"><div class="row" style="justify-content:space-between;">
-      <div><h2>Acompanhamento — ${fmtMonthLabel(ym)}</h2><div class="desc">Marque quem postou, se aceitou collab, e as métricas.</div></div>
+      <div><h2>Acompanhamento — ${fmtMonthLabel(ym)}</h2><div class="desc">Marque quem postou, se aceitou collab, e as métricas. Na coluna Roteiro dá pra abrir e editar o que já foi enviado — fica marcado como alterado.</div></div>
       <input type="month" id="acMonth" value="${ym}" style="width:auto;"></div></div>
-  <div class="panel" style="overflow-x:auto;"><table style="min-width:920px;">
-    <thead><tr><th>Atleta</th><th>Data</th><th>Postou?</th><th>Collab?</th><th>Visualiz.</th><th>Curtidas</th><th>Coment.</th><th>Compart.</th><th>Salvos</th><th>Obs</th></tr></thead>
+  <div class="panel" style="overflow-x:auto;"><table style="min-width:1100px;">
+    <thead><tr><th>Atleta</th><th>Roteiro</th><th>Data</th><th>Postou?</th><th>Collab?</th><th>Visualiz.</th><th>Curtidas</th><th>Coment.</th><th>Compart.</th><th>Salvos</th><th>Obs</th></tr></thead>
     <tbody>${cycle.entries.map(e=>{
       const s = e.status||{postou:null,collab:null,obs:'',metrics:{}}, met = s.metrics||{};
       return `<tr data-entry-row="${e.id}">
         <td><strong>${athleteName(e.athleteId)}</strong><div style="font-size:10.5px;color:var(--muted);">${e.team}</div></td>
+        <td style="min-width:190px;" data-celula-roteiro="${e.id}">${celulaRoteiroHtml(e)}</td>
         <td>${e.date.split('-').reverse().join('/')}</td>
         <td><select class="st-postou"><option value="" ${s.postou===null?'selected':''}>—</option><option value="sim" ${s.postou==='sim'?'selected':''}>Sim</option><option value="nao" ${s.postou==='nao'?'selected':''}>Não</option></select></td>
         <td><select class="st-collab"><option value="" ${s.collab===null?'selected':''}>—</option><option value="sim" ${s.collab==='sim'?'selected':''}>Sim</option><option value="nao" ${s.collab==='nao'?'selected':''}>Não</option></select></td>
@@ -77,6 +90,7 @@ function wire(){
     document.getElementById('main').innerHTML = `<div class="empty-state"><span class="loader"></span></div>`;
     await carregarMes(State.currentCycleYM); render();
   };
+  ligarBotoesRoteiro(document);
   document.getElementById('btnSalvarAcompanhamento').onclick = async ()=>{
     const rows = Array.from(document.querySelectorAll('[data-entry-row]'));
     const touched = [];

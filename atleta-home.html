@@ -222,7 +222,8 @@ function render(){
   pautasBlog = bl || [];
   const visto = avisosVistosEm();
   avisosTopo = (av||[]).filter(a=> a.publico!=='equipe' && (a.fixado || (visto && a.created_at > visto))).slice(0,2);
-  entries = (ent||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro:r.roteiro||'', postou:r.postou }));
+  // o roteiro só aparece depois que a equipe envia (antes da migração de envio, mostra como sempre mostrou)
+  entries = (ent||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro: (!('enviado_em' in r) || r.enviado_em) ? (r.roteiro||'') : '', postou:r.postou }));
   vendasMensais = vm || [];
   render();
   // vendas ao vivo (Yampi) do mês atual e do anterior — atualiza só o bloco de vendas quando chegar

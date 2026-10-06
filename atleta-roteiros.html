@@ -26,50 +26,57 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-function markdownParaHtml(texto){
-  const esc = (s)=> (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const linhas = texto.split('\n'); let html = ''; let emLista = false;
-  linhas.forEach(l0=>{
-    let linha = l0.trim();
-    if(!linha){ if(emLista){ html += '</ul>'; emLista=false; } return; }
-    let m;
-    if((m = linha.match(/^[-*]\s+(.*)/))){ if(!emLista){ html += '<ul>'; emLista = true; } html += `<li>${esc(m[1]).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</li>`; return; }
-    if(emLista){ html += '</ul>'; emLista = false; }
-    html += `<p>${esc(linha).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}</p>`;
-  });
-  if(emLista) html += '</ul>';
-  return html;
-}
+let entries = [], athlete = null, editando = null;
 
-let entries = [], athlete = null;
-
+// Só aparecem os roteiros que a equipe já enviou. O atleta pode editar o texto; fica marcado como alterado.
 function viewRoteiros(){
-  const comRoteiro = entries.filter(e=>e.roteiro && e.roteiro.trim());
-  if(!comRoteiro.length) return `<div class="panel"><div class="empty-state"><div class="big">📝</div>Nenhum roteiro gerado ainda pra você.</div></div>`;
+  const comRoteiro = entries.filter(e=> e.roteiro && e.roteiro.trim() && (!e.envioDisponivel || e.enviadoEm));
+  if(!comRoteiro.length) return `<div class="page-head"><div><h1>Meus roteiros</h1></div></div><div class="panel"><div class="empty-state"><div class="big">📝</div>Nenhum roteiro enviado pra você ainda.<br>Assim que a FourLab enviar, ele aparece aqui.</div></div>`;
   const porMes = {};
   comRoteiro.forEach(e=>{ (porMes[e.ym||'—'] = porMes[e.ym||'—'] || []).push(e); });
-  return `<div class="page-head"><div><h1>Meus roteiros</h1><div class="sub">${comRoteiro.length} roteiro(s) prontos pra gravar.</div></div></div>` + Object.keys(porMes).sort().reverse().map(ym=>`
-    <div class="panel"><h2>${fmtMonthLabel(ym)}</h2>
-      ${porMes[ym].map(e=>`<div id="${e.id}" style="border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:12px; scroll-margin-top:20px;">
-          <div class="row" style="justify-content:space-between;">
-            <strong>${e.date.split('-').reverse().join('/')} · ${e.product} · ${e.format}</strong>
-            <button class="btn btn-ghost btn-sm" data-acopy="${e.id}">Copiar</button></div>
-          <div style="white-space:pre-wrap; font-size:13px; margin-top:10px;">${markdownParaHtml(e.roteiro)}</div></div>`).join('')}
+  return `<div class="page-head"><div><h1>Meus roteiros</h1><div class="sub">${comRoteiro.length} roteiro(s) prontos pra gravar. Pode ajustar o texto do seu jeito em “Editar”.</div></div></div>` + Object.keys(porMes).sort().reverse().map(ym=>`
+    <div class="panel"><h2>${ym==='—'?'Roteiros':fmtMonthLabel(ym)}</h2>
+      ${porMes[ym].map(e=>`<div id="${e.id}" style="border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:12px; scroll-margin-top:84px;">
+          <div class="row" style="justify-content:space-between; gap:8px;">
+            <div><strong>${fmtDateBR(e.date)} · ${escHtml(e.product)} · ${escHtml(e.format)}</strong>
+              <div class="row" style="gap:4px; margin-top:6px;">${tagsRoteiroHtml(e, {paraAtleta:true})}</div></div>
+            <div class="row" style="gap:6px;">
+              ${editando===e.id ? '' : `<button class="btn btn-ghost btn-sm" data-editar="${e.id}">Editar</button><button class="btn btn-ghost btn-sm" data-acopy="${e.id}">Copiar</button>`}</div></div>
+          ${editando===e.id ? `<textarea id="edTexto" style="margin-top:12px; min-height:280px; font-size:13.5px; line-height:1.55;">${escHtml(e.roteiro)}</textarea>
+              <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">A FourLab vê que você alterou o roteiro.</div>
+              <div class="row" style="justify-content:space-between; gap:8px; margin-top:10px;">
+                ${e.roteiroEnviado && e.roteiroEnviado !== e.roteiro ? '<button class="btn btn-ghost btn-sm" id="edOriginal">Voltar ao texto original</button>' : '<span></span>'}
+                <div class="row" style="gap:6px;"><button class="btn btn-ghost btn-sm" id="edCancelar">Cancelar</button><button class="btn btn-primary btn-sm" id="edSalvar">Salvar</button></div></div>`
+            : `<div style="font-size:13.5px; line-height:1.6; margin-top:12px;">${textoRicoHtml(e.roteiro)}</div>`}</div>`).join('')}
     </div>`).join('');
 }
 function render(){
   document.getElementById('main').innerHTML = viewRoteiros();
-  if(location.hash){ const alvo = document.getElementById(location.hash.slice(1)); if(alvo){ alvo.style.borderColor = 'var(--orange)'; alvo.scrollIntoView({behavior:'smooth'}); } }
+  if(location.hash && !editando){ const alvo = document.getElementById(location.hash.slice(1)); if(alvo){ alvo.style.borderColor = 'var(--orange)'; alvo.scrollIntoView({behavior:'smooth'}); } }
   document.querySelectorAll('[data-acopy]').forEach(btn=>{
     btn.onclick = ()=>{ const e = entries.find(x=>x.id===btn.dataset.acopy); if(e) navigator.clipboard.writeText(e.roteiro).then(()=> toast('Copiado')); };
   });
+  document.querySelectorAll('[data-editar]').forEach(btn=> btn.onclick = ()=>{ editando = btn.dataset.editar; render(); document.getElementById('edTexto')?.focus(); });
+  const cancelar = document.getElementById('edCancelar'); if(cancelar) cancelar.onclick = ()=>{ editando = null; render(); };
+  const original = document.getElementById('edOriginal');
+  if(original) original.onclick = ()=>{ const e = entries.find(x=>x.id===editando); document.getElementById('edTexto').value = e.roteiroEnviado; toast('Texto original de volta — clique em Salvar pra confirmar'); };
+  const salvar = document.getElementById('edSalvar');
+  if(salvar) salvar.onclick = async ()=>{
+    const e = entries.find(x=>x.id===editando), texto = document.getElementById('edTexto').value;
+    if(texto === e.roteiro){ editando = null; render(); return; }
+    salvar.disabled = true; salvar.innerHTML = '<span class="loader"></span>';
+    const { error } = await sb.rpc('editar_meu_roteiro', { p_entry:e.id, p_texto:texto });
+    if(error){ erroBanco(error, MIGRACAO_ENVIO); salvar.disabled = false; salvar.textContent = 'Salvar'; return; }
+    e.roteiro = texto; e.alteradoAtletaEm = new Date().toISOString(); editando = null;
+    toast('Roteiro salvo'); render();
+  };
 }
 (async function start(){
   const auth = await guardAthlete('roteiros'); if(!auth) return;
   athlete = auth.athlete;
   if(!athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum atleta vinculado a este login.</div>'; return; }
   const { data } = await sb.from('entries').select('*, cycles(ym)').eq('athlete_id', athlete.id).order('post_date', {ascending:false});
-  entries = (data||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro:r.roteiro||'', ym:r.cycles?.ym||'' }));
+  entries = (data||[]).map(r=>({ id:r.id, product:r.product, format:r.format, date:r.post_date, roteiro:r.roteiro||'', ym:r.cycles?.ym||'', ...camposEnvioDeLinha(r) }));
   render();
 })();
 </script></body></html>

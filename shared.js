@@ -843,7 +843,8 @@ function capaDaSugestao(s){ return s.capa_url || (passosDaSugestao(s).find(p=>p.
 function textoRicoHtml(t){
   const linhas = String(t||'').split('\n'); let html = '', lista = false;
   const inline = (x)=> escHtml(x).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:var(--orange); font-weight:600; word-break:break-all;">$1</a>');
-  linhas.forEach(l=>{ const m = l.trim().match(/^[-*•]\s+(.*)/);
+  linhas.forEach(l=>{ const m = l.trim().match(/^[-*•]\s+(.*)/), h = l.trim().match(/^#{1,4}\s+(.*)/);
+    if(h){ if(lista){ html += '</ul>'; lista = false; } html += `<div style="font-family:var(--font-title); font-weight:700; font-size:14.5px; margin:12px 0 4px;">${inline(h[1])}</div>`; return; }
     if(m){ if(!lista){ html += '<ul style="margin:4px 0 8px 18px;">'; lista = true; } html += `<li>${inline(m[1])}</li>`; return; }
     if(lista){ html += '</ul>'; lista = false; }
     html += l.trim() ? `<p style="margin:0 0 6px;">${inline(l)}</p>` : '<div style="height:6px;"></div>';
@@ -965,3 +966,78 @@ async function gerarSugestaoIA(dados){
   return data;
 }
 function botaoCarregandoIA(btn, texto){ btn.disabled = true; btn.innerHTML = `<span class="loader"></span> ${texto || 'Criando ideia… (leva uns 30s)'}`; }
+
+/* ---------- Roteiros do mês: rascunho → enviado pro atleta → marca de "alterado" ----------
+   enviado_em vazio = rascunho (só a equipe vê). Depois de enviado, qualquer edição da equipe ou do atleta
+   fica marcada (alterado_equipe_em / alterado_atleta_em) e o texto original fica em roteiro_enviado. */
+const MIGRACAO_ENVIO = 'migrations/2026-10-08_envio_roteiros.sql';
+function camposEnvioDeLinha(r){
+  return { enviadoEm:r.enviado_em||null, roteiroEnviado:r.roteiro_enviado||'', avaliacao:r.avaliacao||null,
+    alteradoEquipeEm:r.alterado_equipe_em||null, alteradoAtletaEm:r.alterado_atleta_em||null, envioDisponivel: 'enviado_em' in r };
+}
+function fmtDataCurta(iso){ return iso ? new Date(iso).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}) : ''; }
+// Tags de situação do roteiro. opts.paraAtleta: textos do ponto de vista do atleta
+function tagsRoteiroHtml(e, opts){
+  opts = opts || {};
+  const t = [];
+  if(!opts.paraAtleta){
+    if(!e.roteiro || !e.roteiro.trim()) t.push('<span class="chip static" style="color:var(--muted);">sem roteiro</span>');
+    else if(e.enviadoEm) t.push(`<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">✓ Enviado ${fmtDataCurta(e.enviadoEm)}</span>`);
+    else t.push('<span class="chip static" style="color:#b5680a;">Rascunho — o atleta ainda não vê</span>');
+  }
+  if(e.alteradoAtletaEm) t.push(`<span class="chip static" style="color:var(--purple); border-color:#e4cbe1; background:var(--purple-soft);">✏️ ${opts.paraAtleta ? 'Você alterou' : 'Alterado pelo atleta'} · ${fmtDataCurta(e.alteradoAtletaEm)}</span>`);
+  if(e.alteradoEquipeEm) t.push(`<span class="chip static" style="color:#b5480a; border-color:#f8d6ba; background:var(--orange-soft);">✏️ Alterado pela FourLab · ${fmtDataCurta(e.alteradoEquipeEm)}</span>`);
+  return t.join(' ');
+}
+// Modal da equipe pra ver/editar um roteiro (usado em Acompanhamento e na pasta do atleta).
+// e: entrada com {id, roteiro, date, product, format, + camposEnvioDeLinha}. onMudou(e) é chamado depois de salvar.
+function abrirRoteiroDaEquipe(e, nome, onMudou){
+  const desenhar = ()=>{
+    openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button>
+      <h3>Roteiro — ${escHtml(nome)}</h3>
+      <div style="font-size:12.5px; color:var(--muted); margin:-8px 0 10px;">${fmtDateBR(e.date)} · ${escHtml(e.product||'')} · ${escHtml(e.format||'')}</div>
+      <div class="row" style="gap:6px; margin-bottom:12px;">${tagsRoteiroHtml(e)}</div>
+      <textarea id="rtTexto" style="min-height:300px; font-size:13px; line-height:1.5;">${escHtml(e.roteiro||'')}</textarea>
+      ${e.enviadoEm ? '<div style="font-size:11.5px; color:var(--muted); margin-top:6px;">Este roteiro já está com o atleta: se você salvar uma mudança, ele vê a versão nova com a marca “Alterado pela FourLab”.</div>' : ''}
+      <div class="row" style="justify-content:space-between; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <div class="row" style="gap:6px;">
+          ${e.roteiro ? '<button class="btn btn-danger btn-sm" id="rtExcluir">Excluir roteiro</button>' : ''}
+          ${e.enviadoEm ? '<button class="btn btn-ghost btn-sm" id="rtRecolher" title="O atleta deixa de ver e o roteiro volta pra Mês / Roteiros">Voltar pra rascunho</button>' : ''}
+          ${e.roteiroEnviado && e.roteiroEnviado !== e.roteiro ? '<button class="btn btn-ghost btn-sm" id="rtOriginal">Ver o original enviado</button>' : ''}</div>
+        <div class="row" style="gap:6px;">
+          ${!e.enviadoEm && e.roteiro ? '<button class="btn btn-outline btn-sm" id="rtEnviar">Enviar pro atleta</button>' : ''}
+          <button class="btn btn-primary btn-sm" id="rtSalvar">Salvar</button></div></div>`, {largo:true});
+    document.getElementById('modalCloseBtn').onclick = closeModal;
+    const atualizar = async (campos, msg)=>{
+      const { error } = await sb.from('entries').update(campos).eq('id', e.id);
+      if(error){ erroBanco(error, MIGRACAO_ENVIO); return false; }
+      if('roteiro' in campos) e.roteiro = campos.roteiro;
+      if('enviado_em' in campos) e.enviadoEm = campos.enviado_em;
+      if('roteiro_enviado' in campos) e.roteiroEnviado = campos.roteiro_enviado;
+      if('alterado_equipe_em' in campos) e.alteradoEquipeEm = campos.alterado_equipe_em;
+      if('alterado_atleta_em' in campos) e.alteradoAtletaEm = campos.alterado_atleta_em;
+      toast(msg); if(onMudou) onMudou(e); return true;
+    };
+    document.getElementById('rtSalvar').onclick = async ()=>{
+      const texto = document.getElementById('rtTexto').value;
+      if(texto === (e.roteiro||'')){ closeModal(); return; }
+      const campos = { roteiro:texto };
+      if(e.enviadoEm) campos.alterado_equipe_em = new Date().toISOString();
+      if(await atualizar(campos, e.enviadoEm ? 'Salvo — o atleta já vê a versão nova' : 'Roteiro salvo')) closeModal();
+    };
+    const env = document.getElementById('rtEnviar');
+    if(env) env.onclick = async ()=>{ const texto = document.getElementById('rtTexto').value; if(!texto.trim()) return;
+      if(await atualizar({ roteiro:texto, enviado_em:new Date().toISOString(), roteiro_enviado:texto, alterado_equipe_em:null, alterado_atleta_em:null }, 'Enviado pro atleta')) closeModal(); };
+    const rec = document.getElementById('rtRecolher');
+    if(rec) rec.onclick = async ()=>{ if(!confirm('O atleta deixa de ver este roteiro e ele volta pra Mês / Roteiros como rascunho. Continuar?')) return;
+      if(await atualizar({ enviado_em:null }, 'Voltou pra rascunho')) closeModal(); };
+    const exc = document.getElementById('rtExcluir');
+    if(exc) exc.onclick = async ()=>{ if(!confirm('Excluir o texto deste roteiro? O post continua agendado e dá pra gerar outro em Mês / Roteiros.')) return;
+      if(await atualizar({ roteiro:'', enviado_em:null, roteiro_enviado:'', alterado_equipe_em:null, alterado_atleta_em:null }, 'Roteiro excluído')) closeModal(); };
+    const ori = document.getElementById('rtOriginal');
+    if(ori) ori.onclick = ()=>{ const ta = document.getElementById('rtTexto');
+      if(ori.dataset.vendo){ ta.value = ori.dataset.atual; ta.readOnly = false; ori.textContent = 'Ver o original enviado'; delete ori.dataset.vendo; }
+      else { ori.dataset.atual = ta.value; ta.value = e.roteiroEnviado; ta.readOnly = true; ori.textContent = 'Voltar pra versão atual'; ori.dataset.vendo = '1'; } };
+  };
+  desenhar();
+}
