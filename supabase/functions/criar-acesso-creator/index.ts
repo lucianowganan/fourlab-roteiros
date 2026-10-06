@@ -1,128 +1,69 @@
-// Edge Function: criar-acesso-creator
-// Cria (ou redefine a senha de) o login de um creator do Programa FourLab Creators.
-// Chamada pela página programa-creators.html → "Aprovar" / "Acesso ao portal".
-//
-// O login usa o formato <usuario>@creators.fourlabnutri.internal — é o mesmo que a página
-// /creators monta quando a pessoa digita só o usuário (sem @). O perfil fica com role "creator",
-// que manda a pessoa só pro portal /creators (e o banco não trata como equipe: ver eh_equipe()).
-//
-// Publicar: Supabase → Edge Functions → Deploy a new function → nome "criar-acesso-creator"
-// → colar este arquivo → Deploy. (SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY já vêm prontas.)
-
-import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+// Edge Function "criar-acesso-creator": cria/redefine o login do creator (Programa Creators).
+// Login = <usuario>@creators.fourlabnutri.internal, perfil com role "creator" (só entra no /creators).
+// Versão compacta de propósito (o editor do Supabase cortava arquivos longos na colagem).
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const DOMINIO_LOGIN = "creators.fourlabnutri.internal";
-
-function responder(body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
-}
-
-// Descobre quem está chamando a partir do login enviado pelo painel (Authorization: Bearer <token>).
-// Se não der, devolve o motivo real pra aparecer na tela (em vez de um "sessão expirada" genérico).
-async function identificar(req: Request, admin: SupabaseClient): Promise<{ id: string } | { erro: string }> {
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
-  if (!token) return { erro: "O login não chegou na função. Saia e entre de novo no painel." };
-  if (token.startsWith("sb_") || !token.startsWith("ey")) {
-    return { erro: "Chegou a chave pública do site, não o seu login (você está deslogado neste navegador). Saia e entre de novo no painel." };
-  }
-  const motivos: string[] = [];
-  // 1) Jeito padrão: pergunta ao Auth do Supabase
-  const r1 = await admin.auth.getUser(token).catch((e) => ({ data: { user: null }, error: e }));
-  if (r1.data?.user) return { id: r1.data.user.id };
-  if (r1.error) motivos.push(r1.error.message || String(r1.error));
-  // 2) Projetos com as novas chaves de assinatura (JWT signing keys): valida o token pelas chaves públicas
-  const getClaims = (admin.auth as unknown as { getClaims?: (t: string) => Promise<{ data: { claims?: { sub?: string } } | null; error: { message: string } | null }> }).getClaims;
-  if (getClaims) {
-    const r2 = await getClaims.call(admin.auth, token).catch((e) => ({ data: null, error: e }));
-    if (r2.data?.claims?.sub) return { id: r2.data.claims.sub };
-    if (r2.error) motivos.push(r2.error.message || String(r2.error));
-  }
-  // 3) Último recurso: cliente com a chave pública + o login do usuário
-  const anon = Deno.env.get("SUPABASE_ANON_KEY");
-  if (anon) {
-    const user = createClient(Deno.env.get("SUPABASE_URL")!, anon, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const r3 = await user.auth.getUser().catch((e) => ({ data: { user: null }, error: e }));
-    if (r3.data?.user) return { id: r3.data.user.id };
-    if (r3.error) motivos.push(r3.error.message || String(r3.error));
-  }
-  console.error("identificar falhou:", motivos);
-  const detalhe = [...new Set(motivos)].join(" / ") || "sem detalhe";
-  if (/expired/i.test(detalhe)) return { erro: "Sua sessão expirou — saia e entre de novo no painel." };
-  return { erro: `Não consegui confirmar seu login (${detalhe}). Saia e entre de novo no painel; se continuar, me mande esta mensagem.` };
-}
-
-// Equipe = logado, sem papel de atleta/creator e sem cadastro de atleta/creator ligado ao login (mesma regra do eh_equipe())
-async function ehEquipe(admin: SupabaseClient, id: string) {
-  const [{ data: perfil }, { data: atleta }, { data: creator }] = await Promise.all([
-    admin.from("profiles").select("role").eq("id", id).maybeSingle(),
-    admin.from("athletes").select("id").eq("auth_user_id", id).limit(1).maybeSingle(),
-    admin.from("creators").select("id").eq("auth_user_id", id).limit(1).maybeSingle(),
-  ]);
-  return !["atleta", "creator"].includes(perfil?.role) && !atleta && !creator;
-}
+// Sempre 200 com { error } pra mensagem aparecer na tela do app
+const responder = (b: Record<string, unknown>) =>
+  new Response(JSON.stringify(b), { status: 200, headers: { ...CORS, "Content-Type": "application/json" } });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-
   try {
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false, autoRefreshToken: false } });
 
-    // 1) Quem está chamando precisa estar logado e ser da equipe
-    const quem = await identificar(req, admin);
-    if ("erro" in quem) return responder({ error: quem.erro });
-    if (!(await ehEquipe(admin, quem.id))) return responder({ error: "Só a equipe FourLab pode criar acessos." });
+    // 1) Quem chama: logado e da equipe (sem papel atleta/creator e sem cadastro ligado ao login)
+    const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
+    if (!token.startsWith("ey")) return responder({ error: "Login não chegou. Saia e entre de novo no painel." });
+    let uid = (await admin.auth.getUser(token)).data?.user?.id;
+    // deno-lint-ignore no-explicit-any
+    const getClaims = (admin.auth as any).getClaims;
+    if (!uid && getClaims) uid = (await getClaims.call(admin.auth, token).catch(() => null))?.data?.claims?.sub;
+    if (!uid) return responder({ error: "Sua sessão expirou. Saia e entre de novo no painel." });
+    const [perfil, atleta, euCreator] = await Promise.all([
+      admin.from("profiles").select("role").eq("id", uid).maybeSingle(),
+      admin.from("athletes").select("id").eq("auth_user_id", uid).limit(1).maybeSingle(),
+      admin.from("creators").select("id").eq("auth_user_id", uid).limit(1).maybeSingle(),
+    ]);
+    if (["atleta", "creator"].includes(perfil.data?.role) || atleta.data || euCreator.data) {
+      return responder({ error: "Só a equipe FourLab pode criar acessos." });
+    }
 
-    // 2) Validação dos dados
-    const { creatorId, username: usuarioDigitado, password } = await req.json();
-    const username = String(usuarioDigitado || "").trim().toLowerCase().replace(/\s+/g, "");
+    // 2) Dados
+    const { creatorId, username: u, password } = await req.json();
+    const username = String(u || "").trim().toLowerCase().replace(/\s+/g, "");
     const senha = String(password || "");
     if (!creatorId || !username || !senha) return responder({ error: "Preencha usuário e senha." });
-    if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
-      return responder({ error: "Usuário: só letras sem acento, números, ponto, hífen ou _ (mínimo 3)." });
-    }
+    if (!/^[a-z0-9._-]{3,40}$/.test(username)) return responder({ error: "Usuário: só letras sem acento, números, ponto, hífen ou _ (mínimo 3)." });
     if (senha.length < 6) return responder({ error: "A senha precisa ter pelo menos 6 caracteres." });
+    const { data: c } = await admin.from("creators").select("id, nome, auth_user_id").eq("id", creatorId).maybeSingle();
+    if (!c) return responder({ error: "Creator não encontrado." });
+    const { data: rep } = await admin.from("creators").select("id").eq("username", username).neq("id", creatorId).maybeSingle();
+    if (rep) return responder({ error: "Esse usuário já está em uso — escolha outro." });
 
-    const { data: creator, error: erroCreator } = await admin.from("creators").select("id, nome, auth_user_id").eq("id", creatorId).maybeSingle();
-    if (erroCreator || !creator) return responder({ error: "Creator não encontrado." });
-
-    const { data: repetido } = await admin.from("creators").select("id").eq("username", username).neq("id", creatorId).maybeSingle();
-    if (repetido) return responder({ error: "Esse usuário já está em uso — escolha outro." });
-
-    const email = `${username}@${DOMINIO_LOGIN}`;
-    const nome = String(creator.nome || "");
-
-    // 3) Cria o login ou, se já existir, atualiza usuário/senha
-    let authId: string | null = creator.auth_user_id;
+    // 3) Cria o login ou atualiza usuário/senha
+    const email = `${username}@creators.fourlabnutri.internal`;
+    let authId: string | null = c.auth_user_id;
     if (authId) {
       const { error } = await admin.auth.admin.updateUserById(authId, { email, password: senha, email_confirm: true });
       if (error) return responder({ error: `Não deu pra redefinir: ${error.message}` });
     } else {
-      const { data: criado, error } = await admin.auth.admin.createUser({
-        email, password: senha, email_confirm: true, user_metadata: { nome },
-      });
-      if (error) {
-        const emUso = /already|registered|exists/i.test(error.message);
-        return responder({ error: emUso ? "Esse usuário já está em uso — escolha outro." : `Não deu pra criar: ${error.message}` });
-      }
-      authId = criado.user.id;
+      const { data, error } = await admin.auth.admin.createUser({ email, password: senha, email_confirm: true, user_metadata: { nome: c.nome } });
+      if (error) return responder({ error: /already|registered|exists/i.test(error.message) ? "Esse usuário já está em uso — escolha outro." : `Não deu pra criar: ${error.message}` });
+      authId = data.user.id;
     }
 
-    // 4) Perfil com papel "creator" + vínculo no cadastro
-    const { error: erroPerfil } = await admin.from("profiles").upsert({ id: authId, nome, role: "creator" });
-    if (erroPerfil) return responder({ error: `Login criado, mas falhou ao salvar o perfil: ${erroPerfil.message}` });
-    const { error: erroVinculo } = await admin.from("creators").update({ auth_user_id: authId, username, updated_at: new Date().toISOString() }).eq("id", creatorId);
-    if (erroVinculo) return responder({ error: `Login criado, mas falhou ao vincular ao cadastro: ${erroVinculo.message}` });
-
+    // 4) Perfil "creator" + vínculo no cadastro
+    const p = await admin.from("profiles").upsert({ id: authId, nome: c.nome, role: "creator" });
+    if (p.error) return responder({ error: `Login criado, mas falhou o perfil: ${p.error.message}` });
+    const v = await admin.from("creators").update({ auth_user_id: authId, username, updated_at: new Date().toISOString() }).eq("id", creatorId);
+    if (v.error) return responder({ error: `Login criado, mas falhou o vínculo: ${v.error.message}` });
     return responder({ ok: true, username });
   } catch (err) {
     console.error(err);
