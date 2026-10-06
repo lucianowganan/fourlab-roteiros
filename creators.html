@@ -23,8 +23,8 @@
   .p-side{ position:fixed; left:14px; top:14px; bottom:14px; width:248px; z-index:60; display:flex; flex-direction:column; padding:22px 16px 16px;
     border-radius:26px; background:linear-gradient(170deg, rgba(40,16,30,0.92), rgba(14,9,12,0.94)); border:1px solid var(--c-line);
     box-shadow:0 20px 60px rgba(0,0,0,0.45); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
-  .p-side .logo-fl{ height:30px; width:auto; display:block; margin:0 6px; }
-  .p-side .logo-cr{ width:100%; max-width:190px; display:block; margin:14px auto 0; }
+  .p-side .logo-fl{ height:30px; width:auto; max-width:100%; object-fit:contain; display:block; margin:0 6px; align-self:flex-start; }
+  .p-side .logo-cr{ width:190px; max-width:100%; height:auto; display:block; margin:14px auto 0; align-self:center; }
   .p-side .etapa-mini{ margin:16px 4px 6px; padding:12px; border-radius:16px; background:rgba(0,0,0,0.35); border:1px solid var(--c-line); font-size:12px; color:var(--c-muted); }
   .p-side .etapa-mini b{ display:block; color:var(--c-text); font-family:var(--c-font-title); font-weight:900; text-transform:uppercase; font-size:13px; }
   .p-side .etapa-mini .barra{ height:7px; margin-top:8px; }
@@ -106,6 +106,16 @@
   .manual ul{ margin:0; padding-left:20px; } .manual li{ margin:5px 0; font-size:14.5px; }
   .manual .destaque{ margin-top:14px; border:1px solid rgba(255,106,77,0.35); background:rgba(255,106,77,0.08); color:#ffc0a8; border-radius:14px; padding:11px 14px; font-size:13.5px; font-weight:600; }
   .vazio{ color:var(--c-muted); font-size:14px; padding:6px 0; }
+  .acoes{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  .ent{ display:flex; gap:12px; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.07); }
+  .ent:last-child{ border-bottom:none; }
+  .ent .ic{ width:38px; height:38px; border-radius:12px; background:rgba(255,255,255,0.06); border:1px solid var(--c-line); display:flex; align-items:center; justify-content:center; flex:none; font-size:17px; }
+  .ent .info{ flex:1; min-width:0; }
+  .ent .info b{ font-size:14px; } .ent .info a{ display:block; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ent .obs{ font-size:12px; color:#ffc0a8; margin-top:3px; }
+  .ent .del{ background:none; border:none; color:var(--c-muted); cursor:pointer; font-size:18px; padding:4px 6px; }
+  .sem .env{ font-size:11.5px; color:var(--c-orange); margin-top:6px; font-weight:700; }
+  .kit-ok{ margin-top:14px; padding:12px 14px; border-radius:14px; border:1px dashed rgba(255,155,61,0.5); background:rgba(255,155,61,0.06); font-size:13px; color:var(--c-text); }
   /* Calendário do mês */
   .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
   .cal-mes{ font-family:var(--c-font-title); font-weight:900; text-transform:uppercase; font-size:clamp(18px, 2.6vw, 24px); }
@@ -165,7 +175,7 @@
    O creator só lê os PRÓPRIOS dados: o banco filtra (policies "creator ve os proprios ..."). */
 const $ = (id)=> document.getElementById(id);
 function toastC(msg){ const t = $('toastC'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastC._h); toastC._h = setTimeout(()=> t.classList.remove('show'), 2600); }
-const P = { creator:null, envios:[], semanas:[], calendario:[], sugestoes:[], aba:'inicio', calYm: todayISO().slice(0,7), diaSel: todayISO(), filtroSug:'' };
+const P = { creator:null, envios:[], semanas:[], entregas:[], calendario:[], sugestoes:[], aba:'inicio', calYm: todayISO().slice(0,7), diaSel: todayISO(), filtroSug:'' };
 
 /* ---------- Login ---------- */
 function telaLogin(){
@@ -199,13 +209,15 @@ async function carregar(user){
   const { data: c, error } = await sb.from('creators').select('*').eq('auth_user_id', user.id).maybeSingle();
   if(error || !c) return false;
   P.creator = c;
-  const [env, sem, cal, sug] = await Promise.all([
+  const [env, sem, cal, sug, ent] = await Promise.all([
     sb.from('creator_envios').select('*').eq('creator_id', c.id).order('created_at', {ascending:false}),
     sb.from('creator_semanas').select('*').eq('creator_id', c.id),
     sb.from('creator_calendario').select('*').order('data'),
     // o banco só devolve as publicadas pra "Todos" ou "Só creators" (migração parte 8)
     sb.from('sugestoes_conteudo').select('*').eq('publicada', true).order('fixada', {ascending:false}).order('created_at', {ascending:false}),
+    sb.from('creator_entregas').select('*').eq('creator_id', c.id).order('created_at', {ascending:false}),
   ]);
+  P.entregas = ent.error ? [] : (ent.data || []);
   P.envios = env.data || []; P.semanas = sem.data || []; P.calendario = cal.data || []; P.sugestoes = sug.error ? [] : (sug.data || []);
   return true;
 }
@@ -237,7 +249,7 @@ function shell(conteudo){
         <button class="sair" id="btnSair">Sair</button></div>
     </aside>
     <main class="p-conteudo">
-      <div class="p-titulo" data-rev><div><h1>${escHtml(aba.id==='inicio' ? 'Plataforma Creators' : aba.label)}</h1><div class="desc">${escHtml(aba.desc)}</div></div></div>
+      <div class="p-titulo"><div><h1>${escHtml(aba.id==='inicio' ? 'Plataforma Creators' : aba.label)}</h1><div class="desc">${escHtml(aba.desc)}</div></div></div>
       ${conteudo}
     </main>
     <div class="modal-c" id="modalC"><div class="glass caixa" id="modalCaixa"></div></div>`;
@@ -266,7 +278,7 @@ function abaInicio(){
   const titulo = { etapa1:'Experimente: 30 dias', etapa2:'Evolução: 60 dias', oficial:'Você é um Creator Oficial', contato:'Inscrição em análise', recusado:'Obrigado por participar', encerrado:'Participação encerrada' }[c.etapa];
   const ultimoEnvio = P.envios.find(e=> e.etapa === c.etapa);   // só o kit da etapa atual
   return `<div class="p-grid">
-    <section data-rev class="glass hero-etapa">
+    <section class="glass hero-etapa">
       <img class="ic3d" src="assets/creators/${ICONE_ETAPA[c.etapa]||'f'}.webp" alt="">
       <span class="tag hot">${escHtml(et.label)}</span>
       <h1>${c.etapa==='oficial' ? `<span class="grad-text">${titulo}</span>` : `Olá, ${escHtml(primeiroNome(c.nome))}!<br><span class="grad-text">${titulo}</span>`}</h1>
@@ -276,10 +288,12 @@ function abaInicio(){
       ${ativa ? `<div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;"><a class="btn-c sm" href="${et.guia}" target="_blank" rel="noopener">📘 Abrir guia da etapa</a>
         <a class="btn-c sm ghost" href="#manual">O que falar / não falar</a></div>` : ''}
     </section>
-    ${ativa ? `<section data-rev class="glass card-c c7"><div class="sec-h"><div><h2>Entregas desta semana</h2><div class="desc">Semana ${pr?pr.semanaAtual:1} de ${et.semanas} · o time marca conforme acompanha seus posts</div></div></div>
+    ${ativa ? `<section class="glass card-c c7"><div class="sec-h"><div><h2>Entregas desta semana</h2><div class="desc">Semana ${pr?pr.semanaAtual:1} de ${et.semanas} · o time marca conforme acompanha seus posts</div></div></div>
         ${metasSemanaHtml(c.etapa, pr?pr.semanaAtual:1)}
+        ${pendentesSemana(c.etapa, pr?pr.semanaAtual:1) ? `<div class="desc" style="color:var(--c-orange); margin-top:8px;">${pendentesSemana(c.etapa, pr?pr.semanaAtual:1)} conteúdo(s) seu(s) aguardando a validação do time</div>` : ''}
+        <div class="acoes" style="margin:14px 0 0;"><button class="btn-c sm" data-registrar="">+ Registrar conteúdo</button><button class="btn-c sm ghost" data-registrar="extra">+ Entrega extra</button></div>
         <div class="desc" style="margin-top:10px;">Use <strong style="color:var(--c-text);">#creatorFourLab</strong> e <strong style="color:var(--c-text);">#FourLabNutri</strong> e identifique a parceria.</div></section>
-      <section data-rev class="glass card-c c5"><div class="sec-h"><div><h2>Seu kit</h2><div class="desc">${escHtml(et.kit||'')}</div></div><span style="font-size:24px;">📦</span></div>
+      <section class="glass card-c c5"><div class="sec-h"><div><h2>Seu kit</h2><div class="desc">${escHtml(et.kit||'')}</div></div><span style="font-size:24px;">📦</span></div>
         ${ultimoEnvio ? envioHtml(ultimoEnvio) : '<div class="vazio">Estamos separando seu kit. Assim que sair, o código de rastreio aparece aqui.</div>'}</section>` : ''}
     ${proximasDatasHtml(3)}
   </div>`;
@@ -287,18 +301,21 @@ function abaInicio(){
 function envioHtml(e){
   const st = CREATOR_ENVIO_STATUS[e.status] || CREATOR_ENVIO_STATUS.preparando;
   return `<div style="padding:4px 0;">
-    <span class="tag ${e.status==='entregue'?'ok':e.status==='enviado'?'':'warn'}">${st.label}</span>
+    <span class="tag ${e.status==='entregue'?'ok':e.status==='enviado'?'hot':'warn'}">${e.status==='enviado' ? '🚚 Kit enviado' : e.status==='entregue' ? '✓ Recebido' : '⏳ Preparando seu kit'}</span>
     <div style="font-weight:700; margin-top:10px;">${escHtml(e.itens||etapaInfo(e.etapa).kit||'')}</div>
     ${e.rastreio ? `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;">
         <span style="font-family:ui-monospace,monospace; font-size:16px; letter-spacing:1px; font-weight:700;">${escHtml(e.rastreio)}</span>
         <button class="btn-c sm ghost" data-copiar="${escHtml(e.rastreio)}">Copiar</button></div>
       <div class="desc" style="margin-top:6px;">${e.transportadora ? escHtml(e.transportadora) + ' · ' : ''}${e.enviado_em ? `enviado em ${fmtDateBR(e.enviado_em)}` : ''}${e.entregue_em ? ` · entregue em ${fmtDateBR(e.entregue_em)}` : ''}</div>` : ''}
+    ${e.status==='enviado' ? `<div class="kit-ok">📦 Seu kit está a caminho! Quando ele chegar, confirme aqui pra gente saber.
+        <div style="margin-top:10px;"><button class="btn-c sm" data-receber="${e.id}">Confirmar recebimento</button></div></div>` : ''}
+    ${e.status==='entregue' ? `<div class="desc" style="margin-top:8px; color:var(--c-green);">✓ Recebimento confirmado${e.entregue_em ? ` em ${fmtDateBR(e.entregue_em)}` : ''}</div>` : ''}
   </div>`;
 }
 function proximasDatasHtml(n, cls){
   const hoje = todayISO();
   const lista = P.calendario.filter(d=> (d.data_fim||d.data) >= hoje).slice(0, n);
-  return `<section class="glass card-c ${cls||''}" data-rev><div class="sec-h"><div><h2>Próximas datas de conteúdo</h2><div class="desc">Use como guia pra planejar seus posts</div></div><a class="btn-c sm ghost" href="#calendario">Ver calendário</a></div>
+  return `<section class="glass card-c ${cls||''}"><div class="sec-h"><div><h2>Próximas datas de conteúdo</h2><div class="desc">Use como guia pra planejar seus posts</div></div><a class="btn-c sm ghost" href="#calendario">Ver calendário</a></div>
     <div class="lista-c">${lista.length ? lista.map(dataHtml).join('') : '<div class="vazio">Nenhuma data cadastrada por enquanto.</div>'}</div></section>`;
 }
 const MESES_CURTOS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -311,36 +328,91 @@ function dataHtml(d){
       ${d.descricao ? `<div class="dd">${escHtml(d.descricao)}</div>` : ''}</div></div>`;
 }
 
+const META_EXTRA = { key:'extra', label:'Entrega extra', curto:'Extra', qtd:0 };
+const ENT_STATUS = { enviado:{label:'Em análise', cls:'warn'}, aprovado:{label:'Validado', cls:'ok'}, recusado:{label:'Não validado', cls:''} };
+function metaInfo(etapa, key){ return key === 'extra' ? META_EXTRA : ((etapaInfo(etapa).metas||[]).find(m=> m.key===key) || { key, label:key, curto:key }); }
+function pendentesSemana(etapa, n){ return P.entregas.filter(e=> e.etapa===etapa && e.semana===n && e.status==='enviado').length; }
+function etapaDasEntregas(){ const c = P.creator; return ['etapa1','etapa2'].includes(c.etapa) ? c.etapa : null; }
+function icRede(link){ return /tiktok/i.test(link) ? '🎵' : /instagram/i.test(link) ? '📸' : /youtu/i.test(link) ? '▶️' : '🔗'; }
+function entregaHtml(e){
+  const st = ENT_STATUS[e.status] || ENT_STATUS.enviado, m = metaInfo(e.etapa, e.meta);
+  return `<div class="ent"><span class="ic">${icRede(e.link)}</span>
+    <div class="info"><b>${escHtml(m.label)}</b> <span class="tag ${st.cls}" style="margin-left:6px; font-size:10.5px; padding:2px 8px;">${st.label}</span>
+      <div class="desc" style="margin:2px 0 0;">${escHtml(etapaInfo(e.etapa).curto)} · semana ${e.semana} · ${fmtDateBR(e.created_at)}${e.descricao ? ` · ${escHtml(e.descricao)}` : ''}</div>
+      <a href="${escHtml(e.link)}" target="_blank" rel="noopener">${escHtml(e.link.replace(/^https?:\/\/(www\.)?/,''))}</a>
+      ${e.obs_equipe ? `<div class="obs">💬 ${escHtml(e.obs_equipe)}</div>` : ''}</div>
+    ${e.status==='enviado' ? `<button class="del" data-apagar-ent="${e.id}" title="Apagar">×</button>` : ''}</div>`;
+}
 function abaEntregas(){
-  const c = P.creator;
-  const etapas = ['etapa1','etapa2'].filter(e=> e===c.etapa || P.semanas.some(s=>s.etapa===e));
-  if(!etapas.length) return `<section data-rev class="glass card-c"><h2>Entregas</h2><div class="vazio" style="margin-top:8px;">As entregas aparecem aqui quando você estiver em uma etapa do programa.</div></section>`;
+  const c = P.creator, atual = etapaDasEntregas();
+  const etapas = ['etapa1','etapa2'].filter(e=> e===c.etapa || P.semanas.some(s=>s.etapa===e) || P.entregas.some(x=>x.etapa===e));
+  if(!etapas.length) return `<section class="glass card-c"><h2>Entregas</h2><div class="vazio" style="margin-top:8px;">As entregas aparecem aqui quando você estiver em uma etapa do programa.</div></section>`;
   const pr = progressoEtapa(c);
-  return etapas.map(eid=>{ const et = etapaInfo(eid);
+  const extras = P.entregas.filter(e=> e.meta==='extra'), normais = P.entregas.filter(e=> e.meta!=='extra');
+  return `${atual ? `<div class="acoes"><button class="btn-c" data-registrar="">+ Registrar conteúdo</button><button class="btn-c ghost" data-registrar="extra">+ Entrega extra</button></div>` : ''}
+    ${etapas.map(eid=>{ const et = etapaInfo(eid);
     const ok = Array.from({length:et.semanas}, (_,i)=> semanaCumprida(eid, (semanaDe(eid, i+1)||{}).feito)).filter(Boolean).length;
-    return `<section data-rev class="glass card-c" style="margin-bottom:16px;">
-      <div class="sec-h"><div><h2>${escHtml(et.label)}</h2><div class="desc">${ok} de ${et.semanas} semanas com as entregas mínimas completas</div></div>
+    return `<section class="glass card-c" style="margin-bottom:16px;">
+      <div class="sec-h"><div><h2>${escHtml(et.label)}</h2><div class="desc">${ok} de ${et.semanas} semanas com as entregas mínimas validadas</div></div>
         <a class="btn-c sm ghost" href="${et.guia}" target="_blank" rel="noopener">Guia</a></div>
-      <div class="desc" style="margin-bottom:12px;">Por semana: ${(et.metas||[]).map(m=>`${m.qtd}x ${escHtml(m.label)}`).join(' · ')}</div>
+      <div class="desc" style="margin-bottom:12px;">Por semana: ${(et.metas||[]).map(m=>`${m.qtd}x ${escHtml(m.label)}`).join(' · ')}. Registre cada conteúdo com o link: o time confere e valida.</div>
       <div class="semanas">${Array.from({length:et.semanas}, (_,i)=>{ const n = i+1, s = semanaDe(eid, n), feito = (s||{}).feito || {};
-        const atual = eid===c.etapa && pr && pr.semanaAtual===n, cumpriu = semanaCumprida(eid, feito);
-        const futura = eid===c.etapa && pr && n > pr.semanaAtual;
-        return `<div class="sem ${atual?'atual':''}"><div class="h"><span>Semana ${n}</span>${cumpriu ? '<span class="tag ok">✓</span>' : futura ? '' : s ? '<span class="tag warn">parcial</span>' : ''}</div>
+        const atualS = eid===c.etapa && pr && pr.semanaAtual===n, cumpriu = semanaCumprida(eid, feito);
+        const futura = eid===c.etapa && pr && n > pr.semanaAtual, pend = pendentesSemana(eid, n);
+        return `<div class="sem ${atualS?'atual':''}"><div class="h"><span>Semana ${n}</span>${cumpriu ? '<span class="tag ok">✓</span>' : futura ? '' : s ? '<span class="tag warn">parcial</span>' : ''}</div>
           <div class="m">${(et.metas||[]).map(m=>`${Math.min(Number(feito[m.key])||0, m.qtd)}/${m.qtd} ${escHtml(m.curto)}`).join('<br>')}</div>
+          ${pend ? `<div class="env">${pend} em análise</div>` : ''}
           ${s && s.obs ? `<div class="m" style="color:var(--c-text);">💬 ${escHtml(s.obs)}</div>` : ''}</div>`; }).join('')}</div>
-    </section>`; }).join('');
+    </section>`; }).join('')}
+    <div class="p-grid">
+      <section class="glass card-c c7"><div class="sec-h"><div><h2>Conteúdos registrados</h2><div class="desc">${normais.length} conteúdo(s) das entregas mínimas</div></div></div>
+        ${normais.length ? normais.map(entregaHtml).join('') : '<div class="vazio">Você ainda não registrou nenhum conteúdo. Postou? Clique em <b>Registrar conteúdo</b> e cole o link.</div>'}</section>
+      <section class="glass card-c c5"><div class="sec-h"><div><h2>Entregas extras</h2><div class="desc">Tudo que você fez além do mínimo conta na avaliação</div></div></div>
+        ${extras.length ? extras.map(entregaHtml).join('') : '<div class="vazio">Fez um conteúdo a mais (live, post no feed, prova, YouTube...)? Registre como entrega extra.</div>'}
+        ${atual ? '<button class="btn-c sm ghost" data-registrar="extra" style="margin-top:12px;">+ Entrega extra</button>' : ''}</section>
+    </div>`;
+}
+function abrirRegistro(metaInicial){
+  const c = P.creator, eid = etapaDasEntregas(); if(!eid) return;
+  const et = etapaInfo(eid), pr = progressoEtapa(c), semAtual = pr ? Math.min(pr.semanaAtual, et.semanas) : 1;
+  const opcoes = [...(et.metas||[]), META_EXTRA];
+  $('modalCaixa').innerHTML = `<button class="fechar" id="fecharModal" aria-label="Fechar">&times;</button>
+    <h2 style="font-size:clamp(22px, 3vw, 28px); padding-right:40px;">${metaInicial==='extra' ? 'Registrar entrega extra' : 'Registrar conteúdo'}</h2>
+    <p style="color:var(--c-muted); margin:8px 0 18px;">Cole o link do post. O time FourLab confere e valida na sua semana.</p>
+    <form id="formEnt" class="f-grid" novalidate>
+      <div class="fld s4 full-sm"><label for="eMeta">O que você postou?</label><select id="eMeta">${opcoes.map(m=>`<option value="${m.key}" ${m.key===(metaInicial||opcoes[0].key)?'selected':''}>${escHtml(m.label)}</option>`).join('')}</select></div>
+      <div class="fld s2 full-sm"><label for="eSem">Semana</label><select id="eSem">${Array.from({length:et.semanas}, (_,i)=>`<option value="${i+1}" ${i+1===semAtual?'selected':''}>Semana ${i+1}${i+1===semAtual?' (atual)':''}</option>`).join('')}</select></div>
+      <div class="fld s6"><label for="eLink">Link do conteúdo</label><input id="eLink" type="url" inputmode="url" placeholder="https://www.tiktok.com/@voce/video/..." maxlength="500"><div class="msg-erro">Cole um link válido (começando com https://).</div></div>
+      <div class="fld s6"><label for="eDesc">Comentário <span class="opt">(opcional)</span></label><input id="eDesc" maxlength="300" placeholder="Ex.: stories do treino de domingo, 3 telas"></div>
+      <div class="s6" style="display:flex; gap:10px; justify-content:flex-end; margin-top:6px;"><button class="btn-c" type="submit" id="eOk">Registrar</button></div>
+    </form>`;
+  $('modalC').classList.add('on');
+  const fechar = ()=> $('modalC').classList.remove('on');
+  $('fecharModal').onclick = fechar;
+  $('modalC').onclick = (e)=>{ if(e.target.id === 'modalC') fechar(); };
+  $('formEnt').onsubmit = async (ev)=>{
+    ev.preventDefault();
+    const link = $('eLink').value.trim();
+    const okLink = /^https?:\/\/\S+\.\S+/.test(link);
+    $('eLink').closest('.fld').classList.toggle('erro', !okLink); if(!okLink) return;
+    const row = { creator_id:c.id, etapa:eid, semana:Number($('eSem').value), meta:$('eMeta').value, link, descricao:$('eDesc').value.trim() };
+    const btn = $('eOk'); btn.disabled = true; btn.innerHTML = '<span class="loader-c"></span>';
+    const { data, error } = await sb.from('creator_entregas').insert(row).select().single();
+    if(error){ btn.disabled = false; btn.textContent = 'Registrar'; toastC(/does not exist|schema cache/i.test(error.message||'') ? 'O registro de entregas ainda não foi liberado. Avise o time FourLab.' : 'Não foi possível registrar. Tente de novo.'); return; }
+    P.entregas.unshift(data); fechar(); toastC('Conteúdo registrado! O time vai validar.'); render();
+  };
 }
 function abaEnvios(){
-  return `<section data-rev class="glass card-c"><div class="sec-h"><div><h2>Meu kit</h2><div class="desc">Envios do time FourLab pra você, com código de rastreio</div></div></div>
+  return `<section class="glass card-c"><div class="sec-h"><div><h2>Meu kit</h2><div class="desc">Envios do time FourLab pra você, com código de rastreio</div></div></div>
     ${P.envios.length ? P.envios.map(e=>`<div style="border-bottom:1px solid rgba(255,255,255,0.07); padding:12px 0;"><div class="desc" style="margin:0 0 4px;">${escHtml(etapaInfo(e.etapa).label)}</div>${envioHtml(e)}</div>`).join('')
       : '<div class="vazio">Nenhum envio ainda. Assim que seu kit sair, ele aparece aqui.</div>'}</section>`;
 }
 function abaCupons(){
   const c = P.creator;
-  if(!['etapa2','oficial'].includes(c.etapa)) return `<section data-rev class="glass card-c"><h2>Cupons</h2>
+  if(!['etapa2','oficial'].includes(c.etapa)) return `<section class="glass card-c"><h2>Cupons</h2>
     <div class="vazio" style="margin-top:8px;">Na <strong style="color:var(--c-text);">Etapa 02</strong> você ganha um cupom de <strong style="color:var(--c-text);">30% OFF</strong> pra uso pessoal e um cupom de <strong style="color:var(--c-text);">10% OFF</strong> pros seus seguidores, com comissão nas vendas.</div></section>`;
   return `<div class="p-grid">
-    <section data-rev class="glass card-c c6"><div class="sec-h"><div><h2>Cupom dos seguidores</h2><div class="desc">10% OFF pra quem te segue + ${c.comissao_pct!=null?c.comissao_pct:10}% de comissão pra você (paga ao final da etapa)</div></div></div>
+    <section class="glass card-c c6"><div class="sec-h"><div><h2>Cupom dos seguidores</h2><div class="desc">10% OFF pra quem te segue + ${c.comissao_pct!=null?c.comissao_pct:10}% de comissão pra você (paga ao final da etapa)</div></div></div>
       ${c.cupom_desconto ? `<div class="cupom"><div class="pct grad-text">10% OFF</div><div class="cod">${escHtml(c.cupom_desconto)}</div>
           <div style="margin-top:12px;"><button class="btn-c sm" data-copiar="${escHtml(c.cupom_desconto)}">Copiar cupom</button></div></div>`
         : `<div class="desc" style="color:var(--c-text); margin-bottom:12px;">Escolha o nome do seu cupom (ex.: seu nome ou @). O time confere e ativa no site.</div>
@@ -349,13 +421,13 @@ function abaCupons(){
             <button class="btn-c sm" type="submit">${c.cupom_desconto_sugerido ? 'Trocar pedido' : 'Pedir este cupom'}</button></form>
           <div class="desc" style="margin-top:8px;">De 4 a 20 letras ou números, sem espaço.</div>`}
     </section>
-    <section data-rev class="glass card-c c6"><div class="sec-h"><div><h2>Cupom pessoal</h2><div class="desc">30% OFF pras suas compras · ${c.cupom_pessoal_usos!=null?c.cupom_pessoal_usos:6} usos</div></div></div>
+    <section class="glass card-c c6"><div class="sec-h"><div><h2>Cupom pessoal</h2><div class="desc">30% OFF pras suas compras · ${c.cupom_pessoal_usos!=null?c.cupom_pessoal_usos:6} usos</div></div></div>
       ${c.cupom_pessoal ? `<div class="cupom"><div class="pct grad-text">30% OFF</div><div class="cod">${escHtml(c.cupom_pessoal)}</div>
           <div class="ob">Uso pessoal: não divulgue este cupom.</div>
           <div style="margin-top:12px;"><button class="btn-c sm" data-copiar="${escHtml(c.cupom_pessoal)}">Copiar cupom</button></div></div>`
         : '<div class="vazio">Seu cupom pessoal está sendo criado pelo time. Ele aparece aqui quando estiver ativo.</div>'}
     </section>
-    <section data-rev class="glass card-c"><div class="desc" style="margin:0;">⚠️ Não publique preços, descontos, condições ou comissões sem confirmar com o time FourLab.</div></section>
+    <section class="glass card-c"><div class="desc" style="margin:0;">⚠️ Não publique preços, descontos, condições ou comissões sem confirmar com o time FourLab.</div></section>
   </div>`;
 }
 function eventosCalendario(){
@@ -367,8 +439,8 @@ function eventosCalendario(){
 function abaCalendario(){
   const ev = eventosCalendario(), doDia = eventosDoDia(ev, P.diaSel);
   return `<div class="p-grid">
-    <section class="glass card-c" data-rev>${calendarioMesHtml(ev, P.calYm, { max:2, comEtapa:true })}</section>
-    <section class="glass card-c c6" data-rev><div class="sec-h"><div><h2>${escHtml(fmtDateBR(P.diaSel))}</h2><div class="desc">Clique num dia do calendário pra ver o que tem nele</div></div></div>
+    <section class="glass card-c">${calendarioMesHtml(ev, P.calYm, { max:2, comEtapa:true })}</section>
+    <section class="glass card-c c6"><div class="sec-h"><div><h2>${escHtml(fmtDateBR(P.diaSel))}</h2><div class="desc">Clique num dia do calendário pra ver o que tem nele</div></div></div>
       <div class="lista-c">${doDia.length ? doDia.map(dataHtml).join('') : '<div class="vazio">Nada marcado neste dia.</div>'}</div></section>
     ${proximasDatasHtml(5, 'c6')}
   </div>`;
@@ -376,10 +448,10 @@ function abaCalendario(){
 function abaSugestoes(){
   const tipos = [...new Set(P.sugestoes.map(x=> x.tipo))];
   const lista = P.sugestoes.filter(x=> !P.filtroSug || x.tipo === P.filtroSug);
-  if(!P.sugestoes.length) return `<section class="glass card-c" data-rev><h2>Sugestões de conteúdo</h2><div class="vazio" style="margin-top:8px;">Em breve o time FourLab publica aqui ideias de conteúdo prontas pra você gravar.</div></section>`;
-  return `<div class="filtros" data-rev><button data-fsug="" class="${!P.filtroSug?'active':''}">Todas</button>${tipos.map(t=>`<button data-fsug="${escHtml(t)}" class="${P.filtroSug===t?'active':''}">${tipoSugestao(t).emoji} ${escHtml(tipoSugestao(t).curto||tipoSugestao(t).label)}</button>`).join('')}</div>
+  if(!P.sugestoes.length) return `<section class="glass card-c"><h2>Sugestões de conteúdo</h2><div class="vazio" style="margin-top:8px;">Em breve o time FourLab publica aqui ideias de conteúdo prontas pra você gravar.</div></section>`;
+  return `<div class="filtros"><button data-fsug="" class="${!P.filtroSug?'active':''}">Todas</button>${tipos.map(t=>`<button data-fsug="${escHtml(t)}" class="${P.filtroSug===t?'active':''}">${tipoSugestao(t).emoji} ${escHtml(tipoSugestao(t).curto||tipoSugestao(t).label)}</button>`).join('')}</div>
     <div class="sug-grid">${lista.map((x, i)=>{ const t = tipoSugestao(x.tipo), capa = capaDaSugestao(x), dif = SUGESTAO_DIFICULDADE[x.dificuldade] || SUGESTAO_DIFICULDADE.facil;
-      return `<article class="glass sug" data-sug="${x.id}" data-rev style="--d:${Math.min(i, 8) * 0.06}s" tabindex="0">
+      return `<article class="glass sug" data-sug="${x.id}" tabindex="0">
         <div class="capa" ${capa ? `style="background-image:url('${escHtml(capa)}')"` : ''}>${capa ? '' : t.emoji}
           <div class="tags"><span class="tag">${t.emoji} ${escHtml(t.curto||t.label)}</span>${x.fixada?'<span class="tag hot">📌 Destaque</span>':''}</div></div>
         <div class="corpo"><div class="tt">${escHtml(x.titulo||'Sem título')}</div>${x.objetivo?`<div class="ds">${escHtml(x.objetivo)}</div>`:''}
@@ -409,33 +481,33 @@ function abrirSugestao(id){
 function abaManual(){
   const c = P.creator;
   return `<div class="p-grid manual">
-    <section data-rev class="glass card-c c6"><h3>🎥 O que mostrar</h3>
+    <section class="glass card-c c6"><h3>🎥 O que mostrar</h3>
       <ul><li>Preparação para os treinos</li><li>O que leva para uma prova</li><li>Organização da mochila, bike ou equipamentos</li>
         <li>Uso dos produtos antes, durante ou depois do treino</li><li>Sua experiência com os sabores, praticidade e preparo</li>
         <li>Bastidores e dúvidas da sua comunidade</li><li>Como organiza sua estratégia de hidratação e carboidratos</li></ul>
       <div class="destaque">Não queremos transformar o seu perfil em um catálogo da FourLab. Queremos ver o seu esporte, a sua rotina inserida naturalmente na sua história.</div></section>
-    <section data-rev class="glass card-c c6"><h3>⚠️ Termos proibidos</h3>
+    <section class="glass card-c c6"><h3>⚠️ Termos proibidos</h3>
       <ul><li>Não faça promessas de resultados que o produto não oferece.</li><li>Não diga que o produto garante melhora de performance.</li>
         <li>Não invente benefícios.</li><li>Não altere informações nutricionais ou técnicas.</li>
         <li>Não atribua ao produto prevenção, tratamento ou cura de doenças.</li><li>Não crie protocolos ou recomendações técnicas sem respaldo.</li>
         <li>Não recomende o produto para tratar sintomas ou condições de saúde.</li><li>Não apresente como experiência própria algo que você não viveu.</li>
         <li>Não compare a FourLab com concorrentes sem autorização.</li><li>Não publique preços, descontos, condições ou comissões sem confirmar.</li></ul>
       <div class="destaque">Se tiver dúvida sobre uma informação, pergunte ao time FourLab antes de publicar.</div></section>
-    <section data-rev class="glass card-c c6"><h3>📱 Padrão das gravações</h3>
+    <section class="glass card-c c6"><h3>📱 Padrão das gravações</h3>
       <ul><li>Grave preferencialmente em formato vertical 9:16.</li><li>Priorize boa iluminação.</li><li>Utilize áudio claro.</li>
         <li>Evite vento e ruídos excessivos.</li><li>Mostre a embalagem corretamente.</li><li>Deixe a marca visível quando o produto estiver em destaque.</li>
         <li>Adicione na edição legendas quando houver fala.</li><li>Evite filtros que alterem as cores da embalagem.</li>
         <li>Não utilize marca d'água de outra plataforma.</li><li>Preserve o seu estilo de conteúdo.</li></ul></section>
-    <section data-rev class="glass card-c c6"><h3>🤝 Identificação da parceria</h3>
+    <section class="glass card-c c6"><h3>🤝 Identificação da parceria</h3>
       <p style="margin:0 0 10px; font-size:14.5px;">Quando o conteúdo envolver recebimento de produto, comissão, cupom ou qualquer benefício, siga as orientações de identificação publicitária da plataforma e do time FourLab.</p>
       <p style="margin:0; font-size:14.5px;">Quando aplicável, use as ferramentas de parceria paga e as hashtags:</p>
       <div style="font-family:var(--c-font-title); font-weight:800; font-size:18px; margin-top:10px;"><span class="grad-text">#creatorFourLab</span> &nbsp; <span class="grad-text">#FourLabNutri</span></div>
       <div class="destaque">A recomendação deve ser transparente para a sua comunidade.</div></section>
-    ${c.etapa==='etapa2' || P.semanas.some(s=>s.etapa==='etapa2') ? `<section data-rev class="glass card-c"><h3>💬 Conteúdo de comunidade (Etapa 02)</h3>
+    ${c.etapa==='etapa2' || P.semanas.some(s=>s.etapa==='etapa2') ? `<section class="glass card-c"><h3>💬 Conteúdo de comunidade (Etapa 02)</h3>
       <ul><li>Caixa de perguntas</li><li>Enquete sobre sabores</li><li>Resposta a uma dúvida real</li><li>Comentário sobre o produto depois do treino</li>
         <li>Demonstração do preparo</li><li>Recomendação baseada na sua própria experiência</li><li>Lembrete do seu cupom quando fizer sentido</li></ul>
       <div class="destaque">Em vez de dizer "esse produto vai melhorar sua performance", explique como ele entrou na sua rotina e qual foi a sua experiência pessoal.</div></section>` : ''}
-    <section data-rev class="glass card-c"><h3>📘 Guias em PDF</h3><div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <section class="glass card-c"><h3>📘 Guias em PDF</h3><div style="display:flex; gap:10px; flex-wrap:wrap;">
       <a class="btn-c sm ghost" href="assets/creators/programa-creators.pdf" target="_blank" rel="noopener">Programa Creators</a>
       <a class="btn-c sm ghost" href="assets/creators/guia-etapa-01.pdf" target="_blank" rel="noopener">Guia Etapa 01</a>
       ${['etapa2','oficial'].includes(c.etapa) ? '<a class="btn-c sm ghost" href="assets/creators/guia-etapa-02.pdf" target="_blank" rel="noopener">Guia Etapa 02</a>' : ''}</div></section>
@@ -449,14 +521,26 @@ function render(){
   $('btnSair').onclick = sair;
   $('btnMenu').onclick = ()=> document.body.classList.add('menu-aberto');
   $('pFundo').onclick = ()=> document.body.classList.remove('menu-aberto');
-  document.querySelectorAll('.p-conteudo [data-rev]').forEach((el, i)=>{ if(!el.style.getPropertyValue('--d')) el.style.setProperty('--d', Math.min(i, 6) * 0.06 + 's'); });
-  CrMotion.revelar($('app'));
   document.querySelectorAll('[data-cal-nav]').forEach(b=> b.onclick = ()=>{ P.calYm = addMonths(P.calYm, Number(b.dataset.calNav)); render(); });
   document.querySelectorAll('[data-cal-dia]').forEach(b=> b.onclick = ()=>{ P.diaSel = b.dataset.calDia; render(); });
   const sel = document.querySelector(`[data-cal-dia="${P.diaSel}"]`); if(sel) sel.classList.add('sel');
   document.querySelectorAll('[data-fsug]').forEach(b=> b.onclick = ()=>{ P.filtroSug = b.dataset.fsug; render(); });
   document.querySelectorAll('[data-sug]').forEach(el=>{ el.onclick = ()=> abrirSugestao(el.dataset.sug); el.onkeydown = (e)=>{ if(e.key==='Enter') abrirSugestao(el.dataset.sug); }; });
   document.querySelectorAll('[data-copiar]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(b.dataset.copiar).then(()=> toastC('Copiado!')));
+  document.querySelectorAll('[data-registrar]').forEach(b=> b.onclick = ()=> abrirRegistro(b.dataset.registrar));
+  document.querySelectorAll('[data-apagar-ent]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Apagar este registro?')) return;
+    const { error } = await sb.from('creator_entregas').delete().eq('id', b.dataset.apagarEnt);
+    if(error){ toastC('Não foi possível apagar.'); return; }
+    P.entregas = P.entregas.filter(e=> e.id !== b.dataset.apagarEnt); render();
+  });
+  document.querySelectorAll('[data-receber]').forEach(b=> b.onclick = async ()=>{
+    b.disabled = true;
+    const { error } = await sb.rpc('confirmar_recebimento_kit', { p_envio: b.dataset.receber });
+    if(error){ b.disabled = false; toastC(error.message || 'Não foi possível confirmar.'); return; }
+    const e = P.envios.find(x=> x.id === b.dataset.receber); if(e){ e.status = 'entregue'; e.entregue_em = todayISO(); }
+    toastC('Recebimento confirmado! Bons treinos 🧡'); CrMotion.confete(); render();
+  });
   const fc = $('formCupom');
   if(fc) fc.onsubmit = async (ev)=>{
     ev.preventDefault();
