@@ -819,7 +819,57 @@ function aniversarioNoMes(nascISO, ref){ ref = ref || new Date(); return !!nascI
 function mapCadastroFromDB(r){
   r = r || {};
   return { nomeCompleto:r.nome_completo||'', cpf:r.cpf||'', rg:r.rg||'', cnpj:r.cnpj||'', dataNascimento:r.data_nascimento||'',
-    tamanhoCamiseta:r.tamanho_camiseta||'', inicioParceria:r.inicio_parceria||'', fimContrato:r.fim_contrato||'', observacoes:r.observacoes||'' };
+    tamanhoCamiseta:r.tamanho_camiseta||'', inicioParceria:r.inicio_parceria||'', fimContrato:r.fim_contrato||'', observacoes:r.observacoes||'',
+    cupomCompras:r.cupom_compras||'' };
+}
+// Cupom de compras do atleta na Yampi: primeiro nome + 6 primeiros dígitos do CPF (ex.: LUIZ529982)
+function sugerirCupomCompras(nome, cpf){
+  const primeiro = String(nome||'').trim().split(/\s+/)[0] || '';
+  const semAcento = primeiro.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z]/g,'').toUpperCase();
+  const d = soDigitos(cpf).slice(0,6);
+  return semAcento && d.length === 6 ? semAcento + d : '';
+}
+
+/* ---------- Compras do atleta na Yampi (função yampi-compras-atleta, tabela atleta_compras) ---------- */
+const MIGRACAO_COMPRAS = 'migrations/2026-10-09_compras_atleta.sql';
+const normTexto = (s)=> String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+// Produto do catálogo que corresponde ao nome do item da Yampi (ex.: "Recovery FourLab 500g Morango" → Recovery)
+function produtoDoCatalogo(nomeYampi, produtos){
+  const n = ' ' + normTexto(nomeYampi) + ' ';
+  return (produtos||[]).slice().sort((a,b)=> b.name.length - a.name.length).find(p=> normTexto(p.name) && n.includes(' ' + normTexto(p.name) + ' ')) || null;
+}
+// Chips dos produtos mais pedidos. opts: {produtos (catálogo), max, clicavel (atributo data com o id do atleta)}
+function comprasChipsHtml(compra, opts){
+  opts = opts || {};
+  if(!compra) return '';
+  if(compra.erro) return `<span style="font-size:11px; color:var(--red);">Yampi: ${escHtml(compra.erro)}</span>`;
+  // junta sabores/tamanhos do mesmo produto do catálogo (ex.: Recovery Morango + Recovery Chocolate → Recovery)
+  const grupos = [];
+  (compra.itens||[]).forEach(it=>{
+    const p = produtoDoCatalogo(it.nome, opts.produtos), chave = p ? 'p:'+p.id : 'n:'+normTexto(it.nome);
+    const g = grupos.find(x=>x.chave===chave);
+    if(g){ g.quantidade += it.quantidade; g.pedidos += it.pedidos; if(it.ultima_compra > g.ultima_compra) g.ultima_compra = it.ultima_compra; g.nomes.push(it.nome); }
+    else grupos.push({chave, p, nome:it.nome, nomes:[it.nome], quantidade:it.quantidade, pedidos:it.pedidos, ultima_compra:it.ultima_compra});
+  });
+  grupos.sort((x,y)=> y.pedidos - x.pedidos || y.quantidade - x.quantidade);
+  const itens = grupos.slice(0, opts.max || 4);
+  if(!itens.length) return `<span style="font-size:11px; color:var(--muted);">🛒 nenhum pedido com o cupom ${escHtml(compra.cupom||'')} nos últimos meses</span>`;
+  return `<div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;"><span style="font-size:11px; color:var(--muted); font-weight:700;">🛒 Pediu:</span>${itens.map(it=>{
+    const p = it.p;
+    const titulo = `${it.nomes.join(' + ')} — ${it.quantidade} un., último pedido em ${fmtDateBR(it.ultima_compra)}`;
+    return p && opts.clicavel
+      ? `<button type="button" class="chip" data-usar-produto="${escHtml(p.id)}" data-atleta-compra="${escHtml(opts.clicavel)}" title="${escHtml(titulo)} · clique pra escolher" style="padding:3px 9px; font-size:11px; color:var(--green); border-color:#bfe6cd;">${escHtml(p.name)} ×${it.quantidade}</button>`
+      : `<span class="chip static" title="${escHtml(titulo)}" style="padding:3px 9px; font-size:11px;">${escHtml(p ? p.name : it.nome)} ×${it.quantidade}</span>`;
+  }).join('')}</div>`;
+}
+async function atualizarComprasYampi(athleteIds){
+  const { data, error } = await invocarFuncao('yampi-compras-atleta', { athleteIds, meses:6 });
+  if(error){
+    const semFuncao = error.name==='FunctionsFetchError' || /Failed to send a request/i.test(error.message||'');
+    throw new Error(semFuncao ? 'A função yampi-compras-atleta não respondeu. Ela precisa estar publicada no Supabase (Edge Functions).' : (error.message||'Erro ao buscar na Yampi'));
+  }
+  if(data?.error) throw new Error(data.error);
+  return data;
 }
 const TAMANHOS_CAMISETA = ['PP','P','M','G','GG','XGG'];
 

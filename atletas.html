@@ -27,7 +27,7 @@
 <script src="shared.js"></script>
 <script>
 // categoria: 'equipe' (atletas) ou 'profissional' (profissionais parceiros)
-const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true, iaAcesso:{}, iaTabela:true };
+const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true, iaAcesso:{}, iaTabela:true, comprasOk:false, compras:{}, produtos:[] };
 const MIGRACAO_IA = 'migrations/2026-10-07_ia_sugestoes.sql';
 const iaDe = (id)=> State.iaAcesso[id] || {liberada:false, limite_mes:10};
 const MIGRACAO_CADASTRO = 'migrations/2026-10-06a_cadastro_interno.sql';
@@ -64,7 +64,8 @@ async function saveOneAthlete(a){
 // Cadastro interno (tabela atleta_cadastro — só a equipe lê). Data vazia vira null.
 async function salvarCadastro(athleteId, c){
   const row = { athlete_id:athleteId, nome_completo:c.nomeCompleto, cpf:c.cpf, rg:c.rg, cnpj:c.cnpj, data_nascimento:c.dataNascimento||null,
-    tamanho_camiseta:c.tamanhoCamiseta, inicio_parceria:c.inicioParceria||null, fim_contrato:c.fimContrato||null, observacoes:c.observacoes, updated_at:new Date().toISOString() };
+    tamanho_camiseta:c.tamanhoCamiseta, inicio_parceria:c.inicioParceria||null, fim_contrato:c.fimContrato||null, observacoes:c.observacoes, updated_at:new Date().toISOString(),
+    ...(State.comprasOk ? { cupom_compras:c.cupomCompras } : {}) };
   const { error } = await sb.from('atleta_cadastro').upsert(row); if(error) throw error;
   State.cadastros[athleteId] = {...c};
 }
@@ -123,6 +124,7 @@ function viewAtletas(){
       ${isProfissional(a) ? '' : `<div class="row" style="justify-content:space-between; margin-top:12px;"><span class="pc-label" style="margin:0;">Últimos posts${taxa!=null?` · ${taxa}% postados`:''}</span>${postDotsHtml(a.id)}</div>`}
       <div class="row" style="margin-top:14px; gap:6px;">
         ${a.cupomYampi ? `<span class="chip static">${ICONS.vendas} ${escHtml(a.cupomYampi)}</span>` : ''}
+        ${cadastroDe(a.id).cupomCompras ? `<span class="chip static" title="Cupom de compras na Yampi">${ICONS.cart} ${escHtml(cadastroDe(a.id).cupomCompras)}</span>` : ''}
         ${a.recebeComissao ? `<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">${a.comissaoPct??10}% comissão</span>` : a.verVendas ? '<span class="chip static">vê volume de vendas</span>' : ''}
         ${!isProfissional(a) ? (last ? `<span class="chip static">${escHtml(last.product)} · ${shortMonth(last.ym)}</span>` : '<span class="chip static" style="color:var(--muted);">nunca postou</span>') : ''}
         ${a.dificuldadeGravacao==='sim' && !isProfissional(a) ? '<span class="chip static" style="color:#b5680a;">trava na câmera</span>' : ''}
@@ -267,6 +269,8 @@ function athleteDrawerHtml(a){
       <div class="cc-bottom"><span>${a.recebeComissao ? `PIX: ${a.pixKey?escHtml(a.pixKey):'<em style="opacity:0.7;">não cadastrado</em>'}` : (a.verVendas ? 'Sem comissão · vê só o volume de vendas' : 'Sem comissão · não vê a área de Vendas')}</span></div></div>`
       : '<div style="font-size:12.5px; color:var(--muted);">Sem cupom cadastrado.</div>'}
 
+    ${comprasDrawerHtml(a)}
+
     ${isProfissional(a) ? '' : `<div class="section-title">Perfil de conteúdo</div>
     <div class="row" style="gap:6px;">
       ${a.dificuldadeGravacao ? `<span class="chip static">${a.dificuldadeGravacao==='sim'?'Trava na câmera':'Solto na câmera'}</span>`:''}
@@ -285,6 +289,16 @@ function athleteDrawerHtml(a){
       <div><strong>${escHtml(e.product)}</strong> <span style="color:var(--muted);">· ${escHtml(e.format||'')}</span><div style="font-size:11px; color:var(--muted);">${fmtDateBR(e.date)}</div></div>
       <span class="status-dot ${e.postou==='sim'?'status-ok':e.postou==='nao'?'status-bad':'status-wait'}">${e.postou==='sim'?'Postou':e.postou==='nao'?'Não postou':'Pendente'}</span></div>`).join('')
       : '<div style="font-size:12.5px; color:var(--muted);">Nenhum post ainda.</div>'}`}`;
+}
+function comprasDrawerHtml(a){
+  const cupom = cadastroDe(a.id).cupomCompras;
+  if(!State.comprasOk || !cupom) return '';
+  const compra = State.compras[a.id];
+  return `<div class="section-title row" style="justify-content:space-between;"><span>Compras na Yampi</span>
+      <button class="btn btn-ghost btn-sm" id="drAtualizarCompras" style="padding:5px 10px;">↻ Atualizar</button></div>
+    <div style="font-size:12.5px; margin-bottom:6px;">${ICONS.cart.replace('width="18" height="18"','width="13" height="13"')} Cupom de compras: <strong style="font-family:monospace;">${escHtml(cupom)}</strong></div>
+    <div id="drCompras">${compra ? `${(compra.itens||[]).length ? `<div style="font-size:12px; color:var(--muted); margin-bottom:6px;">${compra.total_pedidos} pedido(s) nos últimos 6 meses${compra.ultima_compra?` · último em ${fmtDateBR(compra.ultima_compra)}`:''} · atualizado ${new Date(compra.atualizado_em).toLocaleDateString('pt-BR')}</div>` : ''}${comprasChipsHtml(compra, {produtos:State.produtos, max:10})}`
+      : '<div style="font-size:12.5px; color:var(--muted);">Ainda não buscamos os pedidos deste cupom. Clique em Atualizar.</div>'}</div>`;
 }
 function alertaContrato(c){
   if(!c.fimContrato) return '';
@@ -328,6 +342,12 @@ async function carregarRoteirosDoAtleta(a){
 function openAthleteDrawer(a){
   openDrawer(athleteDrawerHtml(a));
   carregarRoteirosDoAtleta(a);
+  const atu = document.getElementById('drAtualizarCompras');
+  if(atu) atu.onclick = async ()=>{
+    atu.disabled = true; atu.innerHTML = '<span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span> Buscando…';
+    try{ const r = await atualizarComprasYampi([a.id]); (r.resultados||[]).forEach(x=> State.compras[x.athlete_id] = x); openAthleteDrawer(a); toast('Compras atualizadas'); }
+    catch(err){ atu.disabled = false; atu.textContent = '↻ Atualizar'; mostrarFaixaErro('Não consegui buscar na Yampi.', escHtml(err.message)); }
+  };
   document.getElementById('drEditar').onclick = ()=>{ closeDrawer(); openAthleteModal(a); };
   const banco = document.getElementById('drBanco');
   if(banco) banco.onclick = async ()=>{
@@ -356,6 +376,11 @@ function cadastroFormHtml(a){
     <div class="grid-2" style="gap:12px;">
       <div class="field"><label>RG</label><input id="cRg" value="${escHtml(c.rg)}" autocomplete="off"></div>
       <div class="field"><label>CNPJ (se emitir nota)</label><input id="cCnpj" value="${escHtml(fmtCNPJ(c.cnpj))}" inputmode="numeric" placeholder="00.000.000/0000-00" autocomplete="off"></div></div>
+    <div class="field"><label>Cupom de compras na Yampi (se tiver)</label>
+      ${State.comprasOk ? `<div class="row" style="gap:8px;"><input id="cCupomCompras" value="${escHtml(c.cupomCompras)}" placeholder="primeiro nome + 6 dígitos do CPF" autocomplete="off" style="flex:1; min-width:180px; text-transform:uppercase; font-family:monospace;">
+        <button type="button" class="btn btn-ghost btn-sm" id="btnSugerirCupom">Preencher pelo nome + CPF</button></div>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">O cupom que a pessoa usa pra comprar os produtos dela. Com ele, a FourLab vê o que ela pede e escolhe produtos que ela usa de verdade nos roteiros.</div>`
+      : `<div style="font-size:12px; background:var(--orange-soft); border-radius:12px; padding:10px 12px;">Rode <code>${MIGRACAO_COMPRAS}</code> no Supabase pra cadastrar o cupom de compras.</div>`}</div>
     <div class="grid-2" style="gap:12px;">
       <div class="field"><label>E-mail</label><input id="fEmail" type="email" value="${escHtml(a.email||'')}" placeholder="nome@email.com"></div>
       <div class="field"><label>WhatsApp</label><input id="fWhatsapp" value="${escHtml(a.whatsapp||'')}" inputmode="tel" placeholder="(11) 99999-9999"></div></div>
@@ -376,7 +401,7 @@ function cadastroFormHtml(a){
 function lerCadastroForm(){
   const v = (id)=> (document.getElementById(id)?.value || '').trim();
   return { nomeCompleto:v('cNomeCompleto'), cpf:soDigitos(v('cCpf')), rg:v('cRg'), cnpj:soDigitos(v('cCnpj')), dataNascimento:v('cNascimento'),
-    tamanhoCamiseta:v('cCamiseta'), inicioParceria:v('cInicio'), fimContrato:v('cFim'), observacoes:v('cObs') };
+    tamanhoCamiseta:v('cCamiseta'), inicioParceria:v('cInicio'), fimContrato:v('cFim'), observacoes:v('cObs'), cupomCompras:v('cCupomCompras').toUpperCase() };
 }
 async function buscarCepForm(){
   const el = document.getElementById('fCep'), cep = soDigitos(el.value);
@@ -486,6 +511,13 @@ function wireAthleteModalHandlers(){
   const checaCpf = ()=>{ const d = soDigitos(cpf.value); cpfAviso.textContent = d.length===11 && !cpfValido(d) ? 'CPF inválido — confira os números' : ''; };
   cpf.oninput = ()=>{ cpf.value = fmtCPF(cpf.value); checaCpf(); };
   cnpj.oninput = ()=>{ cnpj.value = fmtCNPJ(cnpj.value); };
+  const sugerir = document.getElementById('btnSugerirCupom');
+  if(sugerir) sugerir.onclick = ()=>{
+    const nome = document.getElementById('cNomeCompleto').value || document.getElementById('fName').value;
+    const cupom = sugerirCupomCompras(nome, cpf.value);
+    if(!cupom){ toast('Preencha o nome e o CPF (11 dígitos) primeiro'); return; }
+    document.getElementById('cCupomCompras').value = cupom;
+  };
   document.getElementById('fCep').addEventListener('input', buscarCepForm);
 
   const btnCriarAcesso = document.getElementById('btnCriarAcesso');
@@ -618,6 +650,14 @@ function render(){
     sb.from('teams').select('id').limit(1),
     sb.from('atleta_cadastro').select('*'),
   ]);
+  const [probeCompras, compras, prods] = await Promise.all([
+    sb.from('atleta_cadastro').select('cupom_compras').limit(1),
+    sb.from('atleta_compras').select('*'),
+    sb.from('products').select('id, name').order('name'),
+  ]);
+  State.comprasOk = !probeCompras.error && !compras.error;
+  (compras.data||[]).forEach(r=> State.compras[r.athlete_id] = r);
+  State.produtos = prods.data || [];
   const ia = await sb.from('ia_acesso').select('*');
   State.iaTabela = !ia.error;
   (ia.data||[]).forEach(r=> State.iaAcesso[r.athlete_id] = {liberada:r.liberada, limite_mes:r.limite_mes});
