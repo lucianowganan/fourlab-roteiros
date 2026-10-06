@@ -330,11 +330,13 @@ async function carregarRoteirosDoAtleta(a){
   if(error){ el.textContent = 'Não consegui carregar os roteiros.'; return; }
   const lista = (data||[]).filter(r=> (r.roteiro||'').trim()).map(r=>({ id:r.id, date:r.post_date, product:r.product, format:r.format, roteiro:r.roteiro||'', ...camposEnvioDeLinha(r) }));
   const desenhar = ()=>{
-    el.innerHTML = lista.length ? lista.map(e=>`<div style="padding:9px 0; border-bottom:1px solid #f3eee8;">
+    el.innerHTML = `<div style="margin-bottom:6px;"><button class="btn btn-ghost btn-sm" id="drPostManual" style="padding:5px 10px;">✍️ Novo post manual</button></div>` + (lista.length ? lista.map(e=>`<div style="padding:9px 0; border-bottom:1px solid #f3eee8;">
         <div class="row" style="justify-content:space-between; gap:8px;"><div style="color:var(--ink);"><strong>${fmtDateBR(e.date)}</strong> · ${escHtml(e.product||'')} · ${escHtml(e.format||'')}</div>
           <button class="btn btn-ghost btn-sm" data-dr-roteiro="${e.id}" style="padding:5px 10px;">Abrir</button></div>
         <div class="row" style="gap:4px; margin-top:5px;">${tagsRoteiroHtml(e)}</div></div>`).join('')
-      : 'Nenhum roteiro gerado ainda.';
+      : 'Nenhum roteiro gerado ainda.');
+    document.getElementById('drPostManual').onclick = ()=> abrirPostManual({ atletas:State.athletes, produtos:State.produtos, athleteId:a.id,
+      onCriado:(r)=>{ lista.unshift({ id:r.id, date:r.post_date, product:r.product, format:r.format, roteiro:r.roteiro||'', ...camposEnvioDeLinha(r) }); desenhar(); } });
     el.querySelectorAll('[data-dr-roteiro]').forEach(b=> b.onclick = ()=> abrirRoteiroDaEquipe(lista.find(x=>x.id===b.dataset.drRoteiro), a.name, ()=>{ lista.splice(0, lista.length, ...lista.filter(x=> x.roteiro.trim())); desenhar(); }));
   };
   desenhar();
@@ -653,11 +655,11 @@ function render(){
   const [probeCompras, compras, prods] = await Promise.all([
     sb.from('atleta_cadastro').select('cupom_compras').limit(1),
     sb.from('atleta_compras').select('*'),
-    sb.from('products').select('id, name').order('name'),
+    sb.from('products').select('id, name, descricao').order('name'),
   ]);
   State.comprasOk = !probeCompras.error && !compras.error;
   (compras.data||[]).forEach(r=> State.compras[r.athlete_id] = r);
-  State.produtos = prods.data || [];
+  State.produtos = (prods.data || []).map(p=>({id:p.id, name:p.name, desc:p.descricao||''}));
   const ia = await sb.from('ia_acesso').select('*');
   State.iaTabela = !ia.error;
   (ia.data||[]).forEach(r=> State.iaAcesso[r.athlete_id] = {liberada:r.liberada, limite_mes:r.limite_mes});
