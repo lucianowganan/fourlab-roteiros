@@ -1,0 +1,254 @@
+<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sugestões de conteúdo · FourLab</title>
+<meta name="description" content="Painel FourLab para atletas e parceiros: roteiros de conteúdo, vendas do cupom e perfil em um só lugar.">
+<meta name="theme-color" content="#140e10">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="FourLab">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="FourLab">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:title" content="Painel dos atletas FourLab">
+<meta property="og:description" content="Seus roteiros, suas vendas e seu cupom em um só lugar.">
+<meta property="og:url" content="https://lucianowganan.github.io/fourlab-roteiros/">
+<meta property="og:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Painel dos atletas FourLab">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://lucianowganan.github.io/fourlab-roteiros/assets/og-image.jpg">
+<link rel="stylesheet" href="shared.css"></head><body>
+<div class="shell" id="appShell"><div id="sidebarMount"></div>
+<main id="main"><div class="empty-state"><span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span></div></main></div>
+<div id="modalBg" class="modal-bg"><div id="modalBox" class="modal-box"></div></div><div id="toast" class="toast"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="shared.js"></script>
+<input type="file" id="arquivoImagem" accept="image/*" style="display:none;">
+<script>
+/* Sugestões de conteúdo: ideias de reels, sequências de stories, carrosséis etc.
+   que a equipe monta (com imagens de referência e passo a passo) pros atletas e parceiros gravarem,
+   além dos roteiros do mês. Os atletas marcam "quero gravar" / "já gravei" — base da futura gamificação. */
+const MIGRACAO = 'migrations/2026-10-06_cadastro_sugestoes.sql';
+const State = { sugestoes:[], gravacoes:[], produtos:[], tabelaOk:true, filtroTipo:'todos', filtroStatus:'todas', edit:null, enviando:false, profile:null };
+
+async function carregar(){
+  const [sug, grav, prod] = await Promise.all([
+    sb.from('sugestoes_conteudo').select('*').order('fixada', {ascending:false}).order('created_at', {ascending:false}),
+    sb.from('sugestao_gravacoes').select('*, athletes(name, team)').order('updated_at', {ascending:false}),
+    sb.from('products').select('name').order('name'),
+  ]);
+  State.tabelaOk = !sug.error; State.sugestoes = sug.data || [];
+  State.gravacoes = grav.data || []; State.produtos = (prod.data || []).map(p=>p.name);
+}
+const gravacoesDe = (id)=> State.gravacoes.filter(g=> g.sugestao_id === id);
+
+/* ---------- Lista ---------- */
+function view(){
+  if(!State.tabelaOk) return `<div class="page-head"><div><h1>Sugestões de conteúdo</h1></div></div>
+    <div class="panel"><div class="empty-state"><div class="big">🛠️</div>Rode <code>${MIGRACAO}</code> no SQL Editor do Supabase e recarregue.</div></div>`;
+  const porTipo = (t)=> State.sugestoes.filter(s=> t==='todos' || s.tipo===t);
+  const lista = porTipo(State.filtroTipo).filter(s=> State.filtroStatus==='todas' || (State.filtroStatus==='publicadas' ? s.publicada : !s.publicada));
+  const gravaram = State.gravacoes.filter(g=>g.status==='gravei').length;
+  const stat = (n, label)=> `<div><span style="font-size:34px; font-weight:500; letter-spacing:-1px;">${n}</span> <span style="font-size:14px;">${label}</span></div>`;
+  return `
+  <div class="page-head">
+    <div><h1>Sugestões de conteúdo</h1><div class="sub">Ideias extras pra gravar — além dos roteiros do mês. Monte o passo a passo com imagens e publique pros atletas e parceiros.</div></div>
+    <div class="row" style="gap:26px;">${stat(State.sugestoes.filter(s=>s.publicada).length, 'Publicadas')}${stat(gravaram, 'Gravações')}
+      <button class="btn btn-dark" id="btnNova">${ICONS.plus} Nova sugestão</button></div>
+  </div>
+  <div class="row" style="justify-content:space-between; gap:12px; margin-bottom:16px;">
+    <div class="filter-pills">
+      <button class="fpill ${State.filtroTipo==='todos'?'active':''}" data-tipo="todos">Todas <span class="count">${State.sugestoes.length}</span></button>
+      ${Object.entries(SUGESTAO_TIPOS).filter(([k])=> porTipo(k).length).map(([k,t])=>`<button class="fpill ${State.filtroTipo===k?'active':''}" data-tipo="${k}">${t.emoji} ${t.curto||t.label} <span class="count">${porTipo(k).length}</span></button>`).join('')}
+    </div>
+    <div class="seg">${[['todas','Todas'],['publicadas','Publicadas'],['rascunhos','Rascunhos']].map(([k,l])=>`<button class="${State.filtroStatus===k?'active':''}" data-status="${k}">${l}</button>`).join('')}</div>
+  </div>
+  ${lista.length ? `<div class="sug-grid">${lista.map(s=>{ const g = gravacoesDe(s.id), feitos = g.filter(x=>x.status==='gravei').length, querem = g.length - feitos;
+      return sugestaoCardHtml(s, {rascunho:!s.publicada, extra: `<div style="font-size:12px; color:var(--muted); margin-top:10px; border-top:1px solid #f3eee8; padding-top:10px;">
+        ${s.publicada ? `✅ <strong style="color:var(--ink);">${feitos}</strong> gravaram · 🙋 <strong style="color:var(--ink);">${querem}</strong> querem gravar` : 'Só a equipe vê — publique quando estiver pronta.'}</div>`}); }).join('')}</div>`
+    : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? 'Nada com esse filtro.' : 'Nenhuma sugestão ainda. Crie a primeira — por exemplo, uma sequência de 5 stories mostrando a rotina de treino com o produto.'}</div></div>`}`;
+}
+
+function render(){
+  document.getElementById('main').innerHTML = view();
+  if(!State.tabelaOk) return;
+  document.getElementById('btnNova').onclick = ()=> abrirEditor(null);
+  document.querySelectorAll('[data-tipo]').forEach(b=> b.onclick = ()=>{ State.filtroTipo = b.dataset.tipo; render(); });
+  document.querySelectorAll('[data-status]').forEach(b=> b.onclick = ()=>{ State.filtroStatus = b.dataset.status; render(); });
+  document.querySelectorAll('[data-abrir-sugestao]').forEach(el=>{
+    el.onclick = ()=> abrirDetalhe(el.dataset.abrirSugestao);
+    el.onkeydown = (e)=>{ if(e.key==='Enter') abrirDetalhe(el.dataset.abrirSugestao); };
+  });
+}
+
+/* ---------- Detalhe (como o atleta vê + quem gravou) ---------- */
+function abrirDetalhe(id){
+  const s = State.sugestoes.find(x=>x.id===id); if(!s) return;
+  const g = gravacoesDe(id);
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button>
+    <div class="row" style="gap:6px; margin-bottom:12px;">
+      <span class="badge" style="background:${s.publicada?'var(--green-soft)':'var(--ink)'}; color:${s.publicada?'var(--green)':'#fff'};">${s.publicada?'Publicada':'Rascunho'}</span>
+      <span class="chip static">${ICONS.atletas.replace('width="18" height="18"','width="12" height="12"')} ${SUGESTAO_PUBLICO[s.publico]||''}</span></div>
+    ${sugestaoDetalheHtml(s)}
+    <div class="section-title">Quem participou</div>
+    ${g.length ? g.map(x=>`<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;">
+        <div class="row" style="gap:8px; min-width:0;">${avatarHtml(x.athletes?.name||'?','sm')}<div style="min-width:0;"><strong>${escHtml(x.athletes?.name||'—')}</strong> <span style="color:var(--muted);">· ${escHtml(x.athletes?.team||'')}</span>
+          ${x.link?`<div><a href="${escHtml(x.link)}" target="_blank" rel="noopener" style="color:var(--orange); font-size:12px; word-break:break-all;">${escHtml(x.link)}</a></div>`:''}</div></div>
+        <span class="status-dot ${x.status==='gravei'?'status-ok':'status-wait'}">${x.status==='gravei'?'Gravou':'Quer gravar'}</span></div>`).join('')
+      : '<div style="font-size:12.5px; color:var(--muted);">Ninguém marcou ainda.</div>'}
+    <div class="row" style="justify-content:space-between; margin-top:18px; gap:8px;">
+      <button class="btn btn-ghost btn-sm" id="btnDuplicar">Duplicar</button>
+      <div class="row" style="gap:8px;">
+        <button class="btn btn-outline btn-sm" id="btnPublicarToggle">${s.publicada?'Voltar pra rascunho':'Publicar'}</button>
+        <button class="btn btn-dark btn-sm" id="btnEditar">Editar</button></div></div>`, {largo:true});
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('btnEditar').onclick = ()=> abrirEditor(s);
+  document.getElementById('btnDuplicar').onclick = ()=>{ const c = JSON.parse(JSON.stringify(s)); delete c.id; c.titulo = (c.titulo||'') + ' (cópia)'; c.publicada = false; c.fixada = false; abrirEditor(c); };
+  ligarCopiarRoteiro(s);
+  document.getElementById('btnPublicarToggle').onclick = async (ev)=>{
+    ev.target.disabled = true;
+    const { error } = await sb.from('sugestoes_conteudo').update({publicada:!s.publicada, updated_at:new Date().toISOString()}).eq('id', s.id);
+    if(error){ erroBanco(error, MIGRACAO); ev.target.disabled = false; return; }
+    s.publicada = !s.publicada; toast(s.publicada ? 'Publicada — já aparece pros atletas' : 'Voltou pra rascunho'); render(); abrirDetalhe(s.id);
+  };
+}
+function ligarCopiarRoteiro(s){
+  document.querySelectorAll('[data-copiar-roteiro-sug]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(s.roteiro||'').then(()=> toast('Roteiro copiado')));
+}
+
+/* ---------- Editor ---------- */
+function novaSugestao(){ return {titulo:'', tipo:'stories', objetivo:'', roteiro:'', passos:[{texto:'',dica:'',imagem:''},{texto:'',dica:'',imagem:''},{texto:'',dica:'',imagem:''}],
+  referencias:'', capa_url:'', produto:'', dificuldade:'facil', publico:'todos', pontos:0, publicada:false, fixada:false}; }
+
+function editorHtml(){
+  const s = State.edit, tipo = tipoSugestao(s.tipo);
+  const opt = (v, atual, label)=> `<option value="${escHtml(v)}" ${v===atual?'selected':''}>${escHtml(label||v)}</option>`;
+  return `<button class="modal-close" id="modalCloseBtn">&times;</button><h3>${s.id ? 'Editar sugestão' : 'Nova sugestão'}</h3>
+    <div class="field"><label>Tipo de conteúdo</label>
+      <div class="seg" id="sTipo">${Object.entries(SUGESTAO_TIPOS).map(([k,t])=>`<button type="button" data-set-tipo="${k}" class="${s.tipo===k?'active':''}">${t.emoji} ${t.curto||t.label}</button>`).join('')}</div></div>
+    <div class="field"><label>Título</label><input id="sTitulo" value="${escHtml(s.titulo)}" placeholder="Ex: Minha manhã de treino em 5 stories"></div>
+    <div class="field"><label>A ideia (resumo que aparece no card)</label><textarea id="sObjetivo" style="min-height:70px;" placeholder="O que é, por que funciona e quando postar">${escHtml(s.objetivo)}</textarea></div>
+    <div class="grid-3" style="gap:12px;">
+      <div class="field"><label>Produto (opcional)</label><select id="sProduto">${opt('', s.produto, 'Nenhum / qualquer')}${State.produtos.map(p=>opt(p, s.produto)).join('')}${s.produto && !State.produtos.includes(s.produto) ? opt(s.produto, s.produto) : ''}</select></div>
+      <div class="field"><label>Dificuldade</label><select id="sDificuldade">${Object.entries(SUGESTAO_DIFICULDADE).map(([k,d])=>opt(k, s.dificuldade, d.label)).join('')}</select></div>
+      <div class="field"><label>Quem vê</label><select id="sPublico">${Object.entries(SUGESTAO_PUBLICO).map(([k,l])=>opt(k, s.publico, l)).join('')}</select></div></div>
+
+    <div class="section-title row" style="justify-content:space-between;"><span>Passo a passo visual · ${tipo.plural}</span>
+      <span style="font-size:11.5px; color:var(--muted); font-weight:500; text-transform:none; letter-spacing:0;">Toque no quadro pra pôr uma imagem de referência</span></div>
+    <div id="passosLista">${(s.passos||[]).map((p,i)=>`<div class="passo-ed">
+        <div class="passo-img ${p.imagem?'tem':''}" data-img-passo="${i}" style="aspect-ratio:${tipo.proporcao}; ${p.imagem?`background-image:url('${escHtml(p.imagem)}');`:''}" title="${p.imagem?'Trocar imagem':'Adicionar imagem'}">${p.imagem?'':'+ imagem'}</div>
+        <div style="min-width:0;">
+          <div style="font-size:11px; font-weight:700; color:var(--muted); margin-bottom:4px;">${tipo.passo} ${i+1}</div>
+          <textarea data-passo-texto="${i}" style="min-height:58px;" placeholder="O que aparece / o que falar nesta ${tipo.passo.toLowerCase()}">${escHtml(p.texto||'')}</textarea>
+          <input data-passo-dica="${i}" value="${escHtml(p.dica||'')}" placeholder="Dica de gravação (opcional) — ex: câmera frontal, luz natural" style="margin-top:6px;">
+          ${p.imagem ? `<button type="button" class="btn btn-ghost btn-sm" data-tirar-img="${i}" style="margin-top:6px;">Remover imagem</button>` : ''}
+        </div>
+        <div class="passo-acoes">
+          <button type="button" data-mover="${i}" data-dir="-1" title="Subir" ${i===0?'disabled':''}>↑</button>
+          <button type="button" data-mover="${i}" data-dir="1" title="Descer" ${i===s.passos.length-1?'disabled':''}>↓</button>
+          <button type="button" data-remover-passo="${i}" title="Remover">${ICONS.trash.replace('width="18" height="18"','width="13" height="13"')}</button></div>
+      </div>`).join('')}</div>
+    <button type="button" class="btn btn-ghost btn-sm" id="btnAddPasso">${ICONS.plus.replace('width="18" height="18"','width="13" height="13"')} Adicionar ${tipo.passo.toLowerCase()}</button>
+
+    <div class="field" style="margin-top:18px;"><label>Roteiro / texto completo (opcional)</label>
+      <textarea id="sRoteiro" style="min-height:120px;" placeholder="Falas, legenda, CTA... Use **negrito** e listas com -">${escHtml(s.roteiro)}</textarea></div>
+    <div class="field"><label>Inspirações (links, um por linha)</label><textarea id="sReferencias" style="min-height:60px;" placeholder="https://www.instagram.com/reel/...">${escHtml(s.referencias)}</textarea></div>
+    <div class="grid-2" style="gap:12px; align-items:end;">
+      <div class="field"><label>Capa do card (opcional)</label>
+        <div class="row" style="gap:10px;">${s.capa_url ? `<span style="width:64px; height:40px; border-radius:10px; background:url('${escHtml(s.capa_url)}') center/cover;"></span>` : ''}
+          <button type="button" class="btn btn-ghost btn-sm" id="btnCapa">${s.capa_url?'Trocar capa':'Escolher imagem'}</button>
+          ${s.capa_url?'<button type="button" class="btn btn-ghost btn-sm" id="btnTirarCapa">Remover</button>':''}</div>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Sem capa, o card usa a 1ª imagem do passo a passo.</div></div>
+      <div class="field"><label>Pontos (gamificação — pode deixar 0 por enquanto)</label><input id="sPontos" type="number" min="0" value="${Number(s.pontos)||0}" style="max-width:140px;"></div></div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; text-transform:none; letter-spacing:0; margin:4px 0 10px;"><input type="checkbox" id="sFixada" ${s.fixada?'checked':''}> 📌 Destacar no topo</label>
+    <div id="sEnviando" style="font-size:12px; color:var(--muted); min-height:16px;">${State.enviando ? '<span class="loader" style="border-top-color:var(--orange); border-color:rgba(0,0,0,0.1);"></span> Enviando imagem...' : ''}</div>
+    <div class="row" style="justify-content:space-between; margin-top:10px; gap:8px;">
+      ${s.id ? '<button class="btn btn-danger btn-sm" id="btnExcluir">Excluir</button>' : '<span></span>'}
+      <div class="row" style="gap:8px;">
+        <button class="btn btn-ghost" id="btnSalvarRascunho" ${State.enviando?'disabled':''}>${s.publicada ? 'Salvar e despublicar' : 'Salvar rascunho'}</button>
+        <button class="btn btn-primary" id="btnSalvarPublicar" ${State.enviando?'disabled':''}>${s.publicada ? 'Salvar' : 'Publicar'}</button></div></div>`;
+}
+
+// Copia o que foi digitado pro State antes de redesenhar (pra não perder nada)
+function lerEditor(){
+  const s = State.edit, v = (id)=> document.getElementById(id)?.value ?? '';
+  if(!document.getElementById('sTitulo')) return;
+  Object.assign(s, { titulo:v('sTitulo').trim(), objetivo:v('sObjetivo').trim(), produto:v('sProduto'), dificuldade:v('sDificuldade'), publico:v('sPublico'),
+    roteiro:v('sRoteiro').trim(), referencias:v('sReferencias').trim(), pontos:Math.max(0, parseInt(v('sPontos'))||0), fixada:document.getElementById('sFixada').checked });
+  document.querySelectorAll('[data-passo-texto]').forEach(t=> s.passos[t.dataset.passoTexto].texto = t.value);
+  document.querySelectorAll('[data-passo-dica]').forEach(t=> s.passos[t.dataset.passoDica].dica = t.value);
+}
+function redesenharEditor(){
+  const box = document.getElementById('modalBox'), topo = box.scrollTop;
+  openModal(editorHtml(), {largo:true}); ligarEditor(); box.scrollTop = topo;
+}
+function escolherImagem(onArquivo){
+  const inp = document.getElementById('arquivoImagem'); inp.value = '';
+  inp.onchange = async ()=>{
+    const f = inp.files[0]; if(!f) return;
+    if(!f.type.startsWith('image/')){ toast('Escolha uma imagem'); return; }
+    lerEditor(); State.enviando = true; redesenharEditor();
+    try{ const url = await enviarImagemSugestao(f); onArquivo(url); }
+    catch(err){ erroBanco(err, MIGRACAO); }
+    State.enviando = false; redesenharEditor();
+  };
+  inp.click();
+}
+function ligarEditor(){
+  const s = State.edit;
+  document.getElementById('modalCloseBtn').onclick = ()=>{ if(confirm('Fechar sem salvar?')) closeModal(); };
+  document.querySelectorAll('[data-set-tipo]').forEach(b=> b.onclick = ()=>{ lerEditor(); s.tipo = b.dataset.setTipo; redesenharEditor(); });
+  document.getElementById('btnAddPasso').onclick = ()=>{ lerEditor(); s.passos.push({texto:'',dica:'',imagem:''}); redesenharEditor();
+    const ult = document.querySelectorAll('[data-passo-texto]'); ult[ult.length-1]?.focus(); };
+  document.querySelectorAll('[data-remover-passo]').forEach(b=> b.onclick = ()=>{ lerEditor(); s.passos.splice(Number(b.dataset.removerPasso), 1); redesenharEditor(); });
+  document.querySelectorAll('[data-mover]').forEach(b=> b.onclick = ()=>{ lerEditor(); const i = Number(b.dataset.mover), j = i + Number(b.dataset.dir);
+    [s.passos[i], s.passos[j]] = [s.passos[j], s.passos[i]]; redesenharEditor(); });
+  document.querySelectorAll('[data-img-passo]').forEach(el=> el.onclick = ()=>{ if(State.enviando) return; escolherImagem(url=> s.passos[el.dataset.imgPasso].imagem = url); });
+  document.querySelectorAll('[data-tirar-img]').forEach(b=> b.onclick = ()=>{ lerEditor(); s.passos[b.dataset.tirarImg].imagem = ''; redesenharEditor(); });
+  document.getElementById('btnCapa').onclick = ()=>{ if(!State.enviando) escolherImagem(url=> s.capa_url = url); };
+  const tirar = document.getElementById('btnTirarCapa'); if(tirar) tirar.onclick = ()=>{ lerEditor(); s.capa_url = ''; redesenharEditor(); };
+  document.getElementById('btnSalvarRascunho').onclick = (ev)=> salvar(ev, false);
+  document.getElementById('btnSalvarPublicar').onclick = (ev)=> salvar(ev, true);
+  const exc = document.getElementById('btnExcluir');
+  if(exc) exc.onclick = async ()=>{
+    if(!confirm('Excluir esta sugestão? As marcações de quem gravou também somem.')) return;
+    const { error } = await sb.from('sugestoes_conteudo').delete().eq('id', s.id);
+    if(error){ erroBanco(error, MIGRACAO); return; }
+    State.sugestoes = State.sugestoes.filter(x=>x.id!==s.id); closeModal(); toast('Sugestão excluída'); render();
+  };
+}
+async function salvar(ev, publicar){
+  lerEditor();
+  const s = State.edit;
+  if(!s.titulo){ toast('Dê um título pra sugestão'); document.getElementById('sTitulo').focus(); return; }
+  const row = { titulo:s.titulo, tipo:s.tipo, objetivo:s.objetivo, roteiro:s.roteiro, referencias:s.referencias, capa_url:s.capa_url||'', produto:s.produto||'',
+    dificuldade:s.dificuldade, publico:s.publico, pontos:s.pontos, fixada:s.fixada, publicada:publicar,
+    passos:(s.passos||[]).filter(p=> p.texto.trim() || (p.dica||'').trim() || p.imagem).map(p=>({texto:p.texto.trim(), dica:(p.dica||'').trim(), imagem:p.imagem||''})),
+    updated_at:new Date().toISOString() };
+  const btn = ev.currentTarget, txt = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Salvando…';
+  const res = s.id ? await sb.from('sugestoes_conteudo').update(row).eq('id', s.id).select().single()
+                   : await sb.from('sugestoes_conteudo').insert({...row, autor: State.profile?.nome || ''}).select().single();
+  if(res.error){ erroBanco(res.error, MIGRACAO); btn.disabled = false; btn.innerHTML = txt; return; }
+  const i = State.sugestoes.findIndex(x=>x.id===res.data.id);
+  if(i > -1) State.sugestoes[i] = res.data; else State.sugestoes.unshift(res.data);
+  State.sugestoes.sort((a,b)=> (b.fixada-a.fixada) || b.created_at.localeCompare(a.created_at));
+  closeModal(); toast(publicar ? 'Publicada — já aparece pros atletas' : 'Rascunho salvo'); render();
+}
+function abrirEditor(s){
+  State.edit = s ? JSON.parse(JSON.stringify(s)) : novaSugestao();
+  if(!Array.isArray(State.edit.passos)) State.edit.passos = [];
+  State.edit.passos = State.edit.passos.map(p=>({texto:p.texto||'', dica:p.dica||'', imagem:p.imagem||''}));
+  State.enviando = false;
+  openModal(editorHtml(), {largo:true}); ligarEditor();
+}
+
+(async function start(){
+  const auth = await guardStaff('sugestoes'); if(!auth) return;
+  State.profile = auth.profile;
+  await carregar();
+  render();
+})();
+</script></body></html>
