@@ -107,7 +107,8 @@ function abrirPagamento(a){
     <div class="grid-2" style="gap:12px;">
       <div class="field"><label>Valor pago (R$)</label><input id="pgValor" type="number" step="0.01" min="0" value="${valorInicial.toFixed(2)}"></div>
       <div class="field"><label>Data do pagamento</label><input id="pgData" type="date" value="${todayISO()}"></div></div>
-    <div class="field"><label>Observação (opcional)</label><input id="pgObs" placeholder="Ex: PIX enviado, comprovante no drive"></div>
+    <div class="field"><label>Observação (opcional)</label><input id="pgObs" placeholder="Ex: PIX enviado"></div>
+    ${campoComprovanteHtml('pgArquivo')}
     <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">O valor é descontado do saldo do atleta, e o mês aparece como "Pago" no extrato dele.</div>
     <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnSalvarPg">Registrar pagamento</button></div>`);
   document.getElementById('modalCloseBtn').onclick = closeModal;
@@ -119,6 +120,10 @@ function abrirPagamento(a){
     const { data: novo, error } = await sb.from('comissao_pagamentos').insert({ athlete_id:a.id, valor, pago_em:data, ym:monthKey(data), obs:document.getElementById('pgObs').value.trim() }).select().single();
     if(error){ erroBanco(error, 'migrations/2026-09-29_pagamentos_comissao.sql'); ev.target.disabled = false; return; }
     pagamentos.push(novo); pagamentos.sort((x,y)=> String(x.pago_em).localeCompare(String(y.pago_em)));
+    // comprovante: aparece pro atleta no Meu Perfil (mesmo sem arquivo, fica o registro do pagamento)
+    try{ await salvarComprovante({ athleteId:a.id, data, valor, tipo:'comissao', arquivo:document.getElementById('pgArquivo').files[0],
+      descricao:`Comissão do cupom ${a.cupomYampi.toUpperCase()}${document.getElementById('pgObs').value.trim()?` — ${document.getElementById('pgObs').value.trim()}`:''}` }); }
+    catch(err){ mostrarFaixaErro('Pagamento registrado, mas o comprovante não foi salvo.', `${escHtml(err.message||err)}<br>Anexe de novo na ficha do atleta.`); }
     saldos[a.id] = await historicoComissao(a, {pagamentos});
     closeModal(); toast('Pagamento registrado'); atualizarBlocoComissoes();
   };
@@ -180,6 +185,7 @@ function viewVendas(){
     </div>
   </div>
 
+  <div id="blocoFees"></div>
   <div id="blocoComissoes">${blocoComissoesHtml()}</div>
 
   <div class="panel">
@@ -210,6 +216,9 @@ function render(){
   });
   if(atletaSel) disparar();
   atualizarBlocoComissoes();
+  // fee mensal + rebate: o rebate pago desconta do saldo de comissão, então recalcula o saldo de quem foi pago
+  iniciarBlocoFees('blocoFees', ym, athletes, { aoPagar: async (i)=>{ const pag = await carregarPagamentosComissao(); pagamentos = pag.pagamentos;
+    if(saldos[i.a.id]){ saldos[i.a.id] = await historicoComissao(i.a, {pagamentos}); atualizarBlocoComissoes(); } } });
 }
 (async function start(){
   const auth = await guardStaff('vendas'); if(!auth) return;
