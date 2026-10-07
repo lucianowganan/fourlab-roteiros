@@ -133,6 +133,7 @@ function view(){
       <div><div style="font-size:26px; font-weight:700; font-family:var(--font-title);">${gravei}</div><div style="font-size:11.5px; color:var(--muted);">gravadas</div></div>
       <div><div style="font-size:26px; font-weight:700; font-family:var(--font-title);">${quero}</div><div style="font-size:11.5px; color:var(--muted);">na sua lista</div></div></div>` : ''}</div>
   ${cardIaHtml()}
+  ${iaLiberada() ? `<div class="panel"><div class="card-head"><div><h2>Gerador de ganchos</h2><div class="desc">A frase dos primeiros 3 segundos, que prende quem está rolando o feed. Cada geração conta como 1 das suas ideias do mês.</div></div></div>${ganchosFormHtml(State.produtos)}</div>` : ''}
   ${State.sugestoes.length || ideiasIa().length ? `<div class="filter-pills" style="margin-bottom:16px;">${filtros.map(([k,l,n])=>`<button class="fpill ${State.filtro===k?'active':''}" data-filtro="${k}">${l} <span class="count">${n}</span></button>`).join('')}</div>` : ''}
   ${lista.length ? `<div class="sug-grid">${lista.map(s=> s.ia ? sugestaoCardHtml(s, {extra: `<div class="sug-selo" style="background:var(--orange-soft); color:#b5480a;">✨ Criada pela IA${s.avaliacao==='bom'?' · 👍':s.avaliacao==='ruim'?' · 👎':''}</div>`}).replace('data-abrir-sugestao=','data-abrir-ia=') : sugestaoCardHtml(s, {extra: seloMinha(s)})).join('')}</div>`
     : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? (State.filtro==='quero' ? 'Abra uma ideia e toque em "Quero gravar" pra guardar aqui.' : State.filtro==='gravei' ? 'Quando gravar uma ideia, marque "Já gravei" nela.' : 'Nada aqui.') : 'Nenhuma ideia publicada ainda. Logo chegam sugestões novas!'}</div></div>`}`;
@@ -142,6 +143,7 @@ function render(){
   document.getElementById('main').innerHTML = view();
   document.querySelectorAll('[data-filtro]').forEach(b=> b.onclick = ()=>{ State.filtro = b.dataset.filtro; render(); });
   const pedir = document.getElementById('btnPedirIa'); if(pedir) pedir.onclick = abrirPedirIa;
+  if(iaLiberada() && document.getElementById('gGerar')) ligarGanchosForm({ aoGerar:(d)=>{ if(d && !d.erro || d?.restantes != null){ State.pedidosIa.unshift({id:'g'+Date.now(), status:'ok', created_at:new Date().toISOString()}); const el = document.querySelector('#btnPedirIa')?.closest('.card')?.querySelector('div > div:last-child'); if(el) el.textContent = el.textContent.replace(/\d+ de (\d+) ideias/, `${iaRestantes()} de $1 ideias`); } } });
   document.querySelectorAll('[data-abrir-ia]').forEach(el=>{ el.onclick = ()=> abrirIdeiaIa(el.dataset.abrirIa); el.onkeydown = (e)=>{ if(e.key==='Enter') abrirIdeiaIa(el.dataset.abrirIa); }; });
   document.querySelectorAll('[data-abrir-sugestao]').forEach(el=>{
     el.onclick = ()=> abrirDetalhe(el.dataset.abrirSugestao);

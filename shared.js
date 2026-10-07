@@ -1373,3 +1373,40 @@ function abrirNovoComprovante(a, onSalvo){
     }catch(err){ btn.disabled = false; btn.textContent = 'Salvar comprovante'; erroBanco(err, MIGRACAO_COMPROVANTES); }
   };
 }
+
+/* ---------- Gerador de ganchos (Sugestões de conteúdo; mesma liberação/limite da IA de ideias) ---------- */
+const MIGRACAO_GANCHOS = 'migrations/2026-10-13_gerador_ganchos.sql';
+function ganchosFormHtml(produtos){
+  return `<div class="field"><label>Formato</label><div class="seg" id="gTipo">${['reels','stories','carrossel','tiktok'].map((k,i)=>`<button type="button" data-g-tipo="${k}" class="${i===0?'active':''}">${escHtml(SUGESTAO_TIPOS[k].curto||SUGESTAO_TIPOS[k].label)}</button>`).join('')}</div></div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Produto (opcional)</label><select id="gProduto"><option value="">Nenhum</option>${(produtos||[]).map(p=>`<option>${escHtml(p)}</option>`).join('')}</select></div>
+      <div class="field"><label>Tema (opcional)</label><input id="gPedido" maxlength="${IA_MAX_PEDIDO}" placeholder="Ex: recuperação depois do longão de domingo"></div></div>
+    <div id="gErro" style="font-size:12.5px; color:var(--red); margin-bottom:8px;"></div>
+    <button class="btn btn-primary" id="gGerar">Gerar ganchos</button>
+    <div id="gResultado" style="margin-top:14px;"></div>`;
+}
+// opts: {aoAprovar(gancho)} — se passado, mostra o botão "Bom gancho" (só a equipe)
+function ligarGanchosForm(opts){
+  opts = opts || {};
+  let tipo = 'reels';
+  document.querySelectorAll('[data-g-tipo]').forEach(b=> b.onclick = ()=>{ tipo = b.dataset.gTipo; document.querySelectorAll('[data-g-tipo]').forEach(x=>x.classList.toggle('active', x===b)); });
+  document.getElementById('gGerar').onclick = async (ev)=>{
+    const btn = ev.currentTarget, erro = document.getElementById('gErro'), res = document.getElementById('gResultado');
+    btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Gerando ganchos…'; erro.textContent = '';
+    try{
+      const { data, error } = await invocarFuncao('gerar-sugestao', { modo:'ganchos', tipo, produto:document.getElementById('gProduto').value, pedido:document.getElementById('gPedido').value.trim() });
+      if(error) throw new Error(error.message || 'Erro ao chamar a IA');
+      if(data?.error){ const e = new Error(data.error); e.restantes = data.restantes; throw e; }
+      const g = data.ganchos || [];
+      res.innerHTML = g.map((x,i)=>`<div style="display:flex; gap:10px; align-items:center; padding:10px 0; border-bottom:1px solid #f3eee8;">
+          <div style="flex:1; min-width:0;"><div style="font-size:14px; font-weight:700;">${escHtml(x.texto)}</div>
+            <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">${escHtml(x.tipo)}${x.texto_tela?` · na tela: “${escHtml(x.texto_tela)}”`:''}</div></div>
+          <button class="btn btn-ghost btn-sm" data-g-copiar="${i}">Copiar</button>
+          ${opts.aoAprovar ? `<button class="btn btn-ghost btn-sm" data-g-bom="${i}">Bom gancho</button>` : ''}</div>`).join('');
+      res.querySelectorAll('[data-g-copiar]').forEach(b=> b.onclick = ()=> navigator.clipboard.writeText(g[b.dataset.gCopiar].texto).then(()=> toast('Gancho copiado')));
+      res.querySelectorAll('[data-g-bom]').forEach(b=> b.onclick = async ()=>{ b.disabled = true; if(await opts.aoAprovar(g[b.dataset.gBom])) b.textContent = 'Salvo ✓'; else b.disabled = false; });
+      if(opts.aoGerar) opts.aoGerar(data);
+    }catch(err){ erro.textContent = err.message; if(opts.aoGerar) opts.aoGerar({restantes: err.restantes, erro:true}); }
+    btn.disabled = false; btn.textContent = 'Gerar de novo';
+  };
+}
