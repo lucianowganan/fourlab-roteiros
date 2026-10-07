@@ -77,7 +77,7 @@
 /* Programa FourLab Creators — área da equipe ("app dentro do app").
    CRM separado dos atletas: tabela creators (+ eventos, envios, semanas, mensagens, calendário).
    Funil: Contato recebido → Etapa 01 (30 dias) → Etapa 02 (60 dias) → Creator Oficial (vira cadastro na pasta "Creators"). */
-const State = { profile:null, tabelaOk:true, aba:'geral', calYm: todayISO().slice(0,7), creators:[], envios:[], semanas:[], mensagens:[], calendario:[],
+const State = { profile:null, tabelaOk:true, aba:'geral', calYm: todayISO().slice(0,7), creators:[], envios:[], semanas:[], entregas:[], mensagens:[], calendario:[],
   busca:'', esporte:'', verArquivados:false };
 const sm = (svg, n)=> svg.replace('width="18" height="18"', `width="${n||13}" height="${n||13}"`);
 function creatorById(id){ return State.creators.find(c=>c.id===id); }
@@ -91,10 +91,12 @@ async function carregarTudo(){
     sb.from('creator_semanas').select('*'),
     sb.from('creator_mensagens').select('*').order('ordem'),
     sb.from('creator_calendario').select('*').order('data'),
+    sb.from('creator_entregas').select('*').order('created_at', {ascending:false}),
   ]);
   if(r[0].error){ console.error(r[0].error); State.tabelaOk = false; return; }
   State.tabelaOk = true;
-  [State.creators, State.envios, State.semanas, State.mensagens, State.calendario] = r.map(x=> x.data || []);
+  [State.creators, State.envios, State.semanas, State.mensagens, State.calendario] = r.slice(0,5).map(x=> x.data || []);
+  State.entregas = r[5].error ? [] : (r[5].data || []);   // parte 9 da migração
   // Primeira vez (ou modelo novo no código): cadastra as mensagens padrão que faltam. As já editadas não são mexidas.
   const faltam = MENSAGENS_PADRAO.filter(m=> !State.mensagens.some(x=> x.id===m.id));
   if(faltam.length){
@@ -121,6 +123,8 @@ function semanasOk(c, etapa){ return semanasDe(c, etapa).filter(s=> semanaCumpri
 function pendencias(c){
   const p = [];
   if(c.etapa==='contato') p.push({tipo:'triagem', texto:'Inscrição para avaliar'});
+  const aValidar = State.entregas.filter(e=> e.creator_id===c.id && e.status==='enviado').length;
+  if(aValidar) p.push({tipo:'validar', texto:`${aValidar} conteúdo(s) registrado(s) pra validar`});
   if(c.etapa==='etapa1' || c.etapa==='etapa2'){
     const pr = progressoEtapa(c);
     if(pr && pr.vencida) p.push({tipo:'avaliar', texto:`${etapaInfo(c.etapa).curto} terminou: avaliar`});
@@ -156,9 +160,9 @@ function abaGeral(){
     <div class="kpi-value" style="font-size:28px; margin-top:14px;">${valor}</div><div class="kpi-label" style="margin-top:2px;">${label}</div></div>`;
   const ativos = State.creators.filter(c=> !['recusado','encerrado'].includes(c.etapa));
   const alertas = ativos.flatMap(c=> pendencias(c).map(p=>({c, ...p})));
-  const ordemAlerta = {avaliar:0, triagem:1, kit:2, cupom:3, semana:4, acesso:5};
+  const ordemAlerta = {avaliar:0, triagem:1, validar:2, kit:3, cupom:4, semana:5, acesso:6};
   alertas.sort((a,b)=> ordemAlerta[a.tipo]-ordemAlerta[b.tipo]);
-  const icAlerta = {avaliar:'⏱', triagem:'✉', kit:'📦', cupom:'%', semana:'✓', acesso:'🔐'};
+  const icAlerta = {avaliar:'⏱', triagem:'✉', validar:'🔗', kit:'📦', cupom:'%', semana:'✓', acesso:'🔐'};
   const recentes = State.creators.slice().sort((a,b)=> String(b.created_at).localeCompare(String(a.created_at))).slice(0,6);
   const esportes = {}; State.creators.forEach(c=> (c.esportes||[]).forEach(e=> esportes[e] = (esportes[e]||0)+1));
   return `<div class="grid-4" style="margin-bottom:18px;">
@@ -202,6 +206,8 @@ function kcardHtml(c){
   if(et.semanas) chips.push(`<span class="kc ${semanasOk(c, c.etapa)>=Math.min(et.semanas, pr?pr.semanaAtual-1:0)?'ok':'aviso'}">✓ ${semanasOk(c, c.etapa)}/${et.semanas} sem.</span>`);
   if(et.kit){ const env = enviosDe(c, c.etapa)[0];
     chips.push(env ? `<span class="kc ${env.status==='entregue'?'ok':env.status==='enviado'?'':'aviso'}">📦 ${CREATOR_ENVIO_STATUS[env.status].label.toLowerCase()}</span>` : '<span class="kc alerta">📦 sem kit</span>'); }
+  const aValidar = State.entregas.filter(e=> e.creator_id===c.id && e.status==='enviado').length;
+  if(aValidar) chips.push(`<span class="kc aviso">🔗 ${aValidar} p/ validar</span>`);
   if(c.etapa==='etapa2') chips.push(c.cupom_desconto ? `<span class="kc ok">% ${escHtml(c.cupom_desconto)}</span>` : c.cupom_desconto_sugerido ? `<span class="kc aviso">% pediu ${escHtml(c.cupom_desconto_sugerido)}</span>` : '<span class="kc alerta">% sem cupom</span>');
   const rede = c.instagram || c.tiktok || c.youtube;
   return `<div class="kcard" data-card="${c.id}" style="cursor:pointer;">
@@ -258,6 +264,37 @@ function semanasHtml(c){
           <button data-sem="${n}" data-meta="${m.key}" data-d="-1">−</button><b>${Number(feito[m.key])||0}/${m.qtd}</b><button data-sem="${n}" data-meta="${m.key}" data-d="1">+</button></span></div>`).join('')}
       </div>`; }).join('')}</div>`;
 }
+const ENT_STATUS_EQ = { enviado:{label:'Pra validar', cor:'#b5680a', fundo:'#fff4c9'}, aprovado:{label:'Validado', cor:'var(--green)', fundo:'var(--green-soft)'}, recusado:{label:'Não validado', cor:'var(--red)', fundo:'var(--red-soft)'} };
+function metaLabel(etapa, key){ return key==='extra' ? 'Entrega extra' : ((etapaInfo(etapa).metas||[]).find(m=>m.key===key)||{label:key}).label; }
+function entregasCreatorHtml(c){
+  const lista = State.entregas.filter(e=> e.creator_id===c.id);
+  if(!lista.length && !['etapa1','etapa2'].includes(c.etapa)) return '';
+  const pend = lista.filter(e=> e.status==='enviado').length;
+  return `<div class="section-title row" style="justify-content:space-between;"><span>Conteúdos registrados pelo creator</span>${pend?`<span class="badge" style="background:#fff4c9; color:#b5680a;">${pend} pra validar</span>`:''}</div>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:6px;">Validar soma 1 na meta da semana (entregas extras só ficam registradas).</div>
+    ${lista.length ? lista.map(e=>{ const st = ENT_STATUS_EQ[e.status] || ENT_STATUS_EQ.enviado;
+      return `<div style="padding:9px 0; border-bottom:1px solid #f3eee8; font-size:12.5px;">
+        <div class="row" style="justify-content:space-between; gap:8px; align-items:flex-start;">
+          <div style="min-width:0;"><strong>${escHtml(metaLabel(e.etapa, e.meta))}</strong> <span class="badge" style="background:${st.fundo}; color:${st.cor};">${st.label}</span>
+            <div style="color:var(--muted); font-size:11.5px;">${escHtml(etapaInfo(e.etapa).curto)} · semana ${e.semana} · ${fmtDateBR(e.created_at)}${e.descricao?` · ${escHtml(e.descricao)}`:''}</div>
+            <a href="${escHtml(e.link)}" target="_blank" rel="noopener" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px;">${escHtml(e.link.replace(/^https?:\/\/(www\.)?/,''))}</a>
+            ${e.obs_equipe?`<div style="color:var(--red); font-size:11.5px;">${escHtml(e.obs_equipe)}</div>`:''}</div>
+          ${e.status==='enviado' ? `<span class="row" style="gap:4px; flex:none;"><button class="btn btn-sm" data-validar="${e.id}" style="background:var(--green); color:#fff; padding:5px 10px;">✓</button>
+            <button class="btn btn-ghost btn-sm" data-recusar="${e.id}" style="padding:5px 10px;">✕</button></span>` : ''}</div></div>`; }).join('')
+      : '<div style="font-size:12.5px; color:var(--muted);">O creator ainda não registrou conteúdos no portal.</div>'}`;
+}
+async function validarEntrega(c, id, aprovar){
+  const e = State.entregas.find(x=> x.id===id); if(!e) return;
+  let obs = '';
+  if(!aprovar){ obs = prompt('Por que não foi validado? (o creator vê esta mensagem)', 'Não encontramos o post / não segue o manual da marca.'); if(obs === null) return; }
+  const { error } = await sb.from('creator_entregas').update({ status: aprovar ? 'aprovado' : 'recusado', obs_equipe: obs || '' }).eq('id', id);
+  if(error){ erroBanco(error, 'migrations/2026-10-13_creators_9_entregas.sql'); return; }
+  e.status = aprovar ? 'aprovado' : 'recusado'; e.obs_equipe = obs || '';
+  await registrarEvento(c.id, 'nota', `${aprovar ? 'Validado' : 'Não validado'}: ${metaLabel(e.etapa, e.meta)} (semana ${e.semana})${obs ? ' · ' + obs : ''}.`);
+  // conteúdo validado conta na meta da semana (marcação que o creator vê no portal)
+  if(aprovar && e.meta !== 'extra' && e.etapa === c.etapa){ await marcarSemana(c, e.semana, e.meta, 1); return; }
+  const pos = q('drawer').scrollTop; abrirCreator(c.id); q('drawer').scrollTop = pos; render();
+}
 function enviosHtml(c){
   const lista = enviosDe(c);
   return `<div class="section-title row" style="justify-content:space-between;"><span>Envios de kit</span><button class="btn btn-ghost btn-sm" id="drNovoEnvio" style="padding:4px 10px;">+ Novo envio</button></div>
@@ -313,6 +350,7 @@ function drawerHtml(c){
         <button class="btn btn-ghost btn-sm" id="drAcesso">${c.username ? 'Redefinir senha' : 'Criar acesso'}</button></div>` : ''}
 
     ${['etapa1','etapa2'].includes(c.etapa) ? `<div>${semanasHtml(c)}</div>` : ''}
+    ${entregasCreatorHtml(c)}
     ${['etapa1','etapa2','oficial'].includes(c.etapa) || enviosDe(c).length ? `<div id="drEnvios">${enviosHtml(c)}</div>` : ''}
     ${cuponsHtml(c)}
 
@@ -354,6 +392,8 @@ function ligarDrawer(c){
   document.querySelectorAll('[data-envio]').forEach(b=> b.onclick = ()=> editarEnvio(c, State.envios.find(e=>e.id===b.dataset.envio)));
   document.querySelectorAll('[data-sem]').forEach(b=> b.onclick = ()=> marcarSemana(c, Number(b.dataset.sem), b.dataset.meta, Number(b.dataset.d)));
   on('drUsarSugestao', ()=>{ q('drCupom10').value = c.cupom_desconto_sugerido; });
+  document.querySelectorAll('[data-validar]').forEach(b=> b.onclick = ()=> validarEntrega(c, b.dataset.validar, true));
+  document.querySelectorAll('[data-recusar]').forEach(b=> b.onclick = ()=> validarEntrega(c, b.dataset.recusar, false));
   on('drSalvarCupons', async (ev)=>{
     ev.target.disabled = true;
     const antes = c.cupom_desconto;
