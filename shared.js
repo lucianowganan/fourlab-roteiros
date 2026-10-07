@@ -236,6 +236,7 @@ function renderStaffSidebar(activeId, profile){
     <button onclick="logout()" style="display:flex; align-items:center; gap:5px; margin-top:6px; background:none; border:none; color:rgba(255,255,255,0.7); font-size:11px; cursor:pointer; text-decoration:underline; padding:0;">${ICONS.sair} Sair</button>`;
   document.getElementById('sidebarMount').innerHTML = sidebarShell(nav, footer, {titulo});
   if(activeId !== 'avisos') marcarAvisosNovosNoMenu();
+  marcarFeesNoMenu().catch(()=>{});
 }
 
 function renderAthleteSidebar(activeId, athlete){
@@ -828,7 +829,8 @@ function mapCadastroFromDB(r){
   r = r || {};
   return { nomeCompleto:r.nome_completo||'', cpf:r.cpf||'', rg:r.rg||'', cnpj:r.cnpj||'', dataNascimento:r.data_nascimento||'',
     tamanhoCamiseta:r.tamanho_camiseta||'', inicioParceria:r.inicio_parceria||'', fimContrato:r.fim_contrato||'', observacoes:r.observacoes||'',
-    cupomCompras:r.cupom_compras||'' };
+    cupomCompras:r.cupom_compras||'',
+    feeAtivo: !!r.fee_ativo, feeValor: Number(r.fee_valor||0), feeDia: Number(r.fee_dia||5), feeObs: r.fee_obs||'' };
 }
 // Cupom de compras do atleta na Yampi: primeiro nome + 6 primeiros dígitos do CPF (ex.: LUIZ529982)
 function sugerirCupomCompras(nome, cpf){
@@ -1170,4 +1172,124 @@ function abrirPostManual(opts){
       if(opts.onCriado) opts.onCriado(criada);
     }catch(err){ btn.disabled = false; btn.textContent = enviar ? 'Salvar e enviar pro atleta' : 'Salvar post'; erroBanco(err, MIGRACAO_MANUAIS); }
   };
+}
+
+/* ---------- Fee mensal (valor fixo) + rebate (comissão do cupom) ----------
+   Quem tem fee ativo no cadastro aparece todo mês na Home e em Vendas, com o dia do pagamento.
+   O rebate é a comissão do cupom do MÊS ANTERIOR (calculada ao vivo pela Yampi). Ao registrar,
+   o rebate também entra em comissao_pagamentos, pra não ser pago de novo no saldo de comissão. */
+const MIGRACAO_FEE = 'migrations/2026-10-11_fee_mensal.sql';
+async function carregarFees(ym){
+  const [cad, pag] = await Promise.all([
+    sb.from('atleta_cadastro').select('athlete_id, fee_ativo, fee_valor, fee_dia, fee_obs').eq('fee_ativo', true),
+    sb.from('fee_pagamentos').select('*').eq('ym', ym),
+  ]);
+  return { ok: !cad.error && !pag.error, cadastros: cad.data || [], pagamentos: pag.data || [] };
+}
+// Lista do mês: [{a, valorFee, dia, vencimento, pago, status, diasPara, rebate (null = calculando)}]
+function montarFeesDoMes(ym, atletas, fees){
+  const hoje = todayISO(), ultimoDia = new Date(Number(ym.slice(0,4)), Number(ym.slice(5,7)), 0).getDate();
+  return fees.cadastros.map(c=>{
+    const a = atletas.find(x=>x.id===c.athlete_id); if(!a) return null;
+    const dia = Math.min(Math.max(1, Number(c.fee_dia)||5), ultimoDia), vencimento = `${ym}-${String(dia).padStart(2,'0')}`;
+    const pago = fees.pagamentos.find(p=>p.athlete_id===a.id) || null;
+    const diasPara = Math.round((new Date(vencimento+'T12:00:00') - new Date(hoje+'T12:00:00')) / 864e5);
+    const status = pago ? 'pago' : diasPara < 0 ? 'atrasado' : diasPara === 0 ? 'hoje' : diasPara <= 5 ? 'proximo' : 'futuro';
+    const temRebate = a.recebeComissao && a.cupomYampi && addMonths(ym,-1) >= INICIO_COMISSOES;
+    return { a, valorFee:Number(c.fee_valor||0), dia, vencimento, pago, status, diasPara, obs:c.fee_obs||'', temRebate, rebate: temRebate ? null : 0 };
+  }).filter(Boolean).sort((x,y)=> (x.pago?1:0)-(y.pago?1:0) || x.vencimento.localeCompare(y.vencimento));
+}
+// Calcula o rebate (comissão do mês anterior) de cada um, ao vivo. onCada() é chamado a cada resultado.
+async function calcularRebates(ym, lista, onCada){
+  await emLotes(lista.filter(i=> i.temRebate && i.rebate === null), 3, async i=>{
+    try{ const d = await buscarVendasYampi(i.a.cupomYampi, addMonths(ym,-1), i.a.descontoCupomPct, i.a.comissaoPct); i.rebate = Number(d.comissaoMes||0); }
+    catch(err){ console.warn('rebate', err); i.rebate = 0; i.rebateErro = true; }
+    if(onCada) onCada(i);
+  });
+}
+function statusFeeHtml(i){
+  if(i.status==='pago') return `<span class="status-dot status-ok">Pago em ${fmtDateBR(i.pago.pago_em)} · ${fmtBRL(Number(i.pago.valor_fee)+Number(i.pago.valor_rebate))}</span>`;
+  if(i.status==='atrasado') return `<span class="status-dot status-bad">Atrasado ${-i.diasPara} dia(s)</span>`;
+  if(i.status==='hoje') return '<span class="status-dot" style="color:var(--orange); font-weight:800;">Vence hoje</span>';
+  if(i.status==='proximo') return `<span class="status-dot" style="color:var(--orange);">Vence em ${i.diasPara} dia(s)</span>`;
+  return `<span class="status-dot status-wait">Dia ${i.dia}</span>`;
+}
+// Bloco "Pagamentos de fee" (Home e Vendas). Botões com data-pagar-fee="athleteId".
+function feesBlocoHtml(ym, lista, opts){
+  opts = opts || {};
+  if(!lista.length) return opts.vazio || '';
+  const pendentes = lista.filter(i=> !i.pago), urgentes = pendentes.filter(i=> ['atrasado','hoje','proximo'].includes(i.status));
+  const total = pendentes.reduce((t,i)=> t + i.valorFee + (i.rebate||0), 0);
+  return `<div class="panel" ${urgentes.length ? 'style="border:1.5px solid #f6c77e; background:linear-gradient(180deg,#fffaf2,#fff);"' : ''}>
+    <div class="card-head"><div class="card-title-ic"><span class="ic-bubble" style="${urgentes.length?'background:var(--grad-accent); color:#fff;':''}">${ICONS.wallet}</span>
+      <div><h2>Pagamentos de fee — ${fmtMonthLabel(ym)}</h2><div class="desc">Fee fixo do mês + rebate (comissão do cupom de ${fmtMonthLabel(addMonths(ym,-1)).toLowerCase()}).
+        ${pendentes.length ? ` <strong style="color:var(--ink);">${pendentes.length} a pagar · ${fmtBRL(total)}</strong>${urgentes.length?` · <strong style="color:var(--orange);">${urgentes.length} vencendo/atrasado(s)</strong>`:''}` : ' <strong style="color:var(--green);">Tudo pago ✓</strong>'}</div></div></div>
+      ${opts.link ? `<a class="icon-btn" href="${opts.link}" title="Abrir em Vendas">${ICONS.arrow}</a>` : ''}</div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Vencimento</th><th style="text-align:right;">Fee</th><th style="text-align:right;">Rebate</th><th style="text-align:right;">Total</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${lista.map(i=>{ const reb = i.pago ? Number(i.pago.valor_rebate) : i.rebate, fee = i.pago ? Number(i.pago.valor_fee) : i.valorFee;
+      return `<tr><td><div class="cell-person">${avatarHtml(i.a.name,'sm')}<div><strong>${escHtml(i.a.name)}</strong><div class="sub">${escHtml(i.a.team||'')}${i.a.pixKey?` · PIX ${escHtml(i.a.pixKey)}`:''}</div></div></div></td>
+        <td>${fmtDateBR(i.vencimento)}</td><td style="text-align:right;">${fmtBRL(fee)}</td>
+        <td style="text-align:right;">${reb===null ? '<span class="loader" style="width:11px;height:11px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : i.temRebate || reb ? fmtBRL(reb) : '<span style="color:var(--muted);">—</span>'}</td>
+        <td style="text-align:right; font-weight:800;">${reb===null ? '…' : fmtBRL(fee + reb)}</td>
+        <td>${statusFeeHtml(i)}</td>
+        <td style="text-align:right;">${i.pago ? '' : `<button class="btn btn-sm ${['atrasado','hoje','proximo'].includes(i.status)?'btn-primary':'btn-ghost'}" data-pagar-fee="${i.a.id}" ${reb===null?'disabled':''}>Registrar pagamento</button>`}</td></tr>`; }).join('')}
+    </tbody></table></div></div>`;
+}
+function abrirPagamentoFee(ym, i, onPago){
+  const mesAnt = addMonths(ym,-1);
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Pagamento de fee — ${escHtml(i.a.name)}</h3>
+    <div style="font-size:13px; color:var(--ink-2); margin-bottom:14px;">${fmtMonthLabel(ym)} · vence ${fmtDateBR(i.vencimento)}${i.a.pixKey?` · PIX: <strong>${escHtml(i.a.pixKey)}</strong>`:' · <span style="color:var(--red);">sem chave PIX</span>'}${i.obs?`<br><span style="color:var(--muted);">${escHtml(i.obs)}</span>`:''}</div>
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Fee fixo (R$)</label><input id="fpFee" type="number" step="0.01" min="0" value="${i.valorFee.toFixed(2)}"></div>
+      <div class="field"><label>Rebate — comissão de ${fmtMonthLabel(mesAnt).toLowerCase()} (R$)</label><input id="fpRebate" type="number" step="0.01" min="0" value="${(i.rebate||0).toFixed(2)}" ${i.temRebate?'':'placeholder="sem comissão"'}></div></div>
+    ${i.rebateErro ? '<div style="font-size:12px; color:#b5680a; margin:-6px 0 10px;">Não consegui calcular a comissão na Yampi — confira o valor.</div>' : ''}
+    <div class="grid-2" style="gap:12px;">
+      <div class="field"><label>Data do pagamento</label><input id="fpData" type="date" value="${todayISO()}"></div>
+      <div class="field"><label>Total</label><div id="fpTotal" style="font-size:22px; font-weight:800; padding-top:6px;"></div></div></div>
+    <div class="field"><label>Observação (opcional)</label><input id="fpObs" placeholder="Ex: PIX enviado, NF 123"></div>
+    <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">O rebate também é descontado do saldo de comissão da pessoa (não é pago duas vezes).</div>
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="fpSalvar">Registrar pagamento</button></div>`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  const total = ()=>{ document.getElementById('fpTotal').textContent = fmtBRL((Number(document.getElementById('fpFee').value)||0) + (Number(document.getElementById('fpRebate').value)||0)); };
+  ['fpFee','fpRebate'].forEach(id=> document.getElementById(id).oninput = total); total();
+  document.getElementById('fpSalvar').onclick = async (ev)=>{
+    const fee = Number(document.getElementById('fpFee').value)||0, reb = Number(document.getElementById('fpRebate').value)||0, data = document.getElementById('fpData').value, obs = document.getElementById('fpObs').value.trim();
+    if(!(fee+reb > 0) || !data){ toast('Preencha os valores e a data'); return; }
+    const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Salvando…';
+    const { data: novo, error } = await sb.from('fee_pagamentos').insert({ athlete_id:i.a.id, ym, valor_fee:fee, valor_rebate:reb, pago_em:data, obs }).select().single();
+    if(error){ btn.disabled = false; btn.textContent = 'Registrar pagamento'; erroBanco(error, MIGRACAO_FEE); return; }
+    if(reb > 0) await sb.from('comissao_pagamentos').insert({ athlete_id:i.a.id, valor:reb, pago_em:data, ym:mesAnt, obs:`Rebate pago junto com o fee de ${fmtMonthLabel(ym)}` });
+    i.pago = novo; i.status = 'pago';
+    closeModal(); toast('Pagamento de fee registrado ✓'); if(onPago) onPago(i);
+  };
+}
+// Bolinha no menu (Home e Vendas) quando tem fee vencendo em até 5 dias ou atrasado
+async function marcarFeesNoMenu(){
+  const ym = monthKey(todayISO());
+  const f = await carregarFees(ym); if(!f.ok || !f.cadastros.length) return;
+  const hoje = Number(todayISO().slice(8,10));
+  const urgentes = f.cadastros.filter(c=> !f.pagamentos.some(p=>p.athlete_id===c.athlete_id) && (Number(c.fee_dia)||5) - hoje <= 5).length;
+  if(!urgentes) return;
+  document.querySelectorAll('[data-nav="home"] .ic, [data-nav="vendas"] .ic').forEach(ic=>{
+    if(!ic.querySelector('.nav-dot')) ic.insertAdjacentHTML('beforeend', `<span class="nav-dot" title="${urgentes} pagamento(s) de fee vencendo ou atrasado(s)"></span>`);
+  });
+}
+// Monta o bloco de fees num container (Home e Vendas): carrega, calcula rebates e liga os botões.
+// opts: {link, aoPagar(), vazio}
+async function iniciarBlocoFees(containerId, ym, atletas, opts){
+  opts = opts || {};
+  const el = document.getElementById(containerId); if(!el) return;
+  const fees = await carregarFees(ym);
+  if(!fees.ok){ el.innerHTML = ''; return; }
+  const lista = montarFeesDoMes(ym, atletas, fees);
+  const desenhar = ()=>{
+    const alvo = document.getElementById(containerId); if(!alvo) return;
+    alvo.innerHTML = feesBlocoHtml(ym, lista, opts);
+    alvo.querySelectorAll('[data-pagar-fee]').forEach(b=> b.onclick = ()=>{
+      const i = lista.find(x=>x.a.id===b.dataset.pagarFee);
+      abrirPagamentoFee(ym, i, ()=>{ desenhar(); if(opts.aoPagar) opts.aoPagar(i); });
+    });
+  };
+  desenhar();
+  await calcularRebates(ym, lista, desenhar);
 }

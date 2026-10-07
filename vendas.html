@@ -180,6 +180,7 @@ function viewVendas(){
     </div>
   </div>
 
+  <div id="blocoFees"></div>
   <div id="blocoComissoes">${blocoComissoesHtml()}</div>
 
   <div class="panel">
@@ -210,6 +211,9 @@ function render(){
   });
   if(atletaSel) disparar();
   atualizarBlocoComissoes();
+  // fee mensal + rebate: o rebate pago desconta do saldo de comissão, então recalcula o saldo de quem foi pago
+  iniciarBlocoFees('blocoFees', ym, athletes, { aoPagar: async (i)=>{ const pag = await carregarPagamentosComissao(); pagamentos = pag.pagamentos;
+    if(saldos[i.a.id]){ saldos[i.a.id] = await historicoComissao(i.a, {pagamentos}); atualizarBlocoComissoes(); } } });
 }
 (async function start(){
   const auth = await guardStaff('vendas'); if(!auth) return;

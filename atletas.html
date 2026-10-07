@@ -27,7 +27,7 @@
 <script src="shared.js"></script>
 <script>
 // categoria: 'equipe' (atletas) ou 'profissional' (profissionais parceiros)
-const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true, iaAcesso:{}, iaTabela:true, comprasOk:false, compras:{}, produtos:[] };
+const State = { athletes:[], history:{}, categoria:'equipe', teamFilter:'Todas', busca:'', teamsTabela:true, cadastros:{}, cadastroTabela:true, iaAcesso:{}, iaTabela:true, comprasOk:false, compras:{}, produtos:[], feeOk:false };
 const MIGRACAO_IA = 'migrations/2026-10-07_ia_sugestoes.sql';
 const iaDe = (id)=> State.iaAcesso[id] || {liberada:false, limite_mes:10};
 const MIGRACAO_CADASTRO = 'migrations/2026-10-06a_cadastro_interno.sql';
@@ -65,7 +65,8 @@ async function saveOneAthlete(a){
 async function salvarCadastro(athleteId, c){
   const row = { athlete_id:athleteId, nome_completo:c.nomeCompleto, cpf:c.cpf, rg:c.rg, cnpj:c.cnpj, data_nascimento:c.dataNascimento||null,
     tamanho_camiseta:c.tamanhoCamiseta, inicio_parceria:c.inicioParceria||null, fim_contrato:c.fimContrato||null, observacoes:c.observacoes, updated_at:new Date().toISOString(),
-    ...(State.comprasOk ? { cupom_compras:c.cupomCompras } : {}) };
+    ...(State.comprasOk ? { cupom_compras:c.cupomCompras } : {}),
+    ...(State.feeOk ? { fee_ativo:!!c.feeAtivo, fee_valor:Number(c.feeValor)||0, fee_dia:Math.min(31, Math.max(1, Number(c.feeDia)||5)), fee_obs:c.feeObs||'' } : {}) };
   const { error } = await sb.from('atleta_cadastro').upsert(row); if(error) throw error;
   State.cadastros[athleteId] = {...c};
 }
@@ -124,6 +125,7 @@ function viewAtletas(){
       ${isProfissional(a) ? '' : `<div class="row" style="justify-content:space-between; margin-top:12px;"><span class="pc-label" style="margin:0;">Últimos posts${taxa!=null?` · ${taxa}% postados`:''}</span>${postDotsHtml(a.id)}</div>`}
       <div class="row" style="margin-top:14px; gap:6px;">
         ${a.cupomYampi ? `<span class="chip static">${ICONS.vendas} ${escHtml(a.cupomYampi)}</span>` : ''}
+        ${cadastroDe(a.id).feeAtivo ? `<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);" title="Fee mensal — dia ${cadastroDe(a.id).feeDia}">💰 Fee ${fmtBRL(cadastroDe(a.id).feeValor).replace(',00','')}/mês</span>` : ''}
         ${cadastroDe(a.id).cupomCompras ? `<span class="chip static" title="Cupom de compras na Yampi">${ICONS.cart} ${escHtml(cadastroDe(a.id).cupomCompras)}</span>` : ''}
         ${a.recebeComissao ? `<span class="chip static" style="color:var(--green); border-color:#bfe6cd; background:var(--green-soft);">${a.comissaoPct??10}% comissão</span>` : a.verVendas ? '<span class="chip static">vê volume de vendas</span>' : ''}
         ${!isProfissional(a) ? (last ? `<span class="chip static">${escHtml(last.product)} · ${shortMonth(last.ym)}</span>` : '<span class="chip static" style="color:var(--muted);">nunca postou</span>') : ''}
@@ -269,6 +271,9 @@ function athleteDrawerHtml(a){
       <div class="cc-bottom"><span>${a.recebeComissao ? `PIX: ${a.pixKey?escHtml(a.pixKey):'<em style="opacity:0.7;">não cadastrado</em>'}` : (a.verVendas ? 'Sem comissão · vê só o volume de vendas' : 'Sem comissão · não vê a área de Vendas')}</span></div></div>`
       : '<div style="font-size:12.5px; color:var(--muted);">Sem cupom cadastrado.</div>'}
 
+    ${cadastroDe(a.id).feeAtivo ? `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--green-soft); border-radius:12px; padding:10px 12px; margin-top:10px; font-size:12.5px;">
+      <span>💰 <strong>Fee mensal ${fmtBRL(cadastroDe(a.id).feeValor)}</strong> todo dia ${cadastroDe(a.id).feeDia}${a.recebeComissao?' + rebate (comissão do cupom)':''}${cadastroDe(a.id).feeObs?`<br><span style="color:var(--muted);">${escHtml(cadastroDe(a.id).feeObs)}</span>`:''}</span>
+      <a href="vendas" class="btn btn-ghost btn-sm" style="padding:5px 10px;">Pagamentos</a></div>` : ''}
     ${comprasDrawerHtml(a)}
 
     ${isProfissional(a) ? '' : `<div class="section-title">Perfil de conteúdo</div>
@@ -365,6 +370,17 @@ function toggleHtml(id, checked, titulo, sub){
     <input type="checkbox" id="${id}" ${checked?'checked':''} style="width:20px; height:20px;">
     <span><strong style="font-size:13.5px;">${titulo}</strong><br><span style="font-size:12px; color:var(--muted); font-weight:500;">${sub}</span></span></label>`;
 }
+// Fee mensal: valor fixo todo mês + rebate (a comissão do cupom, se "Recebe comissão" estiver ligado)
+function feeFormHtml(a){
+  const c = a.id ? cadastroDe(a.id) : mapCadastroFromDB(null);
+  return `<div class="section-title">Fee mensal</div>
+    ${!State.feeOk ? `<div style="font-size:12px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Rode <code>${MIGRACAO_FEE}</code> no Supabase pra cadastrar fee mensal.</div>` : `
+    ${toggleHtml('fFeeAtivo', c.feeAtivo, 'Recebe fee mensal (valor fixo + rebate)', 'Todo mês aparece na Home e em Vendas o aviso de pagamento, no dia combinado. O rebate é a comissão do cupom do mês anterior (se “Recebe comissão” estiver ligado).')}
+    <div id="fFeeWrap"><div class="grid-3" style="gap:12px;">
+      <div class="field"><label>Valor fixo por mês (R$)</label><input id="fFeeValor" type="number" step="0.01" min="0" value="${c.feeValor||''}" placeholder="Ex: 1000"></div>
+      <div class="field"><label>Dia do pagamento</label><input id="fFeeDia" type="number" min="1" max="31" value="${c.feeDia||5}"></div>
+      <div class="field"><label>Observação</label><input id="fFeeObs" value="${escHtml(c.feeObs||'')}" placeholder="Ex: emite NF, contrato até mar/27"></div></div></div>`}`;
+}
 function cadastroFormHtml(a){
   const c = a.id ? cadastroDe(a.id) : mapCadastroFromDB(null);
   return `<div class="section-title row" style="justify-content:space-between;"><span>Dados cadastrais</span>
@@ -403,7 +419,8 @@ function cadastroFormHtml(a){
 function lerCadastroForm(){
   const v = (id)=> (document.getElementById(id)?.value || '').trim();
   return { nomeCompleto:v('cNomeCompleto'), cpf:soDigitos(v('cCpf')), rg:v('cRg'), cnpj:soDigitos(v('cCnpj')), dataNascimento:v('cNascimento'),
-    tamanhoCamiseta:v('cCamiseta'), inicioParceria:v('cInicio'), fimContrato:v('cFim'), observacoes:v('cObs'), cupomCompras:v('cCupomCompras').toUpperCase() };
+    tamanhoCamiseta:v('cCamiseta'), inicioParceria:v('cInicio'), fimContrato:v('cFim'), observacoes:v('cObs'), cupomCompras:v('cCupomCompras').toUpperCase(),
+    feeAtivo: !!document.getElementById('fFeeAtivo')?.checked, feeValor: Number(v('fFeeValor'))||0, feeDia: Number(v('fFeeDia'))||5, feeObs: v('fFeeObs') };
 }
 async function buscarCepForm(){
   const el = document.getElementById('fCep'), cep = soDigitos(el.value);
@@ -451,6 +468,7 @@ function athleteFormHtml(a){
     ${toggleHtml('fRecebeComissao', a.recebeComissao, 'Recebe comissão — liberar acesso a Vendas', 'Com isso ligado, ele vê a área "Minhas vendas", o saldo e cadastra a chave PIX. Desligado, o cupom é só de desconto.')}
     <div id="fVerVendasWrap">${toggleHtml('fVerVendas', a.verVendas, 'Mostrar volume de vendas (sem valores)', 'Sem comissão, mas quer acompanhar: ele vê só quantos pedidos saíram com o cupom — nenhum valor em R$, comissão ou saldo.')}</div>
     <div class="field" id="fComissaoWrap"><label>% de comissão</label><input id="fComissaoPct" type="number" value="${a.comissaoPct!=null?a.comissaoPct:10}" style="max-width:160px;"></div>
+    ${feeFormHtml(a)}
 
     <div class="section-title">IA de ideias</div>
     ${!State.iaTabela ? `<div style="font-size:12px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Rode <code>${MIGRACAO_IA}</code> no Supabase pra liberar a IA pras pessoas.</div>` : `
@@ -507,6 +525,8 @@ function wireAthleteModalHandlers(){
     document.getElementById('fVerVendasWrap').style.display = comissao.checked ? 'none' : '';
   };
   teamSel.onchange = sync; comissao.onchange = sync; sync();
+  const feeAtivo = document.getElementById('fFeeAtivo');
+  if(feeAtivo){ const syncFee = ()=>{ document.getElementById('fFeeWrap').style.display = feeAtivo.checked ? '' : 'none'; }; feeAtivo.onchange = syncFee; syncFee(); }
   const iaLib = document.getElementById('fIaLiberada');
   if(iaLib){ const syncIa = ()=>{ document.getElementById('fIaLimiteWrap').style.display = iaLib.checked ? '' : 'none'; }; iaLib.onchange = syncIa; syncIa(); }
   const cpf = document.getElementById('cCpf'), cnpj = document.getElementById('cCnpj'), cpfAviso = document.getElementById('cCpfAviso');
@@ -658,6 +678,7 @@ function render(){
     sb.from('products').select('id, name, descricao').order('name'),
   ]);
   State.comprasOk = !probeCompras.error && !compras.error;
+  State.feeOk = !(await sb.from('atleta_cadastro').select('fee_ativo').limit(1)).error;
   (compras.data||[]).forEach(r=> State.compras[r.athlete_id] = r);
   State.produtos = (prods.data || []).map(p=>({id:p.id, name:p.name, desc:p.descricao||''}));
   const ia = await sb.from('ia_acesso').select('*');

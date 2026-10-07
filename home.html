@@ -170,6 +170,8 @@ function viewHome(){
     <div class="input-ic"><span class="ic">${ICONS.calendar}</span><input type="month" id="homeMonth" value="${ym}" style="width:auto; background:#fff;"></div>
   </div>
 
+  <div id="homeFees"></div>
+
   <div class="grid-4" style="margin-bottom:18px;">
     <div class="card kpi"><div class="row" style="justify-content:space-between;"><div class="kpi-label">Posts agendados</div><span class="ic-bubble">${ICONS.roteiro}</span></div>
       <div class="kpi-value">${stats.total}</div></div>
@@ -227,6 +229,8 @@ function viewHome(){
 
 async function render(){
   document.getElementById('main').innerHTML = viewHome();
+  // aviso automático de pagamento de fee (só aparece se alguém tiver fee mensal no cadastro)
+  iniciarBlocoFees('homeFees', State.currentCycleYM, State.athletes, { link:'vendas' });
   const monthInput = document.getElementById('homeMonth');
   monthInput.onchange = async ()=>{
     State.currentCycleYM = monthInput.value;
