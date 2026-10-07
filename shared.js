@@ -1247,6 +1247,7 @@ function abrirPagamentoFee(ym, i, onPago){
       <div class="field"><label>Data do pagamento</label><input id="fpData" type="date" value="${todayISO()}"></div>
       <div class="field"><label>Total</label><div id="fpTotal" style="font-size:22px; font-weight:800; padding-top:6px;"></div></div></div>
     <div class="field"><label>Observação (opcional)</label><input id="fpObs" placeholder="Ex: PIX enviado, NF 123"></div>
+    ${campoComprovanteHtml('fpArquivo')}
     <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">O rebate também é descontado do saldo de comissão da pessoa (não é pago duas vezes).</div>
     <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="fpSalvar">Registrar pagamento</button></div>`);
   document.getElementById('modalCloseBtn').onclick = closeModal;
@@ -1260,6 +1261,10 @@ function abrirPagamentoFee(ym, i, onPago){
     if(error){ btn.disabled = false; btn.textContent = 'Registrar pagamento'; erroBanco(error, MIGRACAO_FEE); return; }
     if(reb > 0) await sb.from('comissao_pagamentos').insert({ athlete_id:i.a.id, valor:reb, pago_em:data, ym:mesAnt, obs:`Rebate pago junto com o fee de ${fmtMonthLabel(ym)}` });
     i.pago = novo; i.status = 'pago';
+    const arquivo = document.getElementById('fpArquivo').files[0];
+    try{ await salvarComprovante({ athleteId:i.a.id, data, valor:fee+reb, tipo:'fee', arquivo,
+      descricao:`Fee de ${fmtMonthLabel(ym).toLowerCase()}${reb>0?` + rebate de ${fmtMonthLabel(mesAnt).toLowerCase()}`:''}${obs?` — ${obs}`:''}` }); }
+    catch(err){ closeModal(); if(onPago) onPago(i); mostrarFaixaErro('Pagamento registrado, mas o comprovante não foi salvo.', `${escHtml(err.message||err)}<br>Anexe de novo na ficha do atleta.`); return; }
     closeModal(); toast('Pagamento de fee registrado ✓'); if(onPago) onPago(i);
   };
 }
@@ -1292,4 +1297,79 @@ async function iniciarBlocoFees(containerId, ym, atletas, opts){
   };
   desenhar();
   await calcularRebates(ym, lista, desenhar);
+}
+
+/* ---------- Comprovantes de pagamento (arquivo anexo; o atleta vê os dele no Meu Perfil) ----------
+   Arquivos na pasta PRIVADA "comprovantes" do Storage: comprovantes/<athlete_id>/... — abrem com link temporário. */
+const MIGRACAO_COMPROVANTES = 'migrations/2026-10-12_comprovantes.sql';
+const TIPO_COMPROVANTE = { comissao:'Comissão', fee:'Fee mensal', outro:'Pagamento' };
+function campoComprovanteHtml(id){
+  return `<div class="field"><label>Comprovante (PDF ou imagem — opcional)</label>
+    <input type="file" id="${id}" accept="application/pdf,image/*" style="padding:9px 12px;">
+    <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">O atleta vê esse comprovante no Meu Perfil dele.</div></div>`;
+}
+async function salvarComprovante({ athleteId, data, valor, descricao, tipo, arquivo }){
+  let arquivo_path = '', arquivo_nome = '';
+  if(arquivo){
+    if(arquivo.size > 10*1024*1024) throw new Error('O arquivo passa de 10 MB.');
+    const ext = (arquivo.name.split('.').pop()||'pdf').toLowerCase().replace(/[^a-z0-9]/g,'') || 'pdf';
+    arquivo_path = `${athleteId}/${data}_${Date.now()}_${uid()}.${ext}`; arquivo_nome = arquivo.name;
+    const up = await sb.storage.from('comprovantes').upload(arquivo_path, arquivo, { contentType: arquivo.type || 'application/octet-stream' });
+    if(up.error) throw up.error;
+  }
+  const { data: linha, error } = await sb.from('comprovantes').insert({ athlete_id:athleteId, data, valor:Number(valor)||0, descricao:descricao||'', tipo:tipo||'outro', arquivo_path, arquivo_nome }).select().single();
+  if(error) throw error;
+  return linha;
+}
+// Abre o arquivo com link temporário (a janela abre antes pra o navegador não bloquear)
+async function abrirArquivoComprovante(path){
+  const janela = window.open('', '_blank');
+  const { data, error } = await sb.storage.from('comprovantes').createSignedUrl(path, 300);
+  if(error || !data?.signedUrl){ if(janela) janela.close(); erroBanco(error || {message:'Não consegui abrir o arquivo'}, MIGRACAO_COMPROVANTES); return; }
+  if(janela) janela.location = data.signedUrl; else location.href = data.signedUrl;
+}
+// Lista (ficha do atleta e Meu Perfil). opts.equipe: mostra o botão de excluir
+function comprovantesListaHtml(lista, opts){
+  opts = opts || {};
+  if(!lista.length) return `<div style="font-size:12.5px; color:var(--muted);">${opts.vazio || 'Nenhum comprovante ainda.'}</div>`;
+  return lista.map(c=>`<div style="display:flex; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid #f3eee8;">
+      <span class="ic-bubble" style="width:36px; height:36px; color:var(--green);">${ICONS.check}</span>
+      <div style="flex:1; min-width:0;"><div style="font-size:13px;"><strong>${fmtDateBR(c.data)}</strong> · ${escHtml(TIPO_COMPROVANTE[c.tipo]||'Pagamento')}${Number(c.valor) ? ` · <strong>${fmtBRL(c.valor)}</strong>` : ''}</div>
+        ${c.descricao ? `<div style="font-size:12px; color:var(--muted);">${escHtml(c.descricao)}</div>` : ''}</div>
+      ${c.arquivo_path ? `<button class="btn btn-ghost btn-sm" data-ver-comprovante="${escHtml(c.arquivo_path)}" style="padding:5px 10px;">📎 Ver comprovante</button>` : '<span style="font-size:11.5px; color:var(--muted);">sem arquivo</span>'}
+      ${opts.equipe ? `<button class="icon-btn" data-excluir-comprovante="${c.id}" title="Excluir" style="width:30px; height:30px;">${ICONS.trash.replace('width="18" height="18"','width="13" height="13"')}</button>` : ''}
+    </div>`).join('');
+}
+function ligarComprovantes(raiz, lista, onMudou){
+  raiz.querySelectorAll('[data-ver-comprovante]').forEach(b=> b.onclick = ()=> abrirArquivoComprovante(b.dataset.verComprovante));
+  raiz.querySelectorAll('[data-excluir-comprovante]').forEach(b=> b.onclick = async ()=>{
+    if(!confirm('Excluir este comprovante? O atleta deixa de ver.')) return;
+    const c = lista.find(x=>x.id===b.dataset.excluirComprovante);
+    const { error } = await sb.from('comprovantes').delete().eq('id', c.id);
+    if(error){ erroBanco(error, MIGRACAO_COMPROVANTES); return; }
+    if(c.arquivo_path) await sb.storage.from('comprovantes').remove([c.arquivo_path]);
+    lista.splice(lista.indexOf(c), 1); toast('Comprovante excluído'); if(onMudou) onMudou();
+  });
+}
+// Modal da equipe pra anexar um comprovante avulso
+function abrirNovoComprovante(a, onSalvo){
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Anexar comprovante — ${escHtml(a.name)}</h3>
+    <div class="grid-3" style="gap:12px;">
+      <div class="field"><label>Dia do pagamento</label><input type="date" id="cpData" value="${todayISO()}"></div>
+      <div class="field"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="cpValor"></div>
+      <div class="field"><label>Tipo</label><select id="cpTipo">${Object.entries(TIPO_COMPROVANTE).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div></div>
+    <div class="field"><label>Descrição</label><input id="cpDesc" placeholder="Ex: Comissão de setembro"></div>
+    ${campoComprovanteHtml('cpArquivo')}
+    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="cpSalvar">Salvar comprovante</button></div>`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('cpSalvar').onclick = async (ev)=>{
+    const arquivo = document.getElementById('cpArquivo').files[0], data = document.getElementById('cpData').value;
+    if(!data){ toast('Escolha o dia'); return; }
+    if(!arquivo && !confirm('Salvar sem arquivo anexo?')) return;
+    const btn = ev.currentTarget; btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Enviando…';
+    try{
+      const c = await salvarComprovante({ athleteId:a.id, data, valor:document.getElementById('cpValor').value, descricao:document.getElementById('cpDesc').value.trim(), tipo:document.getElementById('cpTipo').value, arquivo });
+      closeModal(); toast('Comprovante salvo — o atleta já vê no perfil'); if(onSalvo) onSalvo(c);
+    }catch(err){ btn.disabled = false; btn.textContent = 'Salvar comprovante'; erroBanco(err, MIGRACAO_COMPROVANTES); }
+  };
 }

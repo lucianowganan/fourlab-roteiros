@@ -274,6 +274,9 @@ function athleteDrawerHtml(a){
     ${cadastroDe(a.id).feeAtivo ? `<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--green-soft); border-radius:12px; padding:10px 12px; margin-top:10px; font-size:12.5px;">
       <span>💰 <strong>Fee mensal ${fmtBRL(cadastroDe(a.id).feeValor)}</strong> todo dia ${cadastroDe(a.id).feeDia}${a.recebeComissao?' + rebate (comissão do cupom)':''}${cadastroDe(a.id).feeObs?`<br><span style="color:var(--muted);">${escHtml(cadastroDe(a.id).feeObs)}</span>`:''}</span>
       <a href="vendas" class="btn btn-ghost btn-sm" style="padding:5px 10px;">Pagamentos</a></div>` : ''}
+    <div class="section-title row" style="justify-content:space-between;"><span>Comprovantes de pagamento</span>
+      <button class="btn btn-ghost btn-sm" id="drNovoComprovante" style="padding:5px 10px;">📎 Anexar</button></div>
+    <div id="drComprovantes" style="font-size:12.5px; color:var(--muted);">Carregando…</div>
     ${comprasDrawerHtml(a)}
 
     ${isProfissional(a) ? '' : `<div class="section-title">Perfil de conteúdo</div>
@@ -328,6 +331,17 @@ function cadastroDrawerHtml(a){
     ${parceria ? linhaInfo(ICONS.flag, 'Parceria', escHtml(parceria) + (alertaContrato(c) ? ' ' + alertaContrato(c) : '')) : ''}
     ${c.observacoes ? `<div style="font-size:12.5px; background:var(--surface-2); border-radius:12px; padding:12px; margin-top:10px; white-space:pre-wrap;">${escHtml(c.observacoes)}</div>` : ''}`}`;
 }
+// Comprovantes de pagamento (o atleta vê os mesmos no Meu Perfil)
+async function carregarComprovantesDoAtleta(a){
+  const el = document.getElementById('drComprovantes'); if(!el) return;
+  const { data, error } = await sb.from('comprovantes').select('*').eq('athlete_id', a.id).order('data', {ascending:false});
+  const btn = document.getElementById('drNovoComprovante');
+  if(error){ el.innerHTML = `Rode <code>${MIGRACAO_COMPROVANTES}</code> no Supabase pra anexar comprovantes.`; if(btn) btn.style.display = 'none'; return; }
+  const lista = data || [];
+  const desenhar = ()=>{ el.innerHTML = comprovantesListaHtml(lista, {equipe:true, vazio:'Nenhum comprovante ainda. Eles entram sozinhos quando você registra um pagamento em Vendas, ou anexe aqui.'}); ligarComprovantes(el, lista, desenhar); };
+  desenhar();
+  if(btn) btn.onclick = ()=> abrirNovoComprovante(a, (c)=>{ lista.unshift(c); lista.sort((x,y)=> String(y.data).localeCompare(String(x.data))); desenhar(); });
+}
 // Roteiros do atleta (rascunhos e enviados), com as marcas de alterado. Abrir = editar.
 async function carregarRoteirosDoAtleta(a){
   const el = document.getElementById('drRoteiros'); if(!el) return;
@@ -349,6 +363,7 @@ async function carregarRoteirosDoAtleta(a){
 function openAthleteDrawer(a){
   openDrawer(athleteDrawerHtml(a));
   carregarRoteirosDoAtleta(a);
+  carregarComprovantesDoAtleta(a);
   const atu = document.getElementById('drAtualizarCompras');
   if(atu) atu.onclick = async ()=>{
     atu.disabled = true; atu.innerHTML = '<span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span> Buscando…';
