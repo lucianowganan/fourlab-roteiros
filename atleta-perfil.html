@@ -26,7 +26,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="shared.js"></script>
 <script>
-let athlete = null, comprovantes = [];
+let athlete = null, comprovantes = [], docs = null;   // docs = dados cadastrais (null = migração não rodou)
 
 // campo do formulário ↔ coluna no banco
 const CAMPOS = [
@@ -65,6 +65,7 @@ function viewPerfil(){
       </div>
       <nav class="side-nav">
         <a href="#secPessoais" class="active">${ICONS.perfil} Dados pessoais</a>
+        ${docs ? `<a href="#secDocumentos">${ICONS.idcard} Documentos</a>` : ''}
         <a href="#secRedes">${ICONS.instagram} Redes sociais</a>
         ${recebeComissao ? `<a href="#secPagamento">${ICONS.pix} Pagamento</a>` : ''}
         <a href="#secEndereco">${ICONS.endereco} Endereço de envio</a>
@@ -83,6 +84,18 @@ function viewPerfil(){
           ${campo('pWhatsapp','WhatsApp', a.whatsapp, {ic:ICONS.whatsapp, placeholder:'(11) 99999-9999', attrs:'inputmode="tel"'})}
         </div>
       </section>
+
+      ${docs ? `<section class="form-section" id="secDocumentos">
+        <h3>Documentos</h3><div class="hint">Usamos pra contrato, nota e pagamentos. Só a equipe FourLab vê.</div>
+        <div class="field"><label>Nome completo (como no documento)</label><input id="dNome" value="${escHtml(docs.nome_completo||'')}" autocomplete="name"></div>
+        <div class="grid-2" style="gap:14px;">
+          <div class="field"><label>CPF</label><input id="dCpf" value="${escHtml(fmtCPF(docs.cpf||''))}" inputmode="numeric" placeholder="000.000.000-00"><div id="dCpfAviso" style="font-size:11px; color:var(--red); margin-top:3px;"></div></div>
+          <div class="field"><label>Data de nascimento</label><input id="dNasc" type="date" value="${escHtml(docs.data_nascimento||'')}" max="${todayISO()}"></div>
+          <div class="field"><label>RG</label><input id="dRg" value="${escHtml(docs.rg||'')}"></div>
+          <div class="field"><label>CNPJ (se emitir nota)</label><input id="dCnpj" value="${escHtml(fmtCNPJ(docs.cnpj||''))}" inputmode="numeric" placeholder="00.000.000/0000-00"></div>
+          <div class="field"><label>Tamanho de camiseta</label><select id="dCamiseta"><option value="">—</option>${TAMANHOS_CAMISETA.map(t=>`<option ${t===docs.tamanho_camiseta?'selected':''}>${t}</option>`).join('')}</select></div>
+        </div>
+      </section>` : ''}
 
       <section class="form-section" id="secRedes">
         <h3>Redes sociais</h3><div class="hint">Preencha só as que você usa. Pode ser o @ ou o link do perfil.</div>
@@ -142,6 +155,9 @@ function render(){
   document.getElementById('pCep').addEventListener('blur', buscarCep);
   document.getElementById('pCep').addEventListener('input', e=>{ if(e.target.value.replace(/\D/g,'').length===8) buscarCep(); });
   const lc = document.getElementById('listaComprovantes'); if(lc) ligarComprovantes(lc, comprovantes);
+  const cpf = document.getElementById('dCpf'), cnpj = document.getElementById('dCnpj');
+  if(cpf){ cpf.oninput = ()=>{ cpf.value = fmtCPF(cpf.value); const d = soDigitos(cpf.value); document.getElementById('dCpfAviso').textContent = d.length===11 && !cpfValido(d) ? 'CPF inválido — confira os números' : ''; };
+    cnpj.oninput = ()=>{ cnpj.value = fmtCNPJ(cnpj.value); }; }
   document.getElementById('btnDescartar').onclick = ()=>{ render(); toast('Alterações descartadas'); };
   // destaca a seção atual no menu lateral
   const links = document.querySelectorAll('.side-nav a[href^="#sec"]');
@@ -153,7 +169,15 @@ function render(){
     if(payload.email && !/^\S+@\S+\.\S+$/.test(payload.email)){ toast('E-mail inválido'); return; }
     btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Salvando...';
     // RPC restrita: o atleta só consegue alterar os próprios dados de contato/endereço/PIX
+    if(cpf){ const d = soDigitos(cpf.value); if(d && !cpfValido(d)){ toast('Confira o CPF'); return; } }
     const { error } = await sb.rpc('atualizar_meu_perfil', { dados: payload });
+    if(!error && docs){
+      const dados = { nome_completo:document.getElementById('dNome').value.trim(), cpf:soDigitos(cpf.value), rg:document.getElementById('dRg').value.trim(),
+        cnpj:soDigitos(cnpj.value), data_nascimento:document.getElementById('dNasc').value, tamanho_camiseta:document.getElementById('dCamiseta').value };
+      const r = await sb.rpc('salvar_meus_dados_cadastrais', { dados });
+      if(r.error){ console.error(r.error); toast('Contato salvo, mas os documentos não — avise a equipe FourLab'); btn.disabled = false; btn.textContent = 'Salvar alterações'; return; }
+      Object.assign(docs, dados);
+    }
     if(error){ console.error(error); toast('Não foi possível salvar — avise a equipe FourLab'); btn.disabled = false; btn.textContent = 'Salvar alterações'; return; }
     Object.assign(athlete, novo);
     toast('Perfil salvo ✔'); render();
@@ -166,6 +190,8 @@ function render(){
   if(!athlete){ document.getElementById('main').innerHTML = '<div class="panel">Nenhum atleta vinculado a este login.</div>'; return; }
   const { data: comp } = await sb.from('comprovantes').select('*').eq('athlete_id', athlete.id).order('data', {ascending:false});
   comprovantes = comp || [];
+  const md = await sb.rpc('meus_dados_cadastrais');
+  docs = md.error ? null : ((md.data||[])[0] || {});
   render();
   if(location.hash === '#secComprovantes') document.getElementById('secComprovantes')?.scrollIntoView({behavior:'smooth'});
 })();
