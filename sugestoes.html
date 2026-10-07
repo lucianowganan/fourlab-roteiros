@@ -34,7 +34,7 @@
 const MIGRACAO = 'migrations/2026-10-06b_sugestoes_conteudo.sql';
 const MIGRACAO_IA = 'migrations/2026-10-07_ia_sugestoes.sql';
 const State = { sugestoes:[], gravacoes:[], produtos:[], tabelaOk:true, filtroTipo:'todos', filtroStatus:'todas', edit:null, enviando:false, profile:null,
-  aba:'sugestoes', pedidos:[], exemplos:[], acessos:[], iaTabela:true, iaOrigem:null };
+  aba:'sugestoes', pedidos:[], exemplos:[], acessos:[], iaTabela:true, iaOrigem:null, ganchosOk:false, ganchos:[], ctxGanchos:{} };
 
 async function carregar(){
   const [sug, grav, prod] = await Promise.all([
@@ -47,6 +47,8 @@ async function carregar(){
     sb.from('sugestao_exemplos').select('*').order('created_at', {ascending:false}),
     sb.from('ia_acesso').select('*, athletes(name, team)'),
   ]);
+  const [gx, cg] = await Promise.all([ sb.from('ganchos_exemplos').select('*').order('created_at', {ascending:false}), sb.from('ia_contexto').select('regras_ganchos, documento_ganchos').eq('id',1).maybeSingle() ]);
+  State.ganchosOk = !gx.error && !cg.error; State.ganchos = gx.data || []; State.ctxGanchos = cg.data || {};
   State.iaTabela = !ped.error; State.pedidos = ped.data || []; State.exemplos = ex.data || []; State.acessos = ac.data || [];
   State.tabelaOk = !sug.error; State.sugestoes = sug.data || [];
   State.gravacoes = grav.data || []; State.produtos = (prod.data || []).map(p=>p.name);
@@ -70,9 +72,10 @@ function view(){
   </div>
   <div class="seg brand" style="margin-bottom:18px;">
     <button class="${State.aba==='sugestoes'?'active':''}" data-aba="sugestoes">${ICONS.ideia.replace('width="18" height="18"','width="14" height="14"')} Sugestões</button>
+    <button class="${State.aba==='ganchos'?'active':''}" data-aba="ganchos">Gerador de ganchos</button>
     <button class="${State.aba==='ia'?'active':''}" data-aba="ia">✨ IA: pedidos, exemplos e acessos</button>
   </div>
-  ${State.aba==='ia' ? viewIA() : `
+  ${State.aba==='ganchos' ? viewGanchos() : State.aba==='ia' ? viewIA() : `
   <div class="row" style="justify-content:space-between; gap:12px; margin-bottom:16px;">
     <div class="filter-pills">
       <button class="fpill ${State.filtroTipo==='todos'?'active':''}" data-tipo="todos">Todas <span class="count">${State.sugestoes.length}</span></button>
@@ -84,6 +87,53 @@ function view(){
       return sugestaoCardHtml(s, {rascunho:!s.publicada, extra: `<div style="font-size:12px; color:var(--muted); margin-top:10px; border-top:1px solid #f3eee8; padding-top:10px;">
         ${s.publicada ? `✅ <strong style="color:var(--ink);">${feitos}</strong> gravaram · 🙋 <strong style="color:var(--ink);">${querem}</strong> querem gravar` : 'Só a equipe vê — publique quando estiver pronta.'}</div>`}); }).join('')}</div>`
     : `<div class="panel"><div class="empty-state"><div class="big">💡</div>${State.sugestoes.length ? 'Nada com esse filtro.' : 'Nenhuma sugestão ainda. Crie a primeira — por exemplo, uma sequência de 5 stories mostrando a rotina de treino com o produto.'}</div></div>`}`}`;
+}
+
+/* ---------- Aba Gerador de ganchos: gerar + contexto próprio (regras, documento, banco de bons ganchos) ---------- */
+function viewGanchos(){
+  if(!State.ganchosOk) return `<div class="panel"><div class="empty-state"><div class="big">🛠️</div>Rode <code>${MIGRACAO_GANCHOS}</code> no SQL Editor do Supabase e publique de novo a função <code>gerar-sugestao</code>.</div></div>`;
+  return `
+  <div class="panel"><div class="card-head"><div><h2>Gerar ganchos</h2><div class="desc">A IA cria 10 ganchos (a frase dos primeiros 3 segundos) usando o contexto abaixo e o banco de bons ganchos. Marque os bons pra ela aprender.</div></div></div>
+    ${ganchosFormHtml(State.produtos)}</div>
+  <div class="grid-2" style="align-items:start;">
+    <div class="panel"><h2>Contexto dos ganchos</h2><div class="desc" style="margin-bottom:10px;">Só o gerador de ganchos lê isto (além de marca, tom e “o que evitar” do Contexto da IA).</div>
+      <div class="field"><label>Regras e tipos de gancho</label><textarea id="gRegras" style="min-height:120px;" placeholder="Ex: no máximo 12 palavras; começar pelo problema; usar números...">${escHtml(State.ctxGanchos.regras_ganchos||'')}</textarea></div>
+      <div class="field"><div class="row" style="justify-content:space-between; margin-bottom:6px;"><label style="margin:0;">Documento de referência</label>
+        <label class="btn btn-ghost btn-sm" style="margin:0; cursor:pointer; text-transform:none; letter-spacing:0;">Importar .txt / .md<input type="file" id="gDocArquivo" accept=".txt,.md,text/plain,text/markdown" style="display:none;"></label></div>
+        <textarea id="gDoc" style="min-height:200px; font-size:12.5px;" placeholder="Cole aqui o texto do documento (guia de ganchos, estudo, anotações). PDF: abra, copie o texto e cole.">${escHtml(State.ctxGanchos.documento_ganchos||'')}</textarea>
+        <div style="font-size:11.5px; color:var(--muted); margin-top:4px;" id="gDocInfo">${(State.ctxGanchos.documento_ganchos||'').length.toLocaleString('pt-BR')} caracteres</div></div>
+      <button class="btn btn-primary btn-sm" id="gSalvarCtx">Salvar contexto dos ganchos</button></div>
+    <div class="panel"><h2>Banco de bons ganchos</h2><div class="desc" style="margin-bottom:10px;">A IA usa como referência de nível. Entram aqui os que vocês marcam como “Bom gancho” e os que colarem abaixo.</div>
+      <div class="row" style="gap:8px; margin-bottom:10px;"><input id="gNovo" placeholder="Cole um gancho que funcionou" style="flex:1;"><button class="btn btn-ghost btn-sm" id="gAdd">Adicionar</button></div>
+      ${State.ganchos.length ? State.ganchos.map(g=>`<div style="display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;">
+        <span style="flex:1;">${escHtml(g.texto)}</span><span style="font-size:11px; color:var(--muted);">${g.origem==='ia'?'gerado':'colado'}</span>
+        <button class="icon-btn" data-g-remover="${g.id}" style="width:28px; height:28px;" title="Remover">${ICONS.trash.replace('width="18" height="18"','width="12" height="12"')}</button></div>`).join('') : '<div class="empty-state" style="padding:16px;">Nenhum ainda.</div>'}</div>
+  </div>`;
+}
+async function salvarGanchoBom(texto, origem){
+  const { data, error } = await sb.from('ganchos_exemplos').insert({ texto, origem, autor:State.profile?.nome||'' }).select().single();
+  if(error){ erroBanco(error, MIGRACAO_GANCHOS); return false; }
+  State.ganchos.unshift(data); return true;
+}
+function ligarGanchos(){
+  ligarGanchosForm({ aoAprovar: async (g)=>{ const ok = await salvarGanchoBom(g.texto, 'ia'); if(ok) toast('Guardado no banco de bons ganchos'); return ok; } });
+  const doc = document.getElementById('gDoc');
+  doc.oninput = ()=>{ document.getElementById('gDocInfo').textContent = `${doc.value.length.toLocaleString('pt-BR')} caracteres`; };
+  document.getElementById('gDocArquivo').onchange = async (e)=>{ const f = e.target.files[0]; if(!f) return;
+    doc.value = (doc.value ? doc.value + '\n\n' : '') + await f.text(); doc.oninput(); toast('Texto importado — clique em Salvar'); };
+  document.getElementById('gSalvarCtx').onclick = async (ev)=>{
+    const campos = { regras_ganchos:document.getElementById('gRegras').value, documento_ganchos:doc.value };
+    ev.currentTarget.disabled = true;
+    const { error } = await sb.from('ia_contexto').update(campos).eq('id', 1);
+    ev.currentTarget.disabled = false;
+    if(error){ erroBanco(error, MIGRACAO_GANCHOS); return; }
+    Object.assign(State.ctxGanchos, campos); toast('Contexto dos ganchos salvo');
+  };
+  document.getElementById('gAdd').onclick = async ()=>{ const t = document.getElementById('gNovo').value.trim(); if(!t) return;
+    if(await salvarGanchoBom(t, 'equipe')){ toast('Gancho adicionado'); render(); } };
+  document.querySelectorAll('[data-g-remover]').forEach(b=> b.onclick = async ()=>{
+    const { error } = await sb.from('ganchos_exemplos').delete().eq('id', b.dataset.gRemover); if(error){ erroBanco(error, MIGRACAO_GANCHOS); return; }
+    State.ganchos = State.ganchos.filter(g=>g.id!==b.dataset.gRemover); render(); });
 }
 
 /* ---------- Aba IA: pedidos, exemplos 👍/👎 e quem tem acesso ---------- */
@@ -189,6 +239,7 @@ function render(){
   if(!State.tabelaOk) return;
   document.getElementById('btnNova').onclick = ()=> abrirEditor(null);
   document.getElementById('btnGerarIA').onclick = abrirGerarIA;
+  if(State.aba==='ganchos' && State.ganchosOk) ligarGanchos();
   document.querySelectorAll('[data-aba]').forEach(b=> b.onclick = ()=>{ State.aba = b.dataset.aba; render(); });
   document.querySelectorAll('[data-ver-pedido]').forEach(b=> b.onclick = ()=> abrirPedido(b.dataset.verPedido));
   document.querySelectorAll('[data-virar-sugestao]').forEach(b=> b.onclick = ()=>{ const p = State.pedidos.find(x=>x.id===b.dataset.virarSugestao); abrirEditor(sugestaoDoPedido(p), {pedidoId:p.id, conteudo:conteudoDoPedido(p), avaliado:true}); });
