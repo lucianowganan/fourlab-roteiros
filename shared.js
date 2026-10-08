@@ -1410,3 +1410,44 @@ function ligarGanchosForm(opts){
     btn.disabled = false; btn.textContent = 'Gerar de novo';
   };
 }
+
+/* ---------- Cobrança por WhatsApp (copiar ou abrir no WhatsApp com a mensagem pronta) ----------
+   Variáveis: {nome} {link} {calendario}. Depois, com um número conectado, o disparo pode ser automático. */
+const MODELOS_COBRANCA = {
+  postar:{titulo:'Lembrar de postar', texto:'Oi, {nome}! 👋 Passando pra lembrar dos seus posts de {mes}:\n\n{calendario}\n\nOs roteiros estão prontos no painel: {link}\nQualquer dúvida é só chamar! 🚀'},
+  roteiro:{titulo:'Roteiro novo disponível', texto:'Oi, {nome}! Seu roteiro novo já está no painel: {link}\nDá uma olhada e me conta se quer ajustar algo. 😉'},
+  confirmar:{titulo:'Confirmar postagem', texto:'Oi, {nome}! Conseguiu postar o conteúdo combinado? Me manda o link ou um print por aqui pra gente registrar. 🙏'},
+};
+async function abrirCobranca(a){
+  const ym = monthKey(todayISO());
+  const [{ data: salvos }, { data: ent }] = await Promise.all([
+    sb.from('cobranca_modelos').select('*'),
+    sb.from('entries').select('post_date, product, format, postou').eq('athlete_id', a.id).gte('post_date', ym+'-01').lte('post_date', ym+'-31').order('post_date'),
+  ]);
+  const modelos = {}; Object.entries(MODELOS_COBRANCA).forEach(([k,m])=> modelos[k] = {...m});
+  (salvos||[]).forEach(m=>{ if(modelos[m.id]) modelos[m.id].texto = m.texto; });
+  const cal = (ent||[]).filter(e=> e.postou!=='sim').map(e=>`• ${fmtDateBR(e.post_date).slice(0,5)} — ${e.product===SEM_PRODUTO?'tema livre':e.product} (${e.format})`).join('\n') || '(sem posts agendados)';
+  const preencher = (t)=> t.replace(/{nome}/g, a.name.split(' ')[0]).replace(/{link}/g, new URL('login', location.href).href).replace(/{mes}/g, fmtMonthLabel(ym).split('/')[0].toLowerCase()).replace(/{calendario}/g, cal);
+  let atual = 'postar';
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Cobrar ${escHtml(a.name.split(' ')[0])} por WhatsApp</h3>
+    <div class="field"><label>Modelo</label><select id="cbModelo">${Object.entries(modelos).map(([k,m])=>`<option value="${k}">${m.titulo}</option>`).join('')}</select></div>
+    <div class="field"><textarea id="cbTexto" style="min-height:200px; font-size:13px;"></textarea>
+      <div style="font-size:11.5px; color:var(--muted); margin-top:4px;">Variáveis: {nome} {link} {calendario} {mes}. Pode editar à vontade antes de enviar.</div></div>
+    <div class="row" style="justify-content:space-between; gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-ghost btn-sm" id="cbSalvar">Salvar como modelo</button>
+      <div class="row" style="gap:8px;"><button class="btn btn-outline btn-sm" id="cbCopiar">Copiar</button>
+        <button class="btn btn-primary btn-sm" id="cbEnviar" ${a.whatsapp?'':'disabled title="Sem WhatsApp cadastrado"'}>Enviar pelo WhatsApp</button></div></div>`);
+  const ta = document.getElementById('cbTexto'), carregar = ()=>{ ta.value = preencher(modelos[atual].texto); };
+  carregar();
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  document.getElementById('cbModelo').onchange = (e)=>{ atual = e.target.value; carregar(); };
+  document.getElementById('cbCopiar').onclick = ()=> navigator.clipboard.writeText(ta.value).then(()=> toast('Mensagem copiada'));
+  document.getElementById('cbEnviar').onclick = ()=>{ window.open(`${SOCIAL_FIELDS.find(f=>f.key==='whatsapp').url(a.whatsapp)}?text=${encodeURIComponent(ta.value)}`, '_blank'); };
+  document.getElementById('cbSalvar').onclick = async ()=>{
+    // guarda o texto com as variáveis de volta (troca o nome e o mês preenchidos)
+    const txt = ta.value.split(a.name.split(' ')[0]).join('{nome}');
+    const { error } = await sb.from('cobranca_modelos').upsert({ id:atual, titulo:modelos[atual].titulo, texto:txt, updated_at:new Date().toISOString() });
+    if(error){ erroBanco(error, 'migrations/2026-10-15_cobranca_whatsapp.sql'); return; }
+    modelos[atual].texto = txt; toast('Modelo salvo');
+  };
+}

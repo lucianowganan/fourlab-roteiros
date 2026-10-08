@@ -69,7 +69,7 @@ function viewAcompanhamento(){
     <tbody>${cycle.entries.map(e=>{
       const s = e.status||{postou:null,collab:null,obs:'',metrics:{}}, met = s.metrics||{};
       return `<tr data-entry-row="${e.id}">
-        <td><strong>${athleteName(e.athleteId)}</strong><div style="font-size:10.5px;color:var(--muted);">${e.team}</div></td>
+        <td><strong>${athleteName(e.athleteId)}</strong><div style="font-size:10.5px;color:var(--muted);">${e.team}</div><button class="btn btn-ghost btn-sm" data-cobrar="${e.athleteId}" style="padding:3px 8px; margin-top:4px;">${ICONS.whatsapp.replace('width="18" height="18"','width="12" height="12"')} Cobrar</button></td>
         <td style="min-width:190px;" data-celula-roteiro="${e.id}">${celulaRoteiroHtml(e)}</td>
         <td>${e.date.split('-').reverse().join('/')}</td>
         <td><select class="st-postou"><option value="" ${s.postou===null?'selected':''}>—</option><option value="sim" ${s.postou==='sim'?'selected':''}>Sim</option><option value="nao" ${s.postou==='nao'?'selected':''}>Não</option></select></td>
@@ -91,6 +91,7 @@ function wire(){
     await carregarMes(State.currentCycleYM); render();
   };
   ligarBotoesRoteiro(document);
+  document.querySelectorAll('[data-cobrar]').forEach(b=> b.onclick = ()=> abrirCobranca(State.athletes.find(x=>x.id===b.dataset.cobrar)));
   document.getElementById('btnSalvarAcompanhamento').onclick = async ()=>{
     const rows = Array.from(document.querySelectorAll('[data-entry-row]'));
     const touched = [];
@@ -110,8 +111,8 @@ function wire(){
 function render(){ if(!State.cycle.entries.length){ document.getElementById('main').innerHTML = viewAcompanhamento(); return; } document.getElementById('main').innerHTML = viewAcompanhamento(); wire(); }
 (async function start(){
   const auth = await guardStaff('acompanhamento'); if(!auth) return;
-  const { data: athletesData } = await sb.from('athletes').select('id,name').order('name');
-  State.athletes = athletesData||[];
+  const { data: athletesData } = await sb.from('athletes').select('*').order('name');
+  State.athletes = (athletesData||[]).map(mapAthleteFromDB);
   await carregarMes(State.currentCycleYM);
   render();
 })();
