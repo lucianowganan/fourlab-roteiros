@@ -252,7 +252,7 @@ function athleteDrawerHtml(a){
     a.enderecoBairro, [a.enderecoCidade, a.enderecoEstado].filter(Boolean).join('/'), a.enderecoCep && 'CEP '+a.enderecoCep].filter(Boolean).map(escHtml).join('<br>');
   return `
     <div class="row" style="justify-content:space-between;"><button class="icon-btn" onclick="closeDrawer()" title="Fechar">${ICONS.back}</button>
-      <div class="row">${isProfissional(a)?'':'<button class="btn btn-ghost btn-sm" id="drBanco">📂 Banco de roteiros</button>'}<button class="btn btn-dark btn-sm" id="drEditar">Editar</button></div></div>
+      <div class="row">${isProfissional(a)?'':'<button class="btn btn-ghost btn-sm" id="drBanco">📂 Banco de roteiros</button>'}<button class="btn btn-ghost btn-sm" id="drCobrar">${ICONS.whatsapp.replace('width="18" height="18"','width="14" height="14"')} Cobrar</button><button class="btn btn-dark btn-sm" id="drEditar">Editar</button></div></div>
     <div style="text-align:center; margin:18px 0 8px;">${avatarHtml(a.name,'xl')}
       <div style="font-size:22px; font-weight:700; margin-top:12px; font-family:var(--font-title);">${escHtml(a.name)}</div>
       <div style="margin-top:6px;"><span class="badge" style="background:${st.bg}; color:${st.fg};">${escHtml(a.team)}</span> <span class="chip static">${escHtml(isProfissional(a) ? categoriaLabel(a) : (a.formatPref||'—'))}</span></div>
@@ -364,6 +364,7 @@ function openAthleteDrawer(a){
   openDrawer(athleteDrawerHtml(a));
   carregarRoteirosDoAtleta(a);
   carregarComprovantesDoAtleta(a);
+  document.getElementById('drCobrar').onclick = ()=> abrirCobranca(a);
   const atu = document.getElementById('drAtualizarCompras');
   if(atu) atu.onclick = async ()=>{
     atu.disabled = true; atu.innerHTML = '<span class="loader" style="border-top-color:var(--orange);border-color:rgba(0,0,0,0.1);"></span> Buscando…';
