@@ -66,7 +66,7 @@ function linhasRelatorio(m){
     const fee = feesCad.find(c=>c.athlete_id===a.id), h = relat[a.id], l = h && h.linhas.find(x=>x.ym===m);
     if(!fee && !(a.recebeComissao && a.cupomYampi)) return null;
     const comissao = !l ? 0 : fee ? l.comissao_mes : l.a_pagar, valorFee = fee ? Number(fee.fee_valor||0) : 0;
-    return { a, l, fee, comissao, valorFee, total: comissao + valorFee, acumulado: l && !fee && !l.a_pagar ? l.saldo_total : 0, carregando: a.recebeComissao && a.cupomYampi && !h };
+    return { a, l, fee, comissao, valorFee, total: comissao + valorFee, doMes: l ? l.comissao_mes : 0, acumulado: l && !fee ? l.saldo_total : 0, faltam: l && !fee && !l.a_pagar ? Math.max(0, META_PAGAMENTO_COMISSAO - l.saldo_total) : 0, carregando: a.recebeComissao && a.cupomYampi && !h };
   }).filter(Boolean).sort((x,y)=> y.total - x.total);
 }
 function blocoRelatorioHtml(){
@@ -77,12 +77,12 @@ function blocoRelatorioHtml(){
         ${fech && relCarregado ? ` <strong style="color:var(--ink);">${pagar.length} a pagar · ${fmtBRL(total)}</strong>` : ''}</div></div>
       <div class="row" style="gap:8px;"><input type="month" id="relMes" value="${relMes}" max="${monthKey(todayISO())}" style="width:auto; background:#fff;">
         ${fech ? '<button class="btn btn-outline btn-sm" id="relPdf">Exportar PDF</button>' : ''}</div></div>
-    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Chave PIX</th><th style="text-align:right;">Comissão</th><th style="text-align:right;">Fee</th><th style="text-align:right;">Total</th><th>Situação</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td><div class="cell-person">${avatarHtml(r.a.name,'sm')}<div><strong>${escHtml(r.a.name)}</strong><div class="sub">${escHtml(r.a.team||'')}</div></div></div></td>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Chave PIX</th><th style="text-align:right;">Comissão do mês</th><th style="text-align:right;">Acumulado</th><th style="text-align:right;">Fee</th><th style="text-align:right;">A pagar</th><th>Situação</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr style="${fech && r.total > 0 && !r.carregando ? 'background:var(--orange-soft);' : ''}"><td><div class="cell-person">${avatarHtml(r.a.name,'sm')}<div><strong>${escHtml(r.a.name)}</strong><div class="sub">${escHtml(r.a.team||'')}</div></div></div></td>
       <td>${r.a.pixKey ? `<span class="chip static">${ICONS.pix} ${escHtml(r.a.pixKey)}</span>` : '<span class="status-dot status-bad">sem chave</span>'}</td>
-      <td style="text-align:right;">${r.carregando ? '…' : fmtBRL(r.comissao)}</td><td style="text-align:right;">${r.fee ? fmtBRL(r.valorFee) : '—'}</td>
-      <td style="text-align:right; font-weight:800;">${r.carregando ? '…' : fmtBRL(r.total)}</td>
-      <td>${r.carregando ? '<span class="loader" style="width:12px;height:12px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : !fech ? '<span class="status-dot status-wait">Em andamento</span>' : r.total > 0 ? '<span class="status-dot" style="color:var(--orange);">A pagar</span>' : `<span class="status-dot status-wait">Não atingiu${r.acumulado ? ` · acumulado ${fmtBRL(r.acumulado)}` : ''}</span>`}</td></tr>`).join('')}
+      <td style="text-align:right;">${r.carregando ? '…' : fmtBRL(r.doMes)}</td><td style="text-align:right;">${r.carregando ? '…' : r.fee ? '—' : fmtBRL(r.acumulado)}</td><td style="text-align:right;">${r.fee ? fmtBRL(r.valorFee) : '—'}</td>
+      <td style="text-align:right; font-weight:800; ${fech && r.total > 0 ? 'color:var(--orange);' : ''}">${r.carregando ? '…' : fmtBRL(r.total)}</td>
+      <td>${r.carregando ? '<span class="loader" style="width:12px;height:12px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : !fech ? '<span class="status-dot status-wait">Em andamento</span>' : r.total > 0 ? '<span class="status-dot" style="color:var(--orange); font-weight:800;">A pagar</span>' : `<span class="status-dot status-wait">Acumulando · faltam ${fmtBRL(r.faltam)}</span>`}</td></tr>`).join('')}
     </tbody></table></div></div>`;
 }
 function desenharRelatorio(){
