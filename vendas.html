@@ -48,85 +48,60 @@ async function carregarEquipeAoVivo(){
   if(resto.length){ await buscarMeses(resto); render(); }
 }
 
-/* ---------- Comissões: saldo acumulado (até R$ 100) e pagamentos ---------- */
-const saldos = {}; let pagamentos = [], tabelaPagamentosOk = true, calculandoSaldos = false;
-async function calcularSaldos(){
-  const comissionados = athletes.filter(a=> a.recebeComissao && a.cupomYampi);
-  if(!comissionados.length) return;
-  calculandoSaldos = true;
-  const pag = await carregarPagamentosComissao();
-  pagamentos = pag.pagamentos; tabelaPagamentosOk = pag.tabelaOk;
-  atualizarBlocoComissoes();
-  for(const a of comissionados){
-    saldos[a.id] = await historicoComissao(a, {pagamentos});
-    atualizarBlocoComissoes();
+/* ---------- Extrato mensal de pagamentos (só consulta): comissão (mín. R$ 100, acumula) + fee ---------- */
+const relat = {}; let relMes = addMonths(monthKey(todayISO()), -1), relCarregado = false, feesCad = [];
+const fechado = (m)=> m < monthKey(todayISO());   // o mês fecha no dia 1 do mês seguinte
+async function calcularRelatorio(){
+  const [f] = await Promise.all([carregarFees()]); feesCad = f.cadastros;
+  const gente = athletes.filter(a=> (a.recebeComissao && a.cupomYampi) || feesCad.some(c=>c.athlete_id===a.id));
+  for(const a of gente){
+    if(a.recebeComissao && a.cupomYampi) relat[a.id] = await historicoComissao(a, {pagamentos:[]});
+    desenharRelatorio();
   }
-  calculandoSaldos = false; atualizarBlocoComissoes();
+  relCarregado = true; desenharRelatorio();
 }
-function blocoComissoesHtml(){
-  const comissionados = athletes.filter(a=> a.recebeComissao && a.cupomYampi);
-  if(!comissionados.length) return '';
-  const linhas = comissionados.map(a=>({a, h:saldos[a.id]})).sort((x,y)=> (y.h?.saldoAtual||0) - (x.h?.saldoAtual||0));
-  const liberados = linhas.filter(l=> l.h && l.h.saldoAtual >= META_PAGAMENTO_COMISSAO).length;
-  return `<div class="panel"><div class="card-head"><div><h2>Comissões e pagamentos</h2>
-      <div class="desc">Saldo acumulado de quem recebe comissão, contando a partir de ${fmtMonthLabel(INICIO_COMISSOES).toLowerCase()}. O pagamento libera a partir de ${fmtBRL(META_PAGAMENTO_COMISSAO)}; abaixo disso, soma com o mês seguinte.
-      ${liberados ? ` <strong style="color:var(--orange);">${liberados} liberado(s) pra pagar.</strong>` : ''}</div></div><span class="ic-bubble">${ICONS.pix}</span></div>
-    ${!tabelaPagamentosOk ? '<div style="font-size:12.5px; background:var(--orange-soft); border-radius:12px; padding:10px 12px; margin-bottom:12px;">Pra registrar pagamentos, rode <code>migrations/2026-09-29_pagamentos_comissao.sql</code> no Supabase.</div>' : ''}
-    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Chave PIX</th><th>Último pagamento</th><th>Situação</th><th style="text-align:right;">Saldo</th><th></th></tr></thead><tbody>
-    ${linhas.map(({a,h})=>{ const ult = pagamentos.filter(p=>p.athlete_id===a.id).slice(-1)[0];
-      return `<tr><td><div class="cell-person">${avatarHtml(a.name,'sm')}<div><strong>${escHtml(a.name)}</strong><div class="sub">${escHtml(a.team||'')} · ${a.comissaoPct??10}%</div></div></div></td>
-      <td>${a.pixKey ? `<span class="chip static">${ICONS.pix} ${escHtml(a.pixKey)}</span>` : '<span class="status-dot status-bad">sem chave</span>'}</td>
-      <td style="color:var(--muted);">${ult ? `${fmtDateBR(ult.pago_em)} · ${fmtBRL(ult.valor)}` : '—'}</td>
-      <td>${!h ? '<span class="loader" style="width:12px;height:12px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : h.saldoAtual >= META_PAGAMENTO_COMISSAO ? '<span class="status-dot" style="color:var(--orange);">Liberado pra pagar</span>' : `<span class="status-dot status-wait">Acumulando · faltam ${fmtBRL(META_PAGAMENTO_COMISSAO - h.saldoAtual)}</span>`}</td>
-      <td style="text-align:right; font-weight:800; color:${h && h.saldoAtual >= META_PAGAMENTO_COMISSAO ? 'var(--orange)' : 'var(--ink)'};">${h ? fmtBRL(h.saldoAtual) : '…'}</td>
-      <td style="text-align:right;">${h && h.saldoAtual > 0 && tabelaPagamentosOk ? `<button class="btn btn-sm ${h.saldoAtual >= META_PAGAMENTO_COMISSAO ? 'btn-primary' : 'btn-ghost'}" data-pagar="${a.id}">Registrar pagamento</button>` : ''}</td></tr>`; }).join('')}
+// Linhas do mês escolhido: quanto pagar de comissão + fee. Quem tem fee recebe a comissão do mês inteira (sem mínimo).
+function linhasRelatorio(m){
+  return athletes.map(a=>{
+    const fee = feesCad.find(c=>c.athlete_id===a.id), h = relat[a.id], l = h && h.linhas.find(x=>x.ym===m);
+    if(!fee && !(a.recebeComissao && a.cupomYampi)) return null;
+    const comissao = !l ? 0 : fee ? l.comissao_mes : l.a_pagar, valorFee = fee ? Number(fee.fee_valor||0) : 0;
+    return { a, l, fee, comissao, valorFee, total: comissao + valorFee, acumulado: l && !fee && !l.a_pagar ? l.saldo_total : 0, carregando: a.recebeComissao && a.cupomYampi && !h };
+  }).filter(Boolean).sort((x,y)=> y.total - x.total);
+}
+function blocoRelatorioHtml(){
+  if(!athletes.some(a=> (a.recebeComissao && a.cupomYampi))  && !feesCad.length && relCarregado) return '';
+  const rows = linhasRelatorio(relMes), pagar = rows.filter(r=> r.total > 0 && !r.carregando), total = pagar.reduce((t,r)=> t+r.total, 0), fech = fechado(relMes);
+  return `<div class="panel"><div class="card-head"><div><h2>Extrato de pagamentos — ${fmtMonthLabel(relMes)}</h2>
+      <div class="desc">${fech ? `Fechado em 01/${addMonths(relMes,1).slice(5,7)}. Comissão a partir de ${fmtBRL(META_PAGAMENTO_COMISSAO)} (abaixo disso acumula pro mês seguinte) + fee mensal.` : `Mês em andamento — fecha em 01/${addMonths(relMes,1).slice(5,7)}. Os valores podem mudar até lá.`}
+        ${fech && relCarregado ? ` <strong style="color:var(--ink);">${pagar.length} a pagar · ${fmtBRL(total)}</strong>` : ''}</div></div>
+      <div class="row" style="gap:8px;"><input type="month" id="relMes" value="${relMes}" max="${monthKey(todayISO())}" style="width:auto; background:#fff;">
+        ${fech ? '<button class="btn btn-outline btn-sm" id="relPdf">Exportar PDF</button>' : ''}</div></div>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Nome</th><th>Chave PIX</th><th style="text-align:right;">Comissão</th><th style="text-align:right;">Fee</th><th style="text-align:right;">Total</th><th>Situação</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><div class="cell-person">${avatarHtml(r.a.name,'sm')}<div><strong>${escHtml(r.a.name)}</strong><div class="sub">${escHtml(r.a.team||'')}</div></div></div></td>
+      <td>${r.a.pixKey ? `<span class="chip static">${ICONS.pix} ${escHtml(r.a.pixKey)}</span>` : '<span class="status-dot status-bad">sem chave</span>'}</td>
+      <td style="text-align:right;">${r.carregando ? '…' : fmtBRL(r.comissao)}</td><td style="text-align:right;">${r.fee ? fmtBRL(r.valorFee) : '—'}</td>
+      <td style="text-align:right; font-weight:800;">${r.carregando ? '…' : fmtBRL(r.total)}</td>
+      <td>${r.carregando ? '<span class="loader" style="width:12px;height:12px;border-top-color:var(--orange);border-color:rgba(0,0,0,0.08);"></span>' : !fech ? '<span class="status-dot status-wait">Em andamento</span>' : r.total > 0 ? '<span class="status-dot" style="color:var(--orange);">A pagar</span>' : `<span class="status-dot status-wait">Não atingiu${r.acumulado ? ` · acumulado ${fmtBRL(r.acumulado)}` : ''}</span>`}</td></tr>`).join('')}
     </tbody></table></div></div>`;
 }
-function atualizarBlocoComissoes(){
-  const el = document.getElementById('blocoComissoes'); if(!el) return;
-  el.innerHTML = blocoComissoesHtml();
-  el.querySelectorAll('[data-pagar]').forEach(b=> b.onclick = ()=> abrirPagamento(atletaById(b.dataset.pagar)));
+function desenharRelatorio(){
+  const el = document.getElementById('blocoRelatorio'); if(!el) return;
+  el.innerHTML = blocoRelatorioHtml();
+  const m = document.getElementById('relMes'); if(m) m.onchange = (e)=>{ if(e.target.value){ relMes = e.target.value; desenharRelatorio(); } };
+  const p = document.getElementById('relPdf'); if(p) p.onclick = exportarRelatorioPdf;
 }
-function abrirPagamento(a){
-  const h = saldos[a.id];
-  // mês a mês desde o início das comissões (o mês atual ainda está em andamento)
-  const mesAtualYM = monthKey(todayISO());
-  const meses = h.linhas.filter(l=> !l.antes).slice().reverse();
-  const fechado = Math.max(0, h.saldoMesesFechados || 0);
-  const ultimoFechado = addMonths(mesAtualYM, -1);
-  const valorInicial = fechado > 0 ? fechado : h.saldoAtual;
-  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Registrar pagamento — ${escHtml(a.name)}</h3>
-    <div style="font-size:13px; color:var(--ink-2); margin-bottom:14px;">Saldo atual: <strong>${fmtBRL(h.saldoAtual)}</strong>${a.pixKey?` · PIX: <strong>${escHtml(a.pixKey)}</strong>`:' · <span style="color:var(--red);">sem chave PIX cadastrada</span>'}</div>
-    <div style="overflow-x:auto; margin-bottom:12px;"><table><thead><tr><th>Mês</th><th>Vendido</th><th>Comissão</th><th>Pago</th><th style="text-align:right;">Saldo</th></tr></thead><tbody>
-      ${meses.map(l=>`<tr><td><strong>${fmtMonthLabel(l.ym)}</strong>${l.ym===mesAtualYM?' <span style="font-size:11px; color:var(--muted);">(em andamento)</span>':''}</td>
-        <td>${fmtBRL(l.valor_vendido)}</td><td style="font-weight:700; color:var(--orange);">${fmtBRL(l.comissao_mes)}</td><td>${l.pago_valor?fmtBRL(l.pago_valor):'—'}</td><td style="text-align:right;">${fmtBRL(l.saldo_total)}</td></tr>`).join('')}
-    </tbody></table></div>
-    <div class="row" style="gap:8px; margin-bottom:12px;">
-      ${fechado > 0 ? `<button type="button" class="btn btn-ghost btn-sm" data-valor-pg="${fechado.toFixed(2)}">Até ${fmtMonthLabel(ultimoFechado).toLowerCase()}: ${fmtBRL(fechado)}</button>` : ''}
-      <button type="button" class="btn btn-ghost btn-sm" data-valor-pg="${h.saldoAtual.toFixed(2)}">Tudo, com o mês atual: ${fmtBRL(h.saldoAtual)}</button></div>
-    <div class="grid-2" style="gap:12px;">
-      <div class="field"><label>Valor pago (R$)</label><input id="pgValor" type="number" step="0.01" min="0" value="${valorInicial.toFixed(2)}"></div>
-      <div class="field"><label>Data do pagamento</label><input id="pgData" type="date" value="${todayISO()}"></div></div>
-    <div class="field"><label>Observação (opcional)</label><input id="pgObs" placeholder="Ex: PIX enviado"></div>
-    ${campoComprovanteHtml('pgArquivo')}
-    <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">O valor é descontado do saldo do atleta, e o mês aparece como "Pago" no extrato dele.</div>
-    <div class="row" style="justify-content:flex-end;"><button class="btn btn-primary" id="btnSalvarPg">Registrar pagamento</button></div>`);
-  document.getElementById('modalCloseBtn').onclick = closeModal;
-  document.querySelectorAll('[data-valor-pg]').forEach(b=> b.onclick = ()=>{ document.getElementById('pgValor').value = b.dataset.valorPg; });
-  document.getElementById('btnSalvarPg').onclick = async (ev)=>{
-    const valor = Number(document.getElementById('pgValor').value), data = document.getElementById('pgData').value;
-    if(!(valor > 0) || !data){ toast('Preencha valor e data'); return; }
-    ev.target.disabled = true;
-    const { data: novo, error } = await sb.from('comissao_pagamentos').insert({ athlete_id:a.id, valor, pago_em:data, ym:monthKey(data), obs:document.getElementById('pgObs').value.trim() }).select().single();
-    if(error){ erroBanco(error, 'migrations/2026-09-29_pagamentos_comissao.sql'); ev.target.disabled = false; return; }
-    pagamentos.push(novo); pagamentos.sort((x,y)=> String(x.pago_em).localeCompare(String(y.pago_em)));
-    // comprovante: aparece pro atleta no Meu Perfil (mesmo sem arquivo, fica o registro do pagamento)
-    try{ await salvarComprovante({ athleteId:a.id, data, valor, tipo:'comissao', arquivo:document.getElementById('pgArquivo').files[0],
-      descricao:`Comissão do cupom ${a.cupomYampi.toUpperCase()}${document.getElementById('pgObs').value.trim()?` — ${document.getElementById('pgObs').value.trim()}`:''}` }); }
-    catch(err){ mostrarFaixaErro('Pagamento registrado, mas o comprovante não foi salvo.', `${escHtml(err.message||err)}<br>Anexe de novo na ficha do atleta.`); }
-    saldos[a.id] = await historicoComissao(a, {pagamentos});
-    closeModal(); toast('Pagamento registrado'); atualizarBlocoComissoes();
-  };
+// PDF só com quem tem valor a pagar (os demais ficam só no painel)
+function exportarRelatorioPdf(){
+  const rows = linhasRelatorio(relMes).filter(r=> r.total > 0 && !r.carregando); if(!rows.length){ toast('Ninguém a pagar neste mês'); return; }
+  const w = window.open('', '_blank');
+  w.document.write(`<html><head><meta charset="utf-8"><title>Pagamentos ${fmtMonthLabel(relMes)}</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#1a1315}h1{font-size:20px;margin:0 0 4px}p{color:#666;font-size:12px;margin:0 0 16px}table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{padding:8px 6px;border-bottom:1px solid #ddd;text-align:left}th:nth-child(n+3),td:nth-child(n+3){text-align:right}tfoot td{font-weight:bold;border-top:2px solid #1a1315}</style></head><body>
+    <h1>FourLab — Pagamentos de ${fmtMonthLabel(relMes)}</h1><p>Fechado em 01/${addMonths(relMes,1).slice(5,7)}. Só quem atingiu o valor mínimo ou recebe fee.</p>
+    <table><thead><tr><th>Nome</th><th>Chave PIX</th><th>Comissão</th><th>Fee</th><th>Total</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${escHtml(r.a.name)}</td><td>${escHtml(r.a.pixKey||'sem chave')}</td><td>${fmtBRL(r.comissao)}</td><td>${fmtBRL(r.valorFee)}</td><td>${fmtBRL(r.total)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4">Total</td><td>${fmtBRL(rows.reduce((t,r)=>t+r.total,0))}</td></tr></tfoot></table>
+    <script>window.onload=()=>window.print()<\/script></body></html>`);
+  w.document.close();
 }
 // total do mês: usa dados ao vivo quando já carregados, senão o histórico salvo (vendas_mensais)
 function totalMes(mes, campo){
@@ -185,8 +160,7 @@ function viewVendas(){
     </div>
   </div>
 
-  <div id="blocoFees"></div>
-  <div id="blocoComissoes">${blocoComissoesHtml()}</div>
+  <div id="blocoRelatorio"></div>
 
   <div class="panel">
     <div class="row" style="justify-content:space-between;">
@@ -215,10 +189,7 @@ function render(){
     document.getElementById('vendasEquipeDashboard').scrollIntoView({behavior:'smooth'});
   });
   if(atletaSel) disparar();
-  atualizarBlocoComissoes();
-  // fee mensal + rebate: o rebate pago desconta do saldo de comissão, então recalcula o saldo de quem foi pago
-  iniciarBlocoFees('blocoFees', ym, athletes, { aoPagar: async (i)=>{ const pag = await carregarPagamentosComissao(); pagamentos = pag.pagamentos;
-    if(saldos[i.a.id]){ saldos[i.a.id] = await historicoComissao(i.a, {pagamentos}); atualizarBlocoComissoes(); } } });
+  desenharRelatorio();
 }
 (async function start(){
   const auth = await guardStaff('vendas'); if(!auth) return;
@@ -229,6 +200,6 @@ function render(){
   athletes = (data||[]).map(mapAthleteFromDB);
   vendasMensais = vm || [];
   render();
-  carregarEquipeAoVivo().then(calcularSaldos);
+  carregarEquipeAoVivo().then(calcularRelatorio);
 })();
 </script></body></html>
