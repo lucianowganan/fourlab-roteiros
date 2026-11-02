@@ -1297,19 +1297,21 @@ function ligarGanchosForm(opts){
    Variáveis: {nome} {link} {calendario}. Depois, com um número conectado, o disparo pode ser automático. */
 const MODELOS_COBRANCA = {
   postar:{titulo:'Lembrar de postar', texto:'Oi, {nome}! 👋 Passando pra lembrar dos seus posts de {mes}:\n\n{calendario}\n\nOs roteiros estão prontos no painel: {link}\nQualquer dúvida é só chamar! 🚀'},
-  roteiro:{titulo:'Roteiro novo disponível', texto:'Oi, {nome}! Seu roteiro novo já está no painel: {link}\nDá uma olhada e me conta se quer ajustar algo. 😉'},
+  roteiro_completo:{titulo:'Enviar o roteiro na mensagem', texto:'Oi, {nome}! Seguem os seus roteiros de {mes} 👇\n\n{roteiros}\n\nTudo também está no painel: {link}\nQualquer dúvida é só chamar! 🚀'},
+  roteiro:{titulo:'Avisar que o roteiro está no app', texto:'Oi, {nome}! Seu roteiro novo já está no painel: {link}\nDá uma olhada e me conta se quer ajustar algo. 😉'},
   confirmar:{titulo:'Confirmar postagem', texto:'Oi, {nome}! Conseguiu postar o conteúdo combinado? Me manda o link ou um print por aqui pra gente registrar. 🙏'},
 };
 async function abrirCobranca(a){
   const ym = monthKey(todayISO());
   const [{ data: salvos }, { data: ent }] = await Promise.all([
     sb.from('cobranca_modelos').select('*'),
-    sb.from('entries').select('post_date, product, format, postou').eq('athlete_id', a.id).gte('post_date', ym+'-01').lte('post_date', ym+'-31').order('post_date'),
+    sb.from('entries').select('*').eq('athlete_id', a.id).gte('post_date', ym+'-01').lte('post_date', ym+'-31').order('post_date'),
   ]);
   const modelos = {}; Object.entries(MODELOS_COBRANCA).forEach(([k,m])=> modelos[k] = {...m});
   (salvos||[]).forEach(m=>{ if(modelos[m.id]) modelos[m.id].texto = m.texto; });
   const cal = (ent||[]).filter(e=> e.postou!=='sim').map(e=>`• ${fmtDateBR(e.post_date).slice(0,5)} — ${e.product===SEM_PRODUTO?'tema livre':e.product} (${e.format})`).join('\n') || '(sem posts agendados)';
-  const preencher = (t)=> t.replace(/{nome}/g, a.name.split(' ')[0]).replace(/{link}/g, new URL('login', location.href).href).replace(/{mes}/g, fmtMonthLabel(ym).split('/')[0].toLowerCase()).replace(/{calendario}/g, cal);
+  const roteiros = (ent||[]).filter(e=> (e.roteiro||'').trim() && (!('enviado_em' in e) || e.enviado_em)).map(e=>`📅 *${fmtDateBR(e.post_date).slice(0,5)} — ${e.product===SEM_PRODUTO?'tema livre':e.product} (${e.format})*\n${e.roteiro.trim()}`).join('\n\n──────────\n\n') || '(nenhum roteiro enviado ainda)';
+  const preencher = (t)=> t.replace(/{nome}/g, a.name.split(' ')[0]).replace(/{link}/g, new URL('login', location.href).href).replace(/{mes}/g, fmtMonthLabel(ym).split('/')[0].toLowerCase()).replace(/{calendario}/g, cal).replace(/{roteiros}/g, ()=> roteiros);
   let atual = 'postar';
   openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Cobrar ${escHtml(a.name.split(' ')[0])} por WhatsApp</h3>
     <div class="field"><label>Modelo</label><select id="cbModelo">${Object.entries(modelos).map(([k,m])=>`<option value="${k}">${m.titulo}</option>`).join('')}</select></div>
@@ -1332,4 +1334,39 @@ async function abrirCobranca(a){
     if(error){ erroBanco(error, 'migrations/2026-10-15_cobranca_whatsapp.sql'); return; }
     modelos[atual].texto = txt; toast('Modelo salvo');
   };
+}
+
+/* ---------- Roteiros por equipe pro manager: PDF único (data + atleta + roteiro) + mensagem pronta ---------- */
+const MODELO_MANAGER = 'Oi! Seguem em anexo os roteiros de {mes} da equipe {equipe}, com a data de cada atleta. Qualquer ajuste é só falar! 🙌';
+async function abrirManager(ym0){
+  const ym = ym0 || monthKey(todayISO());
+  const { data: ent } = await sb.from('entries').select('*, athletes(name)').gte('post_date', ym+'-01').lte('post_date', ym+'-31').order('post_date');
+  const lista = (ent||[]).filter(e=> (e.roteiro||'').trim());
+  const equipes = [...new Set(lista.map(e=>e.team).filter(Boolean))];
+  const { data: sv } = await sb.from('cobranca_modelos').select('texto').eq('id','manager').maybeSingle();
+  const modelo = sv?.texto || MODELO_MANAGER;
+  openModal(`<button class="modal-close" id="modalCloseBtn">&times;</button><h3>Roteiros da equipe pro manager — ${fmtMonthLabel(ym)}</h3>
+    ${equipes.length ? `<div class="field"><label>Equipe</label><select id="mgEquipe">${equipes.map(t=>`<option>${escHtml(t)}</option>`).join('')}</select></div>
+    <div class="field"><label>Mensagem</label><textarea id="mgTexto" style="min-height:90px;"></textarea></div>
+    <div class="row" style="gap:8px; flex-wrap:wrap; justify-content:space-between;"><button class="btn btn-ghost btn-sm" id="mgSalvar">Salvar como modelo</button>
+      <div class="row" style="gap:8px;"><button class="btn btn-outline btn-sm" id="mgPdf">Gerar PDF</button><button class="btn btn-outline btn-sm" id="mgCopiar">Copiar mensagem</button>
+        <button class="btn btn-primary btn-sm" id="mgEnviar">Abrir no WhatsApp</button></div></div>
+    <div style="font-size:11.5px; color:var(--muted); margin-top:8px;">Gere o PDF, salve, e anexe na conversa do manager (o WhatsApp não aceita anexo automático).</div>` : '<div class="empty-state">Nenhum roteiro gerado neste mês ainda.</div>'}`);
+  document.getElementById('modalCloseBtn').onclick = closeModal;
+  if(!equipes.length) return;
+  const eq = ()=> document.getElementById('mgEquipe').value, ta = document.getElementById('mgTexto');
+  const montar = ()=>{ ta.value = modelo.replace(/{equipe}/g, eq()).replace(/{mes}/g, fmtMonthLabel(ym).split('/')[0].toLowerCase()); };
+  montar(); document.getElementById('mgEquipe').onchange = montar;
+  document.getElementById('mgCopiar').onclick = ()=> navigator.clipboard.writeText(ta.value).then(()=> toast('Mensagem copiada'));
+  document.getElementById('mgEnviar').onclick = ()=> window.open('https://wa.me/?text='+encodeURIComponent(ta.value), '_blank');
+  document.getElementById('mgSalvar').onclick = async ()=>{
+    const t = ta.value.split(eq()).join('{equipe}'); const { error } = await sb.from('cobranca_modelos').upsert({ id:'manager', titulo:'Manager', texto:t, updated_at:new Date().toISOString() });
+    if(error){ erroBanco(error, 'migrations/2026-10-15_cobranca_whatsapp.sql'); return; } toast('Modelo salvo'); };
+  document.getElementById('mgPdf').onclick = ()=>{
+    const itens = lista.filter(e=> e.team===eq()), w = window.open('', '_blank');
+    w.document.write(`<html><head><meta charset="utf-8"><title>Roteiros ${escHtml(eq())} ${fmtMonthLabel(ym)}</title><style>body{font-family:Arial,sans-serif;padding:26px;color:#1a1315;font-size:13px;line-height:1.5}h1{font-size:20px;margin:0 0 4px}.sub{color:#666;margin-bottom:18px}.rt{border-top:2px solid #1a1315;padding-top:10px;margin-top:18px;page-break-inside:avoid}.rt h2{font-size:15px;margin:0 0 2px}.rt .meta{color:#666;font-size:12px;margin-bottom:8px}p{margin:0 0 6px}</style></head><body>
+      <h1>FourLab — ${escHtml(eq())}</h1><div class="sub">Roteiros de ${fmtMonthLabel(ym)} · ${itens.length} post(s)</div>
+      ${itens.map(e=>`<div class="rt"><h2>${escHtml(e.athletes?.name||'')} — ${fmtDateBR(e.post_date)}</h2><div class="meta">${escHtml(e.product===SEM_PRODUTO?'Tema livre':e.product)} · ${escHtml(e.format)}</div>${textoRicoHtml(e.roteiro)}</div>`).join('')}
+      <script>window.onload=()=>window.print()<\/script></body></html>`);
+    w.document.close(); };
 }
