@@ -309,17 +309,53 @@ function enviosHtml(c){
 function cuponsHtml(c){
   if(!['etapa2','oficial'].includes(c.etapa)) return '';
   return `<div class="section-title">Cupons · Etapa 02</div>
-    <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Crie os cupons na Yampi e registre aqui (a criação automática pela Yampi é a próxima parte do projeto).</div>
+    <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">${c.cupom_desconto && c.cupom_pessoal ? 'Cupons registrados.' : 'Escolha os nomes e clique em <strong>Criar na Yampi</strong>: os dois cupons são criados na loja (site todo, sem validade) e já aparecem pro creator.'}</div>
     ${c.cupom_desconto_sugerido && !c.cupom_desconto ? `<div style="background:#fff4c9; border-radius:12px; padding:10px 12px; font-size:12.5px; margin-bottom:10px;">O creator pediu o cupom <strong>${escHtml(c.cupom_desconto_sugerido)}</strong>. <button class="btn btn-sm btn-ghost" id="drUsarSugestao" style="padding:3px 9px;">Usar</button></div>` : ''}
     <div class="grid-2" style="gap:10px;">
-      <div class="field"><label>Cupom 10% (seguidores)</label><input id="drCupom10" value="${escHtml(c.cupom_desconto)}" placeholder="EX.: MARIA10" style="text-transform:uppercase;"></div>
+      <div class="field"><label>Cupom 10% (seguidores)</label><input id="drCupom10" value="${escHtml(c.cupom_desconto || c.cupom_desconto_sugerido || sugestaoCupom(c, 10))}" placeholder="EX.: MARIA10" style="text-transform:uppercase;"></div>
       <div class="field"><label>Comissão (%)</label><input id="drComissao" type="number" min="0" max="50" step="0.5" value="${c.comissao_pct!=null?c.comissao_pct:10}"></div>
-      <div class="field"><label>Cupom 30% (pessoal)</label><input id="drCupom30" value="${escHtml(c.cupom_pessoal)}" style="text-transform:uppercase;"></div>
+      <div class="field"><label>Cupom 30% (pessoal)</label><input id="drCupom30" value="${escHtml(c.cupom_pessoal || sugestaoCupom(c, 30))}" style="text-transform:uppercase;"></div>
       <div class="field"><label>Usos do cupom pessoal</label><input id="drUsos" type="number" min="0" max="50" value="${c.cupom_pessoal_usos!=null?c.cupom_pessoal_usos:6}"></div>
       <div class="field"><label>Rebate pago (R$)</label><input id="drRebate" type="number" min="0" step="0.01" value="${c.rebate_valor!=null?c.rebate_valor:''}" placeholder="ao final dos 60 dias"></div>
       <div class="field"><label>Pago em</label><input id="drRebateData" type="date" value="${c.rebate_pago_em||''}"></div>
     </div>
-    <button class="btn btn-dark btn-sm" id="drSalvarCupons">Salvar cupons</button>`;
+    <div class="row" style="gap:8px; flex-wrap:wrap;">
+      <button class="btn btn-sm btn-grad" id="drCriarYampi">${ci('porcento')} ${c.cupom_desconto && c.cupom_pessoal ? 'Criar de novo na Yampi' : 'Criar na Yampi'}</button>
+      <button class="btn btn-dark btn-sm" id="drSalvarCupons">Só salvar aqui</button>
+      <button class="btn btn-ghost btn-sm" id="drTestarYampi" title="Lê um cupom da loja pra conferir a integração">Testar conexão</button></div>
+    <div id="drYampiRes" style="font-size:12.5px; margin-top:8px;"></div>`;
+}
+// Nome sugerido: primeiro nome + % (ex.: MARIA10 / MARIA30)
+function sugestaoCupom(c, pct){ return semAcento(primeiroNome(c.nome)).toUpperCase().replace(/[^A-Z0-9]/g,'') + pct; }
+const FUNCAO_CUPONS = 'criar-cupons-creator';
+function erroFuncaoHtml(err, nome){
+  const semFuncao = err && (err.name==='FunctionsFetchError' || /Failed to send a request/i.test(err.message||''));
+  return `<div style="background:var(--red-soft); color:var(--red); border-radius:12px; padding:10px 12px;">${semFuncao
+    ? `<strong>A função não respondeu.</strong> Publique no Supabase a Edge Function <code>${nome}</code> (código em <code>supabase/functions/${nome}/index.ts</code>).`
+    : escHtml(err.message || err)}</div>`;
+}
+async function criarCuponsYampi(c, btn){
+  const res = q('drYampiRes'), cupom10 = q('drCupom10').value.trim().toUpperCase(), cupom30 = q('drCupom30').value.trim().toUpperCase(), usos = Number(q('drUsos').value)||6;
+  if(!confirm(`Criar na Yampi?\n\n${cupom10} · 10% OFF pros seguidores\n${cupom30} · 30% OFF uso pessoal (${usos} usos)\n\nVale pro site todo, sem validade.`)) return;
+  btn.disabled = true; btn.innerHTML = '<span class="loader"></span> Criando...'; res.innerHTML = '';
+  try{
+    const { data, error } = await invocarFuncao(FUNCAO_CUPONS, { creatorId:c.id, cupom10, cupom30, usos });
+    if(error) throw error;
+    if(data.error){ res.innerHTML = erroFuncaoHtml(new Error(data.error + (data.criados && data.criados.length ? ` (já criado: ${data.criados.join(', ')})` : '')), FUNCAO_CUPONS); btn.disabled = false; btn.textContent = 'Tentar de novo'; return; }
+    Object.assign(c, { cupom_desconto:data.cupom10, cupom_pessoal:data.cupom30, cupom_pessoal_usos:usos });
+    toast('Cupons criados na Yampi'); reabrir(c);
+    if(confirm('Cupons criados! Abrir a mensagem "Cupons criados" pra avisar o creator?')) abrirMensagem(c, 'cupons_criados');
+  }catch(err){ console.error(err); res.innerHTML = erroFuncaoHtml(err, FUNCAO_CUPONS); btn.disabled = false; btn.textContent = 'Tentar de novo'; }
+}
+async function testarYampi(btn){
+  const res = q('drYampiRes'); btn.disabled = true; res.innerHTML = '<span class="loader"></span>';
+  try{
+    const { data, error } = await invocarFuncao(FUNCAO_CUPONS, { diagnostico:true });
+    if(error) throw error;
+    res.innerHTML = data.error ? erroFuncaoHtml(new Error(data.error), FUNCAO_CUPONS)
+      : `<div style="background:var(--green-soft); color:var(--green); border-radius:12px; padding:10px 12px;">Conexão com a Yampi ok (${escHtml(data.caminho)}).<div style="font-size:11px; color:var(--ink-2); margin-top:4px; word-break:break-word;">Campos de um cupom: ${escHtml((data.campos||[]).join(', ') || 'nenhum cupom na loja')}</div></div>`;
+  }catch(err){ res.innerHTML = erroFuncaoHtml(err, FUNCAO_CUPONS); }
+  btn.disabled = false;
 }
 function drawerHtml(c){
   const et = etapaInfo(c.etapa), pr = progressoEtapa(c);
@@ -392,6 +428,8 @@ function ligarDrawer(c){
   document.querySelectorAll('[data-envio]').forEach(b=> b.onclick = ()=> editarEnvio(c, State.envios.find(e=>e.id===b.dataset.envio)));
   document.querySelectorAll('[data-sem]').forEach(b=> b.onclick = ()=> marcarSemana(c, Number(b.dataset.sem), b.dataset.meta, Number(b.dataset.d)));
   on('drUsarSugestao', ()=>{ q('drCupom10').value = c.cupom_desconto_sugerido; });
+  on('drCriarYampi', (ev)=> criarCuponsYampi(c, ev.currentTarget));
+  on('drTestarYampi', (ev)=> testarYampi(ev.currentTarget));
   document.querySelectorAll('[data-validar]').forEach(b=> b.onclick = ()=> validarEntrega(c, b.dataset.validar, true));
   document.querySelectorAll('[data-recusar]').forEach(b=> b.onclick = ()=> validarEntrega(c, b.dataset.recusar, false));
   on('drSalvarCupons', async (ev)=>{
