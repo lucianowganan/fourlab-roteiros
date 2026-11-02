@@ -147,7 +147,7 @@ function heroHtml(){
     <div class="row-top"><img class="logo" src="assets/creators/logo-creators.webp" alt="Creators">
       <div><div style="font-family:var(--font-title); font-weight:800; font-size:18px;">Programa FourLab Creators</div>
         <div class="sub">CRM separado dos atletas · inscrição → 30 dias → 60 dias → creator oficial</div></div>
-      <div class="links"><a href="lpcreators" target="_blank" rel="noopener">↗ Landing + formulário</a><a href="creators" target="_blank" rel="noopener">↗ Portal do creator</a>
+      <div class="links"><a href="lpcreators" target="_blank" rel="noopener">${ci('seta_fora', 13)} Landing + formulário</a><a href="creators" target="_blank" rel="noopener">${ci('seta_fora', 13)} Portal do creator</a>
         <a href="#" id="btnCopiarLp">Copiar link do formulário</a></div></div>
     <div class="cr-tabs">${ABAS.map(a=>`<button data-aba="${a.id}" class="${State.aba===a.id?'active':''}">${a.label}${a.id==='funil'&&novos?`<span class="badge-n">${novos}</span>`:''}</button>`).join('')}</div>
   </div>`;
@@ -162,21 +162,21 @@ function abaGeral(){
   const alertas = ativos.flatMap(c=> pendencias(c).map(p=>({c, ...p})));
   const ordemAlerta = {avaliar:0, triagem:1, validar:2, kit:3, cupom:4, semana:5, acesso:6};
   alertas.sort((a,b)=> ordemAlerta[a.tipo]-ordemAlerta[b.tipo]);
-  const icAlerta = {avaliar:'⏱', triagem:'✉', validar:'🔗', kit:'📦', cupom:'%', semana:'✓', acesso:'🔐'};
+  const icAlerta = {avaliar:ci('relogio'), triagem:ci('email'), validar:ci('link'), kit:ci('caixa'), cupom:ci('porcento'), semana:ci('check'), acesso:ci('chave')};
   const recentes = State.creators.slice().sort((a,b)=> String(b.created_at).localeCompare(String(a.created_at))).slice(0,6);
   const esportes = {}; State.creators.forEach(c=> (c.esportes||[]).forEach(e=> esportes[e] = (esportes[e]||0)+1));
   return `<div class="grid-4" style="margin-bottom:18px;">
-      ${stat('✉', n('contato'), 'Inscrições para avaliar', 'var(--ink)')}
+      ${stat(ci('email', 18), n('contato'), 'Inscrições para avaliar', 'var(--ink)')}
       ${stat('1', n('etapa1'), 'Na Etapa 01 · 30 dias', 'var(--pink)')}
       ${stat('2', n('etapa2'), 'Na Etapa 02 · 60 dias', 'var(--orange)')}
-      ${stat('⚡', n('oficial'), 'Creators oficiais', 'var(--purple)')}
+      ${stat(ci('raio', 18), n('oficial'), 'Creators oficiais', 'var(--purple)')}
     </div>
     <div class="grid-2" style="align-items:start;">
       <div class="panel"><div class="card-head"><div><h2>O que precisa de atenção</h2><div class="desc">${alertas.length} pendência(s) nos creators ativos</div></div></div>
         ${alertas.length ? alertas.slice(0,14).map(a=>`<div class="alert-row"><span class="ic-bubble" style="width:34px; height:34px; font-size:15px;">${icAlerta[a.tipo]}</span>
           <div style="flex:1; min-width:0;"><strong>${escHtml(a.c.nome)}</strong><div style="color:var(--muted); font-size:12px;">${escHtml(a.texto)} · ${escHtml(etapaInfo(a.c.etapa).curto)}</div></div>
           <button class="btn btn-ghost btn-sm" data-abrir="${a.c.id}">Abrir</button></div>`).join('') + (alertas.length>14?`<div style="font-size:12px; color:var(--muted); padding-top:10px;">+ ${alertas.length-14} no Funil</div>`:'')
-          : '<div class="empty-state" style="padding:20px;">Tudo em dia ✨</div>'}</div>
+          : '<div class="empty-state" style="padding:20px;">Tudo em dia</div>'}</div>
       <div>
         <div class="panel"><div class="card-head"><div><h2>Últimas inscrições</h2><div class="desc">Chegam pelo formulário da landing /lpcreators</div></div></div>
           ${recentes.length ? recentes.map(c=>`<div class="alert-row">${avatarHtml(c.nome,'sm')}<div style="flex:1; min-width:0;"><strong>${escHtml(c.nome)}</strong>
@@ -203,11 +203,11 @@ function kcardHtml(c){
   const pr = progressoEtapa(c), et = etapaInfo(c.etapa);
   const chips = [];
   if(pr) chips.push(`<span class="kc ${pr.vencida?'alerta':''}">${pr.vencida ? 'avaliar' : `dia ${pr.dia}/${pr.dias}`}</span>`);
-  if(et.semanas) chips.push(`<span class="kc ${semanasOk(c, c.etapa)>=Math.min(et.semanas, pr?pr.semanaAtual-1:0)?'ok':'aviso'}">✓ ${semanasOk(c, c.etapa)}/${et.semanas} sem.</span>`);
+  if(et.semanas) chips.push(`<span class="kc ${semanasOk(c, c.etapa)>=Math.min(et.semanas, pr?pr.semanaAtual-1:0)?'ok':'aviso'}">${ci('check', 11)} ${semanasOk(c, c.etapa)}/${et.semanas} sem.</span>`);
   if(et.kit){ const env = enviosDe(c, c.etapa)[0];
-    chips.push(env ? `<span class="kc ${env.status==='entregue'?'ok':env.status==='enviado'?'':'aviso'}">📦 ${CREATOR_ENVIO_STATUS[env.status].label.toLowerCase()}</span>` : '<span class="kc alerta">📦 sem kit</span>'); }
+    chips.push(env ? `<span class="kc ${env.status==='entregue'?'ok':env.status==='enviado'?'':'aviso'}">${ci('caixa', 11)} ${CREATOR_ENVIO_STATUS[env.status].label.toLowerCase()}</span>` : '<span class="kc alerta">'+ci('caixa', 11)+' sem kit</span>'); }
   const aValidar = State.entregas.filter(e=> e.creator_id===c.id && e.status==='enviado').length;
-  if(aValidar) chips.push(`<span class="kc aviso">🔗 ${aValidar} p/ validar</span>`);
+  if(aValidar) chips.push(`<span class="kc aviso">${ci('link', 11)} ${aValidar} p/ validar</span>`);
   if(c.etapa==='etapa2') chips.push(c.cupom_desconto ? `<span class="kc ok">% ${escHtml(c.cupom_desconto)}</span>` : c.cupom_desconto_sugerido ? `<span class="kc aviso">% pediu ${escHtml(c.cupom_desconto_sugerido)}</span>` : '<span class="kc alerta">% sem cupom</span>');
   const rede = c.instagram || c.tiktok || c.youtube;
   return `<div class="kcard" data-card="${c.id}" style="cursor:pointer;">
@@ -231,7 +231,7 @@ function abaFunil(){
     </div>
     <div class="kanban cr-kanban" style="grid-template-columns:repeat(${colunas.length}, minmax(250px, 1fr));">${colunas.map(id=>{ const et = etapaInfo(id);
       const cs = lista.filter(c=>c.etapa===id);
-      return `<div class="kcol"><div class="kcol-head"><span class="kcol-pill" style="background:${et.bg}; color:${et.fg};">${et.ic} ${et.label} <span class="count">${cs.length}</span></span></div>
+      return `<div class="kcol"><div class="kcol-head"><span class="kcol-pill" style="background:${et.bg}; color:${et.fg};">${ci(et.ic, 13)} ${et.label} <span class="count">${cs.length}</span></span></div>
         ${cs.map(kcardHtml).join('') || '<div style="font-size:12px; color:var(--muted); text-align:center; padding:18px 6px;">Ninguém aqui.</div>'}
         ${id==='contato' ? '<button class="k-add" id="btnNovoManual">+ Cadastrar à mão</button>' : ''}</div>`; }).join('')}</div>`;
 }
@@ -246,9 +246,9 @@ function redeLink(campo, v){ const f = SOCIAL_FIELDS.find(x=>x.key===campo); ret
 function acoesEtapaHtml(c){
   const b = (id, txt, cls)=> `<button class="btn btn-sm ${cls||'btn-ghost'}" id="${id}">${txt}</button>`;
   switch(c.etapa){
-    case 'contato': return b('acAprovar','✓ Aprovar → Etapa 01','btn-grad') + b('acRecusar','Recusar');
-    case 'etapa1': return b('acAvancar','✓ Aprovar → Etapa 02','btn-grad') + b('acEncerrar','Não avançou');
-    case 'etapa2': return b('acOficial','⚡ Tornar Creator Oficial','btn-grad') + b('acEncerrar','Não avançou');
+    case 'contato': return b('acAprovar',ci('check')+' Aprovar → Etapa 01','btn-grad') + b('acRecusar','Recusar');
+    case 'etapa1': return b('acAvancar',ci('check')+' Aprovar → Etapa 02','btn-grad') + b('acEncerrar','Não avançou');
+    case 'etapa2': return b('acOficial',ci('raio')+' Tornar Creator Oficial','btn-grad') + b('acEncerrar','Não avançou');
     case 'oficial': return c.athlete_id ? `<a class="btn btn-sm btn-ghost" href="atletas">Ver em Atletas & parceiros → pasta Creators</a>` : '';
     default: return b('acReabrir','Reabrir inscrição');
   }
@@ -259,7 +259,7 @@ function semanasHtml(c){
   return `<div class="section-title row" style="justify-content:space-between;"><span>Entregas mínimas · ${escHtml(et.curto)}</span><span style="font-size:11px; color:var(--muted); text-transform:none; letter-spacing:0;">${semanasOk(c,c.etapa)}/${et.semanas} semanas completas</span></div>
     <div style="font-size:11.5px; color:var(--muted); margin-bottom:8px;">Marque o que o creator postou em cada semana (o creator vê no portal).</div>
     <div class="sem-grid">${Array.from({length:et.semanas}, (_,i)=>{ const n = i+1, s = semanasDe(c, c.etapa).find(x=>x.semana===n), feito = (s||{}).feito || {};
-      return `<div class="sem-box ${semanaCumprida(c.etapa, feito)?'ok':''} ${pr&&pr.semanaAtual===n?'atual':''}"><div class="h"><span>Sem. ${n}</span>${semanaCumprida(c.etapa, feito)?'✓':''}</div>
+      return `<div class="sem-box ${semanaCumprida(c.etapa, feito)?'ok':''} ${pr&&pr.semanaAtual===n?'atual':''}"><div class="h"><span>Sem. ${n}</span>${semanaCumprida(c.etapa, feito)?ci('check', 13):''}</div>
         ${et.metas.map(m=>`<div class="cnt"><span title="${escHtml(m.label)}">${escHtml(m.curto)}</span><span style="display:flex; align-items:center; gap:3px;">
           <button data-sem="${n}" data-meta="${m.key}" data-d="-1">−</button><b>${Number(feito[m.key])||0}/${m.qtd}</b><button data-sem="${n}" data-meta="${m.key}" data-d="1">+</button></span></div>`).join('')}
       </div>`; }).join('')}</div>`;
@@ -279,8 +279,8 @@ function entregasCreatorHtml(c){
             <div style="color:var(--muted); font-size:11.5px;">${escHtml(etapaInfo(e.etapa).curto)} · semana ${e.semana} · ${fmtDateBR(e.created_at)}${e.descricao?` · ${escHtml(e.descricao)}`:''}</div>
             <a href="${escHtml(e.link)}" target="_blank" rel="noopener" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:300px;">${escHtml(e.link.replace(/^https?:\/\/(www\.)?/,''))}</a>
             ${e.obs_equipe?`<div style="color:var(--red); font-size:11.5px;">${escHtml(e.obs_equipe)}</div>`:''}</div>
-          ${e.status==='enviado' ? `<span class="row" style="gap:4px; flex:none;"><button class="btn btn-sm" data-validar="${e.id}" style="background:var(--green); color:#fff; padding:5px 10px;">✓</button>
-            <button class="btn btn-ghost btn-sm" data-recusar="${e.id}" style="padding:5px 10px;">✕</button></span>` : ''}</div></div>`; }).join('')
+          ${e.status==='enviado' ? `<span class="row" style="gap:4px; flex:none;"><button class="btn btn-sm" data-validar="${e.id}" style="background:var(--green); color:#fff; padding:5px 10px;">${ci('check', 13)}</button>
+            <button class="btn btn-ghost btn-sm" data-recusar="${e.id}" style="padding:5px 10px;">${ci('x', 13)}</button></span>` : ''}</div></div>`; }).join('')
       : '<div style="font-size:12.5px; color:var(--muted);">O creator ainda não registrou conteúdos no portal.</div>'}`;
 }
 async function validarEntrega(c, id, aprovar){
@@ -327,7 +327,7 @@ function drawerHtml(c){
   return `<button class="modal-close" onclick="closeDrawer()" style="position:sticky; top:0; float:right;">&times;</button>
     <div class="row" style="gap:12px; align-items:center;">${avatarHtml(c.nome)}
       <div style="min-width:0;"><h3 style="margin:0; font-size:19px;">${escHtml(c.nome)}</h3>
-        <div style="margin-top:5px;"><span class="kcol-pill" style="background:${et.bg}; color:${et.fg}; padding:3px 10px; font-size:11.5px;">${et.ic} ${escHtml(et.label)}</span>
+        <div style="margin-top:5px;"><span class="kcol-pill" style="background:${et.bg}; color:${et.fg}; padding:3px 10px; font-size:11.5px;">${ci(et.ic, 13)} ${escHtml(et.label)}</span>
         ${pr ? `<span style="font-size:12px; color:${pr.vencida?'var(--red)':'var(--muted)'}; margin-left:6px;">${pr.vencida ? `terminou em ${fmtDateBR(pr.fim)} · avaliar` : `dia ${pr.dia} de ${pr.dias} · até ${fmtDateBR(pr.fim)}`}</span>` : ''}</div></div></div>
     <div class="acoes-etapa">${acoesEtapaHtml(c)}</div>
 
@@ -364,7 +364,7 @@ async function carregarHistorico(c){
   const el = document.getElementById('drHist'); if(!el) return;
   const { data, error } = await sb.from('creator_eventos').select('*').eq('creator_id', c.id).order('created_at', {ascending:false}).limit(60);
   if(error){ el.innerHTML = '<div style="font-size:12px; color:var(--red);">Não consegui carregar o histórico.</div>'; return; }
-  const ic = {nota:'💬', etapa:'➜', mensagem:'✉', envio:'📦', acesso:'🔐', cupom:'%'};
+  const ic = {nota:ci('chat',13), etapa:ci('seta',13), mensagem:ci('email',13), envio:ci('caixa',13), acesso:ci('chave',13), cupom:ci('porcento',13)};
   el.innerHTML = (data||[]).map(e=>`<div class="ev"><span>${ic[e.tipo]||'•'}</span> <span style="white-space:pre-wrap;">${escHtml(e.texto)}</span>
     <div class="q">${new Date(e.created_at).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'})}${e.autor?` · ${escHtml(e.autor)}`:''}</div></div>`).join('') || '<div style="font-size:12px; color:var(--muted); padding:8px 0;">Sem histórico.</div>';
 }
@@ -546,7 +546,7 @@ async function tornarOficial(c){
     }
     await atualizarCreator(c, { etapa:'oficial', athlete_id:athleteId, etapa_inicio:todayISO() });
     await registrarEvento(c.id, 'etapa', 'Virou Creator Oficial: cadastro criado na pasta "Creators" de Atletas & parceiros.');
-    toast('Creator Oficial! ⚡'); reabrir(c);
+    toast('Creator Oficial!'); reabrir(c);
     abrirMensagem(c, 'creator_oficial');
   }catch(err){ erroBanco(err, MIGRACAO_CREATORS); }
 }
@@ -752,7 +752,7 @@ function editarDados(c){
 function render(){
   const main = document.getElementById('main');
   if(!State.tabelaOk){
-    main.innerHTML = `<div class="page-head"><div><h1>Programa Creators</h1></div></div><div class="panel"><div class="empty-state"><div class="big">🛠️</div>
+    main.innerHTML = `<div class="page-head"><div><h1>Programa Creators</h1></div></div><div class="panel"><div class="empty-state"><div class="big">${ci('ferramenta', 34)}</div>
       <strong>As tabelas do Programa Creators ainda não existem no Supabase.</strong><br>Rode <code>${MIGRACAO_CREATORS}</code> no SQL Editor do Supabase e recarregue a página.<br>
       Depois publique a Edge Function <code>criar-acesso-creator</code>.</div></div>`;
     return;

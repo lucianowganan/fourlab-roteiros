@@ -285,7 +285,7 @@ function abaInicio(){
       <p>${textos[c.etapa]||''}</p>
       ${pr ? `<div class="barra"><div style="width:${Math.min(100, Math.round(pr.dia/pr.dias*100))}%"></div></div>
         <div class="barra-leg"><span>Dia ${Math.min(pr.dia, pr.dias)} de ${pr.dias} · semana ${pr.semanaAtual}</span><span>${pr.vencida ? 'Etapa em avaliação' : `termina em ${fmtDateBR(pr.fim)}`}</span></div>` : ''}
-      ${ativa ? `<div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;"><a class="btn-c sm" href="${et.guia}" target="_blank" rel="noopener">📘 Abrir guia da etapa</a>
+      ${ativa ? `<div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;"><a class="btn-c sm" href="${et.guia}" target="_blank" rel="noopener">${ci('guia')} Abrir guia da etapa</a>
         <a class="btn-c sm ghost" href="#manual">O que falar / não falar</a></div>` : ''}
     </section>
     ${ativa ? `<section class="glass card-c c7"><div class="sec-h"><div><h2>Entregas desta semana</h2><div class="desc">Semana ${pr?pr.semanaAtual:1} de ${et.semanas} · o time marca conforme acompanha seus posts</div></div></div>
@@ -293,7 +293,7 @@ function abaInicio(){
         ${pendentesSemana(c.etapa, pr?pr.semanaAtual:1) ? `<div class="desc" style="color:var(--c-orange); margin-top:8px;">${pendentesSemana(c.etapa, pr?pr.semanaAtual:1)} conteúdo(s) seu(s) aguardando a validação do time</div>` : ''}
         <div class="acoes" style="margin:14px 0 0;"><button class="btn-c sm" data-registrar="">+ Registrar conteúdo</button><button class="btn-c sm ghost" data-registrar="extra">+ Entrega extra</button></div>
         <div class="desc" style="margin-top:10px;">Use <strong style="color:var(--c-text);">#creatorFourLab</strong> e <strong style="color:var(--c-text);">#FourLabNutri</strong> e identifique a parceria.</div></section>
-      <section class="glass card-c c5"><div class="sec-h"><div><h2>Seu kit</h2><div class="desc">${escHtml(et.kit||'')}</div></div><span style="font-size:24px;">📦</span></div>
+      <section class="glass card-c c5"><div class="sec-h"><div><h2>Seu kit</h2><div class="desc">${escHtml(et.kit||'')}</div></div><span style="color:var(--c-orange);">${ci('caixa', 26)}</span></div>
         ${ultimoEnvio ? envioHtml(ultimoEnvio) : '<div class="vazio">Estamos separando seu kit. Assim que sair, o código de rastreio aparece aqui.</div>'}</section>` : ''}
     ${proximasDatasHtml(3)}
   </div>`;
@@ -301,15 +301,15 @@ function abaInicio(){
 function envioHtml(e){
   const st = CREATOR_ENVIO_STATUS[e.status] || CREATOR_ENVIO_STATUS.preparando;
   return `<div style="padding:4px 0;">
-    <span class="tag ${e.status==='entregue'?'ok':e.status==='enviado'?'hot':'warn'}">${e.status==='enviado' ? '🚚 Kit enviado' : e.status==='entregue' ? '✓ Recebido' : '⏳ Preparando seu kit'}</span>
+    <span class="tag ${e.status==='entregue'?'ok':e.status==='enviado'?'hot':'warn'}">${e.status==='enviado' ? ci('caminhao')+' Kit enviado' : e.status==='entregue' ? ci('check')+' Recebido' : ci('relogio')+' Preparando seu kit'}</span>
     <div style="font-weight:700; margin-top:10px;">${escHtml(e.itens||etapaInfo(e.etapa).kit||'')}</div>
     ${e.rastreio ? `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;">
         <span style="font-family:ui-monospace,monospace; font-size:16px; letter-spacing:1px; font-weight:700;">${escHtml(e.rastreio)}</span>
         <button class="btn-c sm ghost" data-copiar="${escHtml(e.rastreio)}">Copiar</button></div>
       <div class="desc" style="margin-top:6px;">${e.transportadora ? escHtml(e.transportadora) + ' · ' : ''}${e.enviado_em ? `enviado em ${fmtDateBR(e.enviado_em)}` : ''}${e.entregue_em ? ` · entregue em ${fmtDateBR(e.entregue_em)}` : ''}</div>` : ''}
-    ${e.status==='enviado' ? `<div class="kit-ok">📦 Seu kit está a caminho! Quando ele chegar, confirme aqui pra gente saber.
+    ${e.status==='enviado' ? `<div class="kit-ok">${ci('caixa')} Seu kit está a caminho! Quando ele chegar, confirme aqui pra gente saber.
         <div style="margin-top:10px;"><button class="btn-c sm" data-receber="${e.id}">Confirmar recebimento</button></div></div>` : ''}
-    ${e.status==='entregue' ? `<div class="desc" style="margin-top:8px; color:var(--c-green);">✓ Recebimento confirmado${e.entregue_em ? ` em ${fmtDateBR(e.entregue_em)}` : ''}</div>` : ''}
+    ${e.status==='entregue' ? `<div class="desc" style="margin-top:8px; color:var(--c-green);">${ci('check')} Recebimento confirmado${e.entregue_em ? ` em ${fmtDateBR(e.entregue_em)}` : ''}</div>` : ''}
   </div>`;
 }
 function proximasDatasHtml(n, cls){
@@ -333,14 +333,14 @@ const ENT_STATUS = { enviado:{label:'Em análise', cls:'warn'}, aprovado:{label:
 function metaInfo(etapa, key){ return key === 'extra' ? META_EXTRA : ((etapaInfo(etapa).metas||[]).find(m=> m.key===key) || { key, label:key, curto:key }); }
 function pendentesSemana(etapa, n){ return P.entregas.filter(e=> e.etapa===etapa && e.semana===n && e.status==='enviado').length; }
 function etapaDasEntregas(){ const c = P.creator; return ['etapa1','etapa2'].includes(c.etapa) ? c.etapa : null; }
-function icRede(link){ return /tiktok/i.test(link) ? '🎵' : /instagram/i.test(link) ? '📸' : /youtu/i.test(link) ? '▶️' : '🔗'; }
+function icRede(link){ return /tiktok/i.test(link) ? ICONS.tiktok : /instagram/i.test(link) ? ICONS.instagram : /youtu/i.test(link) ? ICONS.youtube : ci('link', 18); }
 function entregaHtml(e){
   const st = ENT_STATUS[e.status] || ENT_STATUS.enviado, m = metaInfo(e.etapa, e.meta);
   return `<div class="ent"><span class="ic">${icRede(e.link)}</span>
     <div class="info"><b>${escHtml(m.label)}</b> <span class="tag ${st.cls}" style="margin-left:6px; font-size:10.5px; padding:2px 8px;">${st.label}</span>
       <div class="desc" style="margin:2px 0 0;">${escHtml(etapaInfo(e.etapa).curto)} · semana ${e.semana} · ${fmtDateBR(e.created_at)}${e.descricao ? ` · ${escHtml(e.descricao)}` : ''}</div>
       <a href="${escHtml(e.link)}" target="_blank" rel="noopener">${escHtml(e.link.replace(/^https?:\/\/(www\.)?/,''))}</a>
-      ${e.obs_equipe ? `<div class="obs">💬 ${escHtml(e.obs_equipe)}</div>` : ''}</div>
+      ${e.obs_equipe ? `<div class="obs">${ci('chat', 13)} ${escHtml(e.obs_equipe)}</div>` : ''}</div>
     ${e.status==='enviado' ? `<button class="del" data-apagar-ent="${e.id}" title="Apagar">×</button>` : ''}</div>`;
 }
 function abaEntregas(){
@@ -359,10 +359,10 @@ function abaEntregas(){
       <div class="semanas">${Array.from({length:et.semanas}, (_,i)=>{ const n = i+1, s = semanaDe(eid, n), feito = (s||{}).feito || {};
         const atualS = eid===c.etapa && pr && pr.semanaAtual===n, cumpriu = semanaCumprida(eid, feito);
         const futura = eid===c.etapa && pr && n > pr.semanaAtual, pend = pendentesSemana(eid, n);
-        return `<div class="sem ${atualS?'atual':''}"><div class="h"><span>Semana ${n}</span>${cumpriu ? '<span class="tag ok">✓</span>' : futura ? '' : s ? '<span class="tag warn">parcial</span>' : ''}</div>
+        return `<div class="sem ${atualS?'atual':''}"><div class="h"><span>Semana ${n}</span>${cumpriu ? '<span class="tag ok">'+ci('check', 12)+'</span>' : futura ? '' : s ? '<span class="tag warn">parcial</span>' : ''}</div>
           <div class="m">${(et.metas||[]).map(m=>`${Math.min(Number(feito[m.key])||0, m.qtd)}/${m.qtd} ${escHtml(m.curto)}`).join('<br>')}</div>
           ${pend ? `<div class="env">${pend} em análise</div>` : ''}
-          ${s && s.obs ? `<div class="m" style="color:var(--c-text);">💬 ${escHtml(s.obs)}</div>` : ''}</div>`; }).join('')}</div>
+          ${s && s.obs ? `<div class="m" style="color:var(--c-text);">${ci('chat', 12)} ${escHtml(s.obs)}</div>` : ''}</div>`; }).join('')}</div>
     </section>`; }).join('')}
     <div class="p-grid">
       <section class="glass card-c c7"><div class="sec-h"><div><h2>Conteúdos registrados</h2><div class="desc">${normais.length} conteúdo(s) das entregas mínimas</div></div></div>
@@ -427,7 +427,7 @@ function abaCupons(){
           <div style="margin-top:12px;"><button class="btn-c sm" data-copiar="${escHtml(c.cupom_pessoal)}">Copiar cupom</button></div></div>`
         : '<div class="vazio">Seu cupom pessoal está sendo criado pelo time. Ele aparece aqui quando estiver ativo.</div>'}
     </section>
-    <section class="glass card-c"><div class="desc" style="margin:0;">⚠️ Não publique preços, descontos, condições ou comissões sem confirmar com o time FourLab.</div></section>
+    <section class="glass card-c"><div class="desc" style="margin:0;">${ci('alerta')} Não publique preços, descontos, condições ou comissões sem confirmar com o time FourLab.</div></section>
   </div>`;
 }
 function eventosCalendario(){
@@ -449,11 +449,11 @@ function abaSugestoes(){
   const tipos = [...new Set(P.sugestoes.map(x=> x.tipo))];
   const lista = P.sugestoes.filter(x=> !P.filtroSug || x.tipo === P.filtroSug);
   if(!P.sugestoes.length) return `<section class="glass card-c"><h2>Sugestões de conteúdo</h2><div class="vazio" style="margin-top:8px;">Em breve o time FourLab publica aqui ideias de conteúdo prontas pra você gravar.</div></section>`;
-  return `<div class="filtros"><button data-fsug="" class="${!P.filtroSug?'active':''}">Todas</button>${tipos.map(t=>`<button data-fsug="${escHtml(t)}" class="${P.filtroSug===t?'active':''}">${tipoSugestao(t).emoji} ${escHtml(tipoSugestao(t).curto||tipoSugestao(t).label)}</button>`).join('')}</div>
+  return `<div class="filtros"><button data-fsug="" class="${!P.filtroSug?'active':''}">Todas</button>${tipos.map(t=>`<button data-fsug="${escHtml(t)}" class="${P.filtroSug===t?'active':''}">${iconeSugestao(t)} ${escHtml(tipoSugestao(t).curto||tipoSugestao(t).label)}</button>`).join('')}</div>
     <div class="sug-grid">${lista.map((x, i)=>{ const t = tipoSugestao(x.tipo), capa = capaDaSugestao(x), dif = SUGESTAO_DIFICULDADE[x.dificuldade] || SUGESTAO_DIFICULDADE.facil;
       return `<article class="glass sug" data-sug="${x.id}" tabindex="0">
-        <div class="capa" ${capa ? `style="background-image:url('${escHtml(capa)}')"` : ''}>${capa ? '' : t.emoji}
-          <div class="tags"><span class="tag">${t.emoji} ${escHtml(t.curto||t.label)}</span>${x.fixada?'<span class="tag hot">📌 Destaque</span>':''}</div></div>
+        <div class="capa" ${capa ? `style="background-image:url('${escHtml(capa)}')"` : ''}>${capa ? '' : ci(CR_ICONE_SUGESTAO[x.tipo] || 'brilho', 46)}
+          <div class="tags"><span class="tag">${iconeSugestao(x.tipo)} ${escHtml(t.curto||t.label)}</span>${x.fixada?'<span class="tag hot">'+ci('pin', 12)+' Destaque</span>':''}</div></div>
         <div class="corpo"><div class="tt">${escHtml(x.titulo||'Sem título')}</div>${x.objetivo?`<div class="ds">${escHtml(x.objetivo)}</div>`:''}
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:auto; padding-top:8px;"><span class="tag">${dif.label}</span>${x.produto?`<span class="tag">${escHtml(x.produto)}</span>`:''}</div></div>
       </article>`; }).join('')}</div>`;
@@ -463,14 +463,14 @@ function abrirSugestao(id){
   const t = tipoSugestao(x.tipo), dif = SUGESTAO_DIFICULDADE[x.dificuldade] || SUGESTAO_DIFICULDADE.facil, passos = passosDaSugestao(x);
   const refs = String(x.referencias||'').split('\n').map(l=>l.trim()).filter(Boolean);
   $('modalCaixa').innerHTML = `<button class="fechar" id="fecharModal" aria-label="Fechar">&times;</button>
-    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"><span class="tag hot">${t.emoji} ${escHtml(t.label)}</span><span class="tag">${dif.label}</span>${x.produto?`<span class="tag">${escHtml(x.produto)}</span>`:''}</div>
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"><span class="tag hot">${iconeSugestao(x.tipo)} ${escHtml(t.label)}</span><span class="tag">${dif.label}</span>${x.produto?`<span class="tag">${escHtml(x.produto)}</span>`:''}</div>
     <h2 style="font-size:clamp(22px, 3.4vw, 32px); padding-right:40px;">${escHtml(x.titulo||'Sem título')}</h2>
     ${x.objetivo ? `<p style="color:var(--c-muted); margin:10px 0 0;">${escHtml(x.objetivo)}</p>` : ''}
     ${passos.length ? `<div class="sec-mini">Passo a passo · ${passos.length} ${passos.length===1 ? t.passo.toLowerCase() : t.plural}</div>
       <div class="telas">${passos.map((p, i)=>`<div class="tela"><div class="img" style="aspect-ratio:${t.proporcao}; ${p.imagem?`background-image:url('${escHtml(p.imagem)}')`:''}">${p.imagem?'':`${t.passo} ${i+1}`}</div>
-        <div class="tx"><b>${t.passo} ${i+1}</b>${p.texto?`<div style="margin-top:4px;">${escHtml(p.texto)}</div>`:''}${p.dica?`<div class="dica">💡 ${escHtml(p.dica)}</div>`:''}</div></div>`).join('')}</div>` : ''}
+        <div class="tx"><b>${t.passo} ${i+1}</b>${p.texto?`<div style="margin-top:4px;">${escHtml(p.texto)}</div>`:''}${p.dica?`<div class="dica">${ci('lampada', 13)} ${escHtml(p.dica)}</div>`:''}</div></div>`).join('')}</div>` : ''}
     ${x.roteiro ? `<div class="sec-mini" style="display:flex; justify-content:space-between; align-items:center;">Roteiro / texto <button class="btn-c sm ghost" id="copiarRoteiro">Copiar</button></div><div class="roteiro-c">${textoRicoHtml(x.roteiro)}</div>` : ''}
-    ${refs.length ? `<div class="sec-mini">Inspirações</div>${refs.map(r=> /^https?:\/\//.test(r) ? `<div style="margin:4px 0;"><a href="${escHtml(r)}" target="_blank" rel="noopener">🔗 ${escHtml(r.replace(/^https?:\/\/(www\.)?/,''))}</a></div>` : `<div style="margin:4px 0;">• ${escHtml(r)}</div>`).join('')}` : ''}
+    ${refs.length ? `<div class="sec-mini">Inspirações</div>${refs.map(r=> /^https?:\/\//.test(r) ? `<div style="margin:4px 0;"><a href="${escHtml(r)}" target="_blank" rel="noopener">${ci('link', 13)} ${escHtml(r.replace(/^https?:\/\/(www\.)?/,''))}</a></div>` : `<div style="margin:4px 0;">• ${escHtml(r)}</div>`).join('')}` : ''}
     <div style="margin-top:22px; font-size:12.5px; color:var(--c-muted);">Lembre do <a href="#manual">manual da marca</a> e das hashtags #creatorFourLab #FourLabNutri.</div>`;
   $('modalC').classList.add('on');
   const fechar = ()=> $('modalC').classList.remove('on');
@@ -481,33 +481,33 @@ function abrirSugestao(id){
 function abaManual(){
   const c = P.creator;
   return `<div class="p-grid manual">
-    <section class="glass card-c c6"><h3>🎥 O que mostrar</h3>
+    <section class="glass card-c c6"><h3>${ci('video', 20)} O que mostrar</h3>
       <ul><li>Preparação para os treinos</li><li>O que leva para uma prova</li><li>Organização da mochila, bike ou equipamentos</li>
         <li>Uso dos produtos antes, durante ou depois do treino</li><li>Sua experiência com os sabores, praticidade e preparo</li>
         <li>Bastidores e dúvidas da sua comunidade</li><li>Como organiza sua estratégia de hidratação e carboidratos</li></ul>
       <div class="destaque">Não queremos transformar o seu perfil em um catálogo da FourLab. Queremos ver o seu esporte, a sua rotina inserida naturalmente na sua história.</div></section>
-    <section class="glass card-c c6"><h3>⚠️ Termos proibidos</h3>
+    <section class="glass card-c c6"><h3>${ci('alerta', 20)} Termos proibidos</h3>
       <ul><li>Não faça promessas de resultados que o produto não oferece.</li><li>Não diga que o produto garante melhora de performance.</li>
         <li>Não invente benefícios.</li><li>Não altere informações nutricionais ou técnicas.</li>
         <li>Não atribua ao produto prevenção, tratamento ou cura de doenças.</li><li>Não crie protocolos ou recomendações técnicas sem respaldo.</li>
         <li>Não recomende o produto para tratar sintomas ou condições de saúde.</li><li>Não apresente como experiência própria algo que você não viveu.</li>
         <li>Não compare a FourLab com concorrentes sem autorização.</li><li>Não publique preços, descontos, condições ou comissões sem confirmar.</li></ul>
       <div class="destaque">Se tiver dúvida sobre uma informação, pergunte ao time FourLab antes de publicar.</div></section>
-    <section class="glass card-c c6"><h3>📱 Padrão das gravações</h3>
+    <section class="glass card-c c6"><h3>${ci('celular', 20)} Padrão das gravações</h3>
       <ul><li>Grave preferencialmente em formato vertical 9:16.</li><li>Priorize boa iluminação.</li><li>Utilize áudio claro.</li>
         <li>Evite vento e ruídos excessivos.</li><li>Mostre a embalagem corretamente.</li><li>Deixe a marca visível quando o produto estiver em destaque.</li>
         <li>Adicione na edição legendas quando houver fala.</li><li>Evite filtros que alterem as cores da embalagem.</li>
         <li>Não utilize marca d'água de outra plataforma.</li><li>Preserve o seu estilo de conteúdo.</li></ul></section>
-    <section class="glass card-c c6"><h3>🤝 Identificação da parceria</h3>
+    <section class="glass card-c c6"><h3>${ci('parceria', 20)} Identificação da parceria</h3>
       <p style="margin:0 0 10px; font-size:14.5px;">Quando o conteúdo envolver recebimento de produto, comissão, cupom ou qualquer benefício, siga as orientações de identificação publicitária da plataforma e do time FourLab.</p>
       <p style="margin:0; font-size:14.5px;">Quando aplicável, use as ferramentas de parceria paga e as hashtags:</p>
       <div style="font-family:var(--c-font-title); font-weight:800; font-size:18px; margin-top:10px;"><span class="grad-text">#creatorFourLab</span> &nbsp; <span class="grad-text">#FourLabNutri</span></div>
       <div class="destaque">A recomendação deve ser transparente para a sua comunidade.</div></section>
-    ${c.etapa==='etapa2' || P.semanas.some(s=>s.etapa==='etapa2') ? `<section class="glass card-c"><h3>💬 Conteúdo de comunidade (Etapa 02)</h3>
+    ${c.etapa==='etapa2' || P.semanas.some(s=>s.etapa==='etapa2') ? `<section class="glass card-c"><h3>${ci('chat', 20)} Conteúdo de comunidade (Etapa 02)</h3>
       <ul><li>Caixa de perguntas</li><li>Enquete sobre sabores</li><li>Resposta a uma dúvida real</li><li>Comentário sobre o produto depois do treino</li>
         <li>Demonstração do preparo</li><li>Recomendação baseada na sua própria experiência</li><li>Lembrete do seu cupom quando fizer sentido</li></ul>
       <div class="destaque">Em vez de dizer "esse produto vai melhorar sua performance", explique como ele entrou na sua rotina e qual foi a sua experiência pessoal.</div></section>` : ''}
-    <section class="glass card-c"><h3>📘 Guias em PDF</h3><div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <section class="glass card-c"><h3>${ci('guia', 20)} Guias em PDF</h3><div style="display:flex; gap:10px; flex-wrap:wrap;">
       <a class="btn-c sm ghost" href="assets/creators/programa-creators.pdf" target="_blank" rel="noopener">Programa Creators</a>
       <a class="btn-c sm ghost" href="assets/creators/guia-etapa-01.pdf" target="_blank" rel="noopener">Guia Etapa 01</a>
       ${['etapa2','oficial'].includes(c.etapa) ? '<a class="btn-c sm ghost" href="assets/creators/guia-etapa-02.pdf" target="_blank" rel="noopener">Guia Etapa 02</a>' : ''}</div></section>
@@ -539,7 +539,7 @@ function render(){
     const { error } = await sb.rpc('confirmar_recebimento_kit', { p_envio: b.dataset.receber });
     if(error){ b.disabled = false; toastC(error.message || 'Não foi possível confirmar.'); return; }
     const e = P.envios.find(x=> x.id === b.dataset.receber); if(e){ e.status = 'entregue'; e.entregue_em = todayISO(); }
-    toastC('Recebimento confirmado! Bons treinos 🧡'); CrMotion.confete(); render();
+    toastC('Recebimento confirmado! Bons treinos!'); CrMotion.confete(); render();
   });
   const fc = $('formCupom');
   if(fc) fc.onsubmit = async (ev)=>{
