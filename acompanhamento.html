@@ -63,7 +63,7 @@ function viewAcompanhamento(){
   if(!cycle.entries.length) return `<div class="panel"><div class="empty-state"><div class="big">📋</div>Nenhum post gerado para ${fmtMonthLabel(ym)} ainda.<br>Vá em "Mês / Roteiros" pra montar o calendário primeiro.</div></div>`;
   return `<div class="panel"><div class="row" style="justify-content:space-between;">
       <div><h2>Acompanhamento — ${fmtMonthLabel(ym)}</h2><div class="desc">Marque quem postou, se aceitou collab, e as métricas. Na coluna Roteiro dá pra abrir e editar o que já foi enviado — fica marcado como alterado.</div></div>
-      <input type="month" id="acMonth" value="${ym}" style="width:auto;"></div></div>
+      <div class="row" style="gap:8px;"><button class="btn btn-ghost btn-sm" id="btnManager">Roteiros p/ manager</button><input type="month" id="acMonth" value="${ym}" style="width:auto;"></div></div></div>
   <div class="panel" style="overflow-x:auto;"><table style="min-width:1100px;">
     <thead><tr><th>Atleta</th><th>Roteiro</th><th>Data</th><th>Postou?</th><th>Collab?</th><th>Visualiz.</th><th>Curtidas</th><th>Coment.</th><th>Compart.</th><th>Salvos</th><th>Obs</th></tr></thead>
     <tbody>${cycle.entries.map(e=>{
@@ -91,6 +91,7 @@ function wire(){
     await carregarMes(State.currentCycleYM); render();
   };
   ligarBotoesRoteiro(document);
+  document.getElementById('btnManager').onclick = ()=> abrirManager(State.currentCycleYM);
   document.querySelectorAll('[data-cobrar]').forEach(b=> b.onclick = ()=> abrirCobranca(State.athletes.find(x=>x.id===b.dataset.cobrar)));
   document.getElementById('btnSalvarAcompanhamento').onclick = async ()=>{
     const rows = Array.from(document.querySelectorAll('[data-entry-row]'));
