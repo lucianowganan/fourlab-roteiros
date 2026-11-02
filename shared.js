@@ -1305,7 +1305,7 @@ async function abrirCobranca(a){
   const ym = monthKey(todayISO());
   const [{ data: salvos }, { data: ent }] = await Promise.all([
     sb.from('cobranca_modelos').select('*'),
-    sb.from('entries').select('*').eq('athlete_id', a.id).gte('post_date', ym+'-01').lte('post_date', ym+'-31').order('post_date'),
+    sb.from('entries').select('*').eq('athlete_id', a.id).gte('post_date', ym+'-01').lt('post_date', addMonths(ym,1)+'-01').order('post_date'),
   ]);
   const modelos = {}; Object.entries(MODELOS_COBRANCA).forEach(([k,m])=> modelos[k] = {...m});
   (salvos||[]).forEach(m=>{ if(modelos[m.id]) modelos[m.id].texto = m.texto; });
@@ -1340,7 +1340,7 @@ async function abrirCobranca(a){
 const MODELO_MANAGER = 'Oi! Seguem em anexo os roteiros de {mes} da equipe {equipe}, com a data de cada atleta. Qualquer ajuste é só falar! 🙌';
 async function abrirManager(ym0){
   const ym = ym0 || monthKey(todayISO());
-  const { data: ent } = await sb.from('entries').select('*, athletes(name)').gte('post_date', ym+'-01').lte('post_date', ym+'-31').order('post_date');
+  const { data: ent } = await sb.from('entries').select('*, athletes(name)').gte('post_date', ym+'-01').lt('post_date', addMonths(ym,1)+'-01').order('post_date');
   const lista = (ent||[]).filter(e=> (e.roteiro||'').trim());
   const equipes = [...new Set(lista.map(e=>e.team).filter(Boolean))];
   const { data: sv } = await sb.from('cobranca_modelos').select('texto').eq('id','manager').maybeSingle();
