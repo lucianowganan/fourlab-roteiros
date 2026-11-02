@@ -21,18 +21,18 @@ function esportesLabel(c){
 
 // Entregas mínimas por semana (iguais aos guias em PDF). A equipe marca semana a semana.
 const CREATOR_ETAPAS = {
-  contato: { label:'Contato recebido', curto:'Contato', ic:'✉', bg:'#efebe6', fg:'var(--ink-2)' },
-  etapa1: { label:'Etapa 01 · 30 dias', curto:'Etapa 01', nome:'Experiência', ic:'🔒', bg:'#fde0ea', fg:'var(--pink)', dias:30, semanas:4,
+  contato: { label:'Contato recebido', curto:'Contato', ic:'email', bg:'#efebe6', fg:'var(--ink-2)' },
+  etapa1: { label:'Etapa 01 · 30 dias', curto:'Etapa 01', nome:'Experiência', ic:'cadeado', bg:'#fde0ea', fg:'var(--pink)', dias:30, semanas:4,
     guia:'assets/creators/guia-etapa-01.pdf',
     kit:'1x Display Energy Gel + 1x Caixa Na.K+ Hidratação',
     metas:[ {key:'video', label:'Vídeo (TikTok e Instagram)', curto:'Vídeo', qtd:1}, {key:'stories', label:'Stories (TikTok e Instagram)', curto:'Stories', qtd:3} ] },
-  etapa2: { label:'Etapa 02 · 60 dias', curto:'Etapa 02', nome:'Evolução', ic:'♥', bg:'#fdebdc', fg:'var(--orange)', dias:60, semanas:8,
+  etapa2: { label:'Etapa 02 · 60 dias', curto:'Etapa 02', nome:'Evolução', ic:'coracao', bg:'#fdebdc', fg:'var(--orange)', dias:60, semanas:8,
     guia:'assets/creators/guia-etapa-02.pdf',
     kit:'1x Display Energy Gel + 1x Energy Gel Refil 500g + 1x Squeeze FourLab Go + 2x Caixa Na.K+ Hidratação',
     metas:[ {key:'tiktok', label:'Vídeos TikTok (Carrinho Laranja)', curto:'TikTok', qtd:3}, {key:'instagram', label:'Vídeo Instagram', curto:'Instagram', qtd:1}, {key:'stories', label:'Stories (TikTok e Instagram)', curto:'Stories', qtd:3} ] },
-  oficial: { label:'Creator Oficial', curto:'Oficial', ic:'⚡', bg:'#f1e3f0', fg:'var(--purple)' },
-  recusado: { label:'Não aprovado', curto:'Recusado', ic:'✕', bg:'#f3eeee', fg:'var(--muted)' },
-  encerrado: { label:'Encerrado', curto:'Encerrado', ic:'■', bg:'#f3eeee', fg:'var(--muted)' },
+  oficial: { label:'Creator Oficial', curto:'Oficial', ic:'raio', bg:'#f1e3f0', fg:'var(--purple)' },
+  recusado: { label:'Não aprovado', curto:'Recusado', ic:'x', bg:'#f3eeee', fg:'var(--muted)' },
+  encerrado: { label:'Encerrado', curto:'Encerrado', ic:'x', bg:'#f3eeee', fg:'var(--muted)' },
 };
 const CREATOR_FUNIL = ['contato','etapa1','etapa2','oficial'];
 const CREATOR_ENVIO_STATUS = {
@@ -141,3 +141,45 @@ function calendarioMesHtml(eventos, ym, opts){
     <div class="cal-leg">${Object.entries(CAL_TIPOS).filter(([k])=> k!=='etapa' || opts.comEtapa).map(([k,t])=>`<span><i style="background:${t.cor}"></i>${t.label}</span>`).join('')}</div>
   </div>`;
 }
+
+/* ---------- Ícones desenhados do Programa Creators (no lugar de emojis) ----------
+   Traço fino, herdam a cor do texto (currentColor). Uso: ci('caixa') ou ci('caixa', 20). */
+const CR_ICONES = {
+  guia:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M8 7h7"/>',
+  caixa:'<path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="m3 7.5 9 4.5 9-4.5M12 12v9"/>',
+  caminhao:'<path d="M2 6h11v10H2zM13 9h4l4 4v3h-8z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>',
+  check:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  relogio:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  chat:'<path d="M4 5h16v11H9l-5 4z"/>',
+  alerta:'<path d="M12 3 2 20h20z"/><path d="M12 10v4M12 17h.01"/>',
+  pin:'<path d="M9 3h6l-1 6 3 3H7l3-3zM12 12v9"/>',
+  lampada:'<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1.1 1.3 1.1 2.2h5c0-.9.5-1.7 1.1-2.2A6 6 0 0 0 12 3z"/>',
+  video:'<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/>',
+  celular:'<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+  parceria:'<path d="m3 12 4-4 5 2 5-2 4 4-7 7z"/><path d="m9 13 3 3"/>',
+  email:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  raio:'<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
+  cadeado:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  coracao:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>',
+  brilho:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  chave:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
+  seta:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  seta_fora:'<path d="M7 17 17 7M8 7h9v9"/>',
+  seta_desce:'<path d="M7 7l10 10M17 8v9H8"/>',
+  ferramenta:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
+  filme:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  imagens:'<rect x="3" y="5" width="15" height="13" rx="2"/><path d="M21 8v12H7"/><path d="m3 15 4-4 4 4 3-3 4 4"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  musica:'<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  porcento:'<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+  play:'<rect x="3" y="5" width="18" height="14" rx="4"/><path d="m10 9 5 3-5 3z"/>',
+};
+function ci(nome, tam){
+  tam = tam || 16;
+  return `<svg class="ci" viewBox="0 0 24 24" width="${tam}" height="${tam}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-0.18em; flex:none;">${CR_ICONES[nome] || CR_ICONES.brilho}</svg>`;
+}
+// ícone de cada tipo de sugestão de conteúdo
+const CR_ICONE_SUGESTAO = { reels:'filme', stories:'celular', carrossel:'imagens', post:'camera', tiktok:'musica', outro:'brilho' };
+function iconeSugestao(tipo){ return ci(CR_ICONE_SUGESTAO[tipo] || 'brilho'); }
