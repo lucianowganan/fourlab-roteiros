@@ -727,7 +727,9 @@ async function carregarDashboardVendas(cupomCode, ym, descontoCupomPct, comissao
       buscarVendasYampi(cupomCode, ym, descontoCupomPct, comissaoPct),
       buscarVendasYampi(cupomCode, addMonths(ym, -1), descontoCupomPct, comissaoPct).catch(err=>{ console.warn('mês anterior', err); return null; }),
     ]);
-    container.innerHTML = dashboardVendasHtml(data, Object.assign({cupom:cupomCode, ym, descontoPct:descontoCupomPct, comissaoPct}, opts||{}, {prev: vendaParaLinha(prevData)}));
+    container.innerHTML = dashboardVendasHtml(data, Object.assign({cupom:cupomCode, ym, descontoPct:descontoCupomPct, comissaoPct}, opts||{}, {prev: vendaParaLinha(prevData)}))
+      + `<div id="${containerId}Produtos"></div>`;
+    carregarProdutosVendidos(cupomCode, ym, containerId+'Produtos', opts||{});
     return data;
   }catch(err){
     console.error(err);
@@ -1369,4 +1371,28 @@ async function abrirManager(ym0){
       ${itens.map(e=>`<div class="rt"><h2>${escHtml(e.athletes?.name||'')} — ${fmtDateBR(e.post_date)}</h2><div class="meta">${escHtml(e.product===SEM_PRODUTO?'Tema livre':e.product)} · ${escHtml(e.format)}</div>${textoRicoHtml(e.roteiro)}</div>`).join('')}
       <script>window.onload=()=>window.print()<\/script></body></html>`);
     w.document.close(); };
+}
+
+/* ---------- Produtos vendidos pelo cupom (o que as pessoas compraram) x o que o atleta falou nos roteiros do mês ---------- */
+async function carregarProdutosVendidos(cupom, ym, containerId, opts){
+  const el = document.getElementById(containerId); if(!el) return;
+  el.innerHTML = '<div class="panel"><div style="color:var(--muted); font-size:12px;"><span class="loader" style="border-top-color:var(--orange); border-color:rgba(0,0,0,0.1);"></span> Buscando os produtos dos pedidos…</div></div>';
+  try{
+    const [{ data, error }, cat, ro] = await Promise.all([
+      invocarFuncao('yampi-compras-atleta', { vendas:true, cupom, ym }),
+      sb.from('products').select('id, name'),
+      opts.athleteId ? sb.from('entries').select('product, post_date').eq('athlete_id', opts.athleteId).gte('post_date', ym+'-01').lt('post_date', addMonths(ym,1)+'-01') : Promise.resolve({data:[]}),
+    ]);
+    if(error) throw error; if(data?.error) throw new Error(data.error);
+    const produtos = cat.data || [], falados = new Set((ro.data||[]).map(e=>e.product).filter(p=> p && p!==SEM_PRODUTO));
+    const grupos = {};   // junta sabores/tamanhos no produto do catálogo
+    (data.produtos||[]).forEach(p=>{ const c = produtoDoCatalogo(p.nome, produtos), k = c ? c.name : p.nome; (grupos[k] = grupos[k] || {nome:k, quantidade:0, pedidos:0, falado: c && falados.has(c.name)}); grupos[k].quantidade += p.quantidade; grupos[k].pedidos += p.pedidos; });
+    const lista = Object.values(grupos).sort((a,b)=> b.quantidade - a.quantidade), max = Math.max(1, ...lista.map(x=>x.quantidade));
+    el.innerHTML = `<div class="panel"><div class="card-head"><div><h2>Produtos que as pessoas compraram</h2><div class="desc">${data.totalPedidos} pedido(s) com este cupom em ${fmtMonthLabel(ym)}${falados.size ? ` · roteiros do mês: <strong style="color:var(--ink);">${[...falados].map(escHtml).join(', ')}</strong>` : ''}</div></div><span class="ic-bubble">${ICONS.cart}</span></div>
+      ${lista.length ? lista.map(x=>`<div style="display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #f3eee8; font-size:13px;">
+        <div style="width:170px; min-width:110px; font-weight:600;">${escHtml(x.nome)}${x.falado ? ' <span class="chip static" style="color:var(--green); border-color:#bfe6cd; padding:1px 7px; font-size:10.5px;">falou</span>' : ''}</div>
+        <div class="progress" style="flex:1; height:8px;"><div style="width:${x.quantidade/max*100}%;"></div></div>
+        <div style="width:110px; text-align:right; color:var(--muted);"><strong style="color:var(--ink);">${x.quantidade}</strong> un. · ${x.pedidos} ped.</div></div>`).join('') : '<div class="empty-state" style="padding:18px;">Nenhum pedido neste mês.</div>'}
+      ${(data.pedidos||[]).length ? `<details style="margin-top:12px;"><summary style="cursor:pointer; font-size:12.5px; font-weight:700;">Ver por pedido</summary>${data.pedidos.map(p=>`<div style="font-size:12.5px; padding:6px 0; border-bottom:1px solid #f3eee8;"><strong>#${escHtml(p.numero)}</strong> · ${fmtDateBR(p.data)} — ${p.itens.map(i=>`${escHtml(i.nome)} ×${i.quantidade}`).join(', ')}</div>`).join('')}</details>` : ''}</div>`;
+  }catch(err){ el.innerHTML = `<div class="panel"><div style="color:#b5680a; font-size:12.5px;">Não consegui buscar os produtos dos pedidos: ${escHtml(err.message||err)}${/não respondeu|Failed to send/i.test(err.message||'') ? '' : ' (publique de novo a função yampi-compras-atleta)'}</div></div>`; }
 }
