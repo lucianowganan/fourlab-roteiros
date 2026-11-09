@@ -178,7 +178,7 @@ function disparar(){
   const a = athletes.find(x=>x.id===atletaSel);
   const box = document.getElementById('vendasEquipeDashboard');
   if(!a || !a.cupomYampi){ box.innerHTML = ''; return; }
-  carregarDashboardVendas(a.cupomYampi, ym, a.descontoCupomPct, a.comissaoPct, 'vendasEquipeDashboard', {titulo:`Vendido por ${a.name}`, semComissao:!a.recebeComissao});
+  carregarDashboardVendas(a.cupomYampi, ym, a.descontoCupomPct, a.comissaoPct, 'vendasEquipeDashboard', {titulo:`Vendido por ${a.name}`, semComissao:!a.recebeComissao, athleteId:a.id});
 }
 function render(){
   document.getElementById('main').innerHTML = viewVendas();

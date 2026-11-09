@@ -134,8 +134,33 @@ Deno.serve(async (req) => {
     });
     const quem = await identificar(req, admin);
     if ("erro" in quem) return responder({ error: quem.erro });
-    if (!(await ehEquipe(admin, quem.id))) return responder({ error: "Só a equipe FourLab pode buscar as compras dos atletas." });
     const body = await req.json().catch(() => ({}));
+    const equipe = await ehEquipe(admin, quem.id);
+
+    // Produtos vendidos pelo cupom (comissão) em um mês: a equipe consulta qualquer cupom; o atleta só o dele
+    if (body.vendas) {
+      let cupom = normalizar(body.cupom);
+      if (!equipe) {
+        const { data: a } = await admin.from("athletes").select("cupom_yampi").eq("auth_user_id", quem.id).maybeSingle();
+        cupom = normalizar(a?.cupom_yampi);
+      }
+      const ym = /^\d{4}-\d{2}$/.test(String(body.ym)) ? String(body.ym) : new Date().toISOString().slice(0, 7);
+      if (!cupom) return responder({ error: "Cupom não informado." });
+      const [y, m] = ym.split("-").map(Number), fimMes = new Date(y, m, 0).getDate();
+      let pedidos: Json[] = [];
+      try { pedidos = await pedidosDoPeriodo(`${ym}-01`, `${ym}-${String(fimMes).padStart(2, "0")}`); }
+      catch (e) { return responder({ error: (e as Error).message }); }
+      const dele = pedidos.filter((p) => pedidoValido(p) && cupomDoPedido(p) === cupom);
+      const agreg = new Map<string, { nome: string; quantidade: number; pedidos: number }>();
+      for (const p of dele) for (const it of itensDoPedido(p)) {
+        const k = it.nome.toLowerCase(), g = agreg.get(k) || { nome: it.nome, quantidade: 0, pedidos: 0 };
+        g.quantidade += it.quantidade; g.pedidos += 1; agreg.set(k, g);
+      }
+      return responder({ produtos: [...agreg.values()].sort((x, y) => y.quantidade - x.quantidade), totalPedidos: dele.length,
+        pedidos: dele.map((p) => ({ numero: p.number || p.id, data: dataDoPedido(p), itens: itensDoPedido(p) })) });
+    }
+
+    if (!equipe) return responder({ error: "Só a equipe FourLab pode buscar as compras dos atletas." });
 
     const meses = Math.min(12, Math.max(1, parseInt(body.meses) || 6));
     const fim = new Date(), inicio = new Date(); inicio.setMonth(inicio.getMonth() - meses);

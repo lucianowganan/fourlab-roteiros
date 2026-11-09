@@ -102,7 +102,7 @@ function atualizarHistorico(){
 }
 function render(){
   document.getElementById('main').innerHTML = viewVendas();
-  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard', {soVolume: vendasSoVolume(athlete)});
+  carregarDashboardVendas(athlete.cupomYampi, mesSel, athlete.descontoCupomPct, athlete.comissaoPct, 'athleteVendasDashboard', {soVolume: vendasSoVolume(athlete), athleteId: athlete.id});
   document.getElementById('athleteVendasMonth').onchange = (e)=>{ if(!e.target.value) return; mesSel = e.target.value; render(); };
 }
 (async function start(){
