@@ -39,11 +39,22 @@ async function carregarMes(ym){
   const { data: entriesData } = await sb.from('entries').select('*').eq('cycle_id', cycleRow.id);
   State.cycle = { ym, id:cycleRow.id, entries:(entriesData||[]).map(mapEntryFromDB) };
 }
+// "1.500", "1,5k", "2 mil" etc. viram número inteiro; texto sem número vira 0
+function numeroMetrica(v){
+  let t = String(v ?? '').trim().toLowerCase().replace(/\s/g,'');
+  if(!t) return 0;
+  const mult = /(mil|k)$/.test(t) ? 1000 : /m$/.test(t) ? 1000000 : 1;
+  t = t.replace(/(mil|k|m)$/,'');
+  t = mult > 1 ? t.replace(',', '.') : t.replace(/\./g,'').replace(',', '.');
+  const n = Math.round(parseFloat(t) * mult);
+  return Number.isFinite(n) ? n : 0;
+}
 async function persistOneEntry(entry){
-  await sb.from('entries').update({ postou:entry.status?.postou||null, collab:entry.status?.collab||null, obs:entry.status?.obs||'',
-    metric_views:entry.status?.metrics?.views||0, metric_likes:entry.status?.metrics?.likes||0,
-    metric_comments:entry.status?.metrics?.comments||0, metric_shares:entry.status?.metrics?.shares||0, metric_saves:entry.status?.metrics?.saves||0
-  }).eq('id', entry.id);
+  const m = entry.status?.metrics || {};
+  const { error } = await sb.from('entries').update({ postou:entry.status?.postou||null, collab:entry.status?.collab||null, obs:entry.status?.obs||'',
+    metric_views:numeroMetrica(m.views), metric_likes:numeroMetrica(m.likes), metric_comments:numeroMetrica(m.comments),
+    metric_shares:numeroMetrica(m.shares), metric_saves:numeroMetrica(m.saves) }).eq('id', entry.id);
+  if(error) throw error;
 }
 function athleteName(id){ const a = State.athletes.find(x=>x.id===id); return a?a.name:'(removido)'; }
 
@@ -105,8 +116,8 @@ function wire(){
           comments: row.querySelector('.st-comments').value, shares: row.querySelector('.st-shares').value, saves: row.querySelector('.st-saves').value } };
       touched.push(e);
     });
-    for(const e of touched) await persistOneEntry(e);
-    toast('Acompanhamento salvo');
+    try{ for(const e of touched) await persistOneEntry(e); toast('Acompanhamento salvo'); }
+    catch(err){ erroBanco(err); }
   };
 }
 function render(){ if(!State.cycle.entries.length){ document.getElementById('main').innerHTML = viewAcompanhamento(); return; } document.getElementById('main').innerHTML = viewAcompanhamento(); wire(); }
